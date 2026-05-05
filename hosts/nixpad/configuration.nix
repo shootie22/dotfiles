@@ -4,6 +4,13 @@
 
 { config, pkgs, ... }:
 
+let
+  # Pull a few packages from the nixos-unstable channel while keeping the same
+  # nixpkgs config/overlays as the stable `pkgs`.
+  unstable = import <nixos-unstable> {
+    inherit (pkgs) system overlays config;
+  };
+in
 {
   imports =
     [ 
@@ -154,13 +161,13 @@
   librewolf
   fastfetch
   element-desktop
-  #sone
+  #unstable.sone
 
   # Games
   superTuxKart
 
   # Development
-  codex
+  unstable.codex
 
   # Hyprland stuff
   kitty
