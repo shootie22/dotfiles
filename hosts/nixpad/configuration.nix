@@ -159,6 +159,9 @@
   # Games
   superTuxKart
 
+  # Development
+  codex
+
   # Hyprland stuff
   kitty
   waybar
