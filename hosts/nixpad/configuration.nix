@@ -168,6 +168,7 @@ in
 
   # Development
   unstable.codex
+  gitui
 
   # Hyprland stuff
   kitty
