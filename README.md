@@ -47,8 +47,14 @@ home/
     hypr/
       hyprland.conf
       hyprpaper.conf
+    kitty/
+      kitty.conf
     waybar/
       config
+    wallpapers/
+      wallhaven-21dw6m.jpg
+      wallhaven-3q5ex3.jpg
+      wallhaven-zpqzzv.jpg
 ```
 
 ## Notes
@@ -61,13 +67,17 @@ Home Manager user configuration lives in `home/bro/home.nix`.
 home-manager.users.bro = import ../../home/bro/home.nix;
 ```
 
-Hyprland and Waybar still read their normal live paths under `~/.config`, but
+Hyprland, Kitty, and Waybar still read their normal live paths under `~/.config`, but
 Home Manager creates those files from the tracked repo files:
 
 ```text
 ~/.config/hypr/hyprland.conf  <- home/bro/hypr/hyprland.conf
 ~/.config/hypr/hyprpaper.conf <- home/bro/hypr/hyprpaper.conf
+~/.config/kitty/kitty.conf    <- home/bro/kitty/kitty.conf
 ~/.config/waybar/config       <- home/bro/waybar/config
 ```
+
+Wallpapers are tracked under `home/bro/wallpapers/` and exposed by Home Manager
+at `~/.local/share/wallpapers/`.
 
 </details>
