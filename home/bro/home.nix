@@ -10,6 +10,8 @@
     "waybar/config".source = ./waybar/config;
   };
 
+  xdg.dataFile."wallpapers".source = ./wallpapers;
+
   # Git
   programs.git = {
     enable = true;
