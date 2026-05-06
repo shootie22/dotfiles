@@ -21,57 +21,7 @@ in
       <home-manager/nixos>
     ];
 
-  home-manager.users.bro = { pkgs, ... }: {
-    home.stateVersion = "25.11";
-
-    # Git
-    programs.git = {
-      enable = true;
-
-      settings = {
-        user = {
-          name = "Radu N.";
-          email = "hello@radunenu.com";
-          useConfigOnly = true;
-        };
-
-        init.defaultBranch = "main";
-      
-    
-        credential = {
-          
-          # In memory cache, 1 day
-          #helper = "cache --timeout=604800";
-
-          # On disk storage using libsecret
-          helper = "${pkgs.git.override { withLibsecret = true; }}/bin/git-credential-libsecret";
-
-          "https://github.com" = {
-            username = "shootie22";
-          };
-
-          "https://git.radunenu.com" = {
-            username = "radu";
-          };
-        };
-
-      };
-
-      # Gitea config override, folder-based
-      #includes = [
-      #  {
-      #    condition = "gitdir:~/gitrepos/gitea/";
-      #    contents = {
-      #      user = {
-      #        name = "Radu N.";
-      #        email = "hello@radunenu.com";
-      #      };
-      #    };
-      #  }
-      #];
-
-    };
-  };
+  home-manager.users.bro = import ../../home/bro/home.nix;
 
   # Enable graphics driver - unsure if needed
   hardware.graphics = {
