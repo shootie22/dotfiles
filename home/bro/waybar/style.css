@@ -30,6 +30,7 @@ tooltip label {
 #backlight,
 #pulseaudio,
 #cpu,
+#temperature,
 #memory,
 #battery {
   background: rgba(24, 30, 36, 0.92);
@@ -77,6 +78,10 @@ tooltip label {
 }
 
 #pulseaudio.muted {
+  color: #d07a7a;
+}
+
+#temperature.critical {
   color: #d07a7a;
 }
 
