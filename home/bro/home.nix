@@ -6,6 +6,7 @@
   xdg.configFile = {
     "hypr/hyprland.conf".source = ./hypr/hyprland.conf;
     "hypr/hyprpaper.conf".source = ./hypr/hyprpaper.conf;
+    "kitty/kitty.conf".source = ./kitty/kitty.conf;
     "waybar/config".source = ./waybar/config;
   };
 
