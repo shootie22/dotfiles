@@ -4,8 +4,9 @@
   "height": 34,
   "spacing": 6,
   "margin-top": 6,
-  "margin-left": 8,
-  "margin-right": 8,
+  "margin-bottom": 0,
+  "margin-left": 6,
+  "margin-right": 6,
 
   "modules-left": ["hyprland/workspaces", "hyprland/window"],
   "modules-center": ["clock"],
@@ -14,6 +15,7 @@
     "backlight",
     "pulseaudio",
     "cpu",
+    "temperature",
     "memory",
     "battery"
   ],
@@ -74,6 +76,12 @@
   "cpu": {
     "interval": 2,
     "format": " {usage}%"
+  },
+
+  "temperature": {
+    "interval": 5,
+    "critical-threshold": 85,
+    "format": " {temperatureC}°C"
   },
 
   "memory": {

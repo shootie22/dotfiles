@@ -7,6 +7,8 @@
     "hypr/hyprland.conf".source = ./hypr/hyprland.conf;
     "hypr/hyprpaper.conf".source = ./hypr/hyprpaper.conf;
     "kitty/kitty.conf".source = ./kitty/kitty.conf;
+    "swaync/config.json".source = ./swaync/config.json;
+    "swaync/style.css".source = ./swaync/style.css;
     "waybar/config".source = ./waybar/config;
     "waybar/style.css".source = ./waybar/style.css;
   };

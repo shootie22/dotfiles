@@ -105,10 +105,12 @@ in
   # Monitoring vitals
   btop
   htop
+  lm_sensors
   nvtopPackages.amd
 
   # General packages
   librewolf
+  libnotify
   fastfetch
   element-desktop
   #unstable.sone
@@ -124,7 +126,7 @@ in
   kitty
   waybar
   wofi
-  mako
+  swaynotificationcenter
   wl-clipboard
   grim
   slurp
