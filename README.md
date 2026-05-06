@@ -43,13 +43,31 @@ hosts/
 
 home/
   bro/
+    home.nix
     hypr/
       hyprland.conf
       hyprpaper.conf
+    waybar/
+      config
 ```
 
 ## Notes
 
-Home Manager currently manages Git configuration.
+Home Manager user configuration lives in `home/bro/home.nix`.
+
+`hosts/nixpad/configuration.nix` imports that file with:
+
+```nix
+home-manager.users.bro = import ../../home/bro/home.nix;
+```
+
+Hyprland and Waybar still read their normal live paths under `~/.config`, but
+Home Manager creates those files from the tracked repo files:
+
+```text
+~/.config/hypr/hyprland.conf  <- home/bro/hypr/hyprland.conf
+~/.config/hypr/hyprpaper.conf <- home/bro/hypr/hyprpaper.conf
+~/.config/waybar/config       <- home/bro/waybar/config
+```
 
 </details>
