@@ -8,6 +8,7 @@
     "hypr/hyprpaper.conf".source = ./hypr/hyprpaper.conf;
     "kitty/kitty.conf".source = ./kitty/kitty.conf;
     "waybar/config".source = ./waybar/config;
+    "waybar/style.css".source = ./waybar/style.css;
   };
 
   xdg.dataFile."wallpapers".source = ./wallpapers;
