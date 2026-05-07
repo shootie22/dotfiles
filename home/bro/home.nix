@@ -3,6 +3,10 @@
 {
   home.stateVersion = "25.11";
 
+  home.packages = with pkgs; [
+    meli
+  ];
+
   xdg.configFile = {
     "hypr/hyprland.conf".source = ./hypr/hyprland.conf;
     "hypr/hyprpaper.conf".source = ./hypr/hyprpaper.conf;
