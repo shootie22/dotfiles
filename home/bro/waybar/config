@@ -33,9 +33,9 @@
   },
 
   "clock": {
-    "interval": 60,
+    "interval": 1,
     "locale": "da_DK.utf8",
-    "format": "{:L%a %d %b  %H:%M}",
+    "format": "{:L%a %d %b  %H:%M:%S}",
     "tooltip-format": "<big>{:L%B %Y}</big>\n<tt><small>{calendar}</small></tt>",
     "calendar": {
       "mode": "month",
