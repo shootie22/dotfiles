@@ -10,6 +10,73 @@ let
   unstable = import <nixos-unstable> {
     inherit (pkgs) system overlays config;
   };
+  xmm7360Pci = pkgs.callPackage ../../pkgs/xmm7360-pci {
+    kernel = config.boot.kernelPackages.kernel;
+  };
+  xmm7360Status = pkgs.writeShellScriptBin "xmm7360-status" ''
+    set -eu
+
+    echo "== service =="
+    systemctl --no-pager --plain status xmm7360-connect || true
+
+    echo
+    echo "== driver =="
+    lspci -nnk | grep -A4 -i xmm || true
+
+    echo
+    echo "== wwan0 =="
+    ip addr show wwan0 || true
+
+    echo
+    echo "== routes =="
+    ip route
+  '';
+  xmm7360UseLte = pkgs.writeShellScriptBin "xmm7360-use-lte" ''
+    set -eu
+
+    ip_addr="$(ip -4 -o addr show dev wwan0 scope global | awk '{ split($4, a, "/"); print a[1]; exit }')"
+    if [ -z "$ip_addr" ]; then
+      echo "wwan0 has no IPv4 address. Start xmm7360-connect first."
+      exit 1
+    fi
+
+    ip route replace default via "$ip_addr" dev wwan0
+    echo "LTE is now the primary default route via $ip_addr."
+    echo "DNS is not changed by this helper."
+    ip route
+  '';
+  xmm7360UseWifi = pkgs.writeShellScriptBin "xmm7360-use-wifi" ''
+    set -eu
+
+    ip route del default dev wwan0 2>/dev/null || true
+    ip_addr="$(ip -4 -o addr show dev wwan0 scope global | awk '{ split($4, a, "/"); print a[1]; exit }')"
+    if [ -n "$ip_addr" ]; then
+      ip route del default via "$ip_addr" dev wwan0 2>/dev/null || true
+    fi
+    nmcli connection delete xmm7360 2>/dev/null || true
+    nmcli radio wifi on 2>/dev/null || true
+    nmcli device connect wlp3s0 2>/dev/null || true
+
+    echo "Removed wwan0 default routes. NetworkManager/Wi-Fi routes are left alone."
+    ip route
+  '';
+  xmm7360Reset = pkgs.writeShellScriptBin "xmm7360-reset" ''
+    set -eu
+
+    systemctl stop xmm7360-connect 2>/dev/null || true
+    ip route del default dev wwan0 2>/dev/null || true
+    ip_addr="$(ip -4 -o addr show dev wwan0 scope global | awk '{ split($4, a, "/"); print a[1]; exit }')"
+    if [ -n "$ip_addr" ]; then
+      ip route del default via "$ip_addr" dev wwan0 2>/dev/null || true
+    fi
+    nmcli connection delete xmm7360 2>/dev/null || true
+
+    modprobe -r xmm7360 2>/dev/null || true
+    sleep 2
+    modprobe xmm7360
+    systemctl start xmm7360-connect
+    echo "Restarted xmm7360-connect. Wait 45 seconds, then run xmm7360-status."
+  '';
 in
 {
   imports =
@@ -46,8 +113,15 @@ in
   # Enable networking
   networking.networkmanager.enable = true;
 
-  # Enable SIM card modem
-  networking.modemmanager.enable = true;
+  # Disable ModemManager for the internal XMM7360: the card is in unsupported
+  # RPC mode, and the experimental driver/scripts bypass ModemManager.
+  networking.modemmanager.enable = false;
+
+  # Experimental support for the Fibocom L850-GL / Intel XMM7360.
+  # ModemManager rejects this card in RPC mode, so keep iosm off and test the
+  # out-of-tree module manually with `xmm7360-connect`.
+  boot.blacklistedKernelModules = [ "iosm" ];
+  boot.extraModulePackages = [ xmm7360Pci ];
 
   # Set your time zone.
   time.timeZone = "Europe/Copenhagen";
@@ -112,8 +186,18 @@ in
   librewolf
   libnotify
   fastfetch
-  element-desktop
   #unstable.sone
+
+  # Mobile broadband
+  usbutils
+  xmm7360Pci
+  xmm7360Reset
+  xmm7360Status
+  xmm7360UseLte
+  xmm7360UseWifi
+  mobile-broadband-provider-info
+  libmbim
+  libqmi
 
   # Games
   superTuxKart
@@ -161,6 +245,47 @@ in
   };
 
   # Services
+
+  environment.etc."xmm7360.example".text = ''
+    # Copy this to /etc/xmm7360 and set your carrier APN before starting
+    # xmm7360-connect.service.
+    apn=your.apn.here
+
+    # Optional: keep Wi-Fi preferred when both are up.
+    metric=1000
+
+    # Optional: do not append DNS servers to /etc/resolv.conf.
+    #noresolv=True
+  '';
+
+  systemd.services.xmm7360-connect = {
+    description = "Connect the experimental XMM7360 LTE modem";
+    after = [ "network.target" ];
+    path = with pkgs; [ gawk kmod iproute2 ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      if ! grep -q '^apn=.*[^[:space:]]' /etc/xmm7360 2>/dev/null; then
+        echo "Create /etc/xmm7360 from /etc/xmm7360.example and set apn=..."
+        exit 1
+      fi
+
+      modprobe -r iosm || true
+      if ! lsmod | grep -q '^xmm7360 '; then
+        modprobe xmm7360 || insmod ${xmm7360Pci}/lib/modules/${config.boot.kernelPackages.kernel.modDirVersion}/extra/xmm7360.ko
+      fi
+      ${xmm7360Pci}/bin/xmm7360-connect --nodefaultroute --noresolv -c /etc/xmm7360
+    '';
+    postStop = ''
+      ip route del default dev wwan0 2>/dev/null || true
+      ip_addr="$(ip -4 -o addr show dev wwan0 scope global | awk '{ split($4, a, "/"); print a[1]; exit }')"
+      if [ -n "$ip_addr" ]; then
+        ip route del default via "$ip_addr" dev wwan0 2>/dev/null || true
+      fi
+    '';
+  };
 
   # Keyring
   services.gnome.gnome-keyring.enable = true;

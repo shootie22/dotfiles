@@ -80,4 +80,135 @@ Home Manager creates those files from the tracked repo files:
 Wallpapers are tracked under `home/bro/wallpapers/` and exposed by Home Manager
 at `~/.local/share/wallpapers/`.
 
+## Experimental LTE modem
+
+<details>
+<summary>What hardware this is</summary>
+
+`nixpad` has an internal Fibocom L850-GL / Intel XMM7360 LTE modem.
+
+The kernel can see the card, but ModemManager rejects it in RPC mode:
+
+```text
+Intel XMM7360 in RPC mode not supported
+```
+
+Because of that, this setup uses the experimental `xmm7360-pci` driver and
+RPC helper instead of ModemManager.
+
+</details>
+
+<details>
+<summary>What the NixOS config does</summary>
+
+The host config:
+
+- disables ModemManager for this machine, because it cannot manage this modem
+- blacklists the in-kernel `iosm` driver, because the experimental driver must bind instead
+- builds a local `xmm7360-pci` kernel module from `pkgs/xmm7360-pci`
+- installs helper commands for reset, status, LTE routing, and Wi-Fi routing
+- installs `xmm7360-connect.service`, which attaches the modem but does not change default routes
+- removes `element-desktop`, because the current package pulled insecure `olm`
+  and blocked NixOS rebuilds
+
+The local package also patches upstream for the current kernel:
+
+- points the module build at the active NixOS kernel headers
+- adjusts the TTY write callback signature for Linux 6.8+
+- makes the RPC helper exit successfully after data-channel setup
+- lowers helper logging from DEBUG to INFO
+
+</details>
+
+<details>
+<summary>Configuration file</summary>
+
+Create `/etc/xmm7360` from the generated example:
+
+```bash
+sudo cp /etc/xmm7360.example /etc/xmm7360
+sudoedit /etc/xmm7360
+```
+
+For Digi Mobil Romania, the APN is:
+
+```ini
+apn=internet
+```
+
+The example also includes `metric=1000`, but the current helper flow does not
+use automatic LTE metrics. Route switching is explicit.
+
+</details>
+
+<details>
+<summary>Helper commands</summary>
+
+`xmm7360-reset`
+
+Stops the service, removes stale LTE routes, deletes any stale NetworkManager
+`xmm7360` connection left from earlier experiments, reloads the `xmm7360`
+kernel module, and starts `xmm7360-connect.service`.
+
+`xmm7360-status`
+
+Prints the service state, active PCI driver, `wwan0` address, and current routes.
+
+`xmm7360-use-lte`
+
+Adds the direct default route through the current `wwan0` IPv4 address. It does
+not change DNS and does not ask NetworkManager to manage `wwan0`.
+
+`xmm7360-use-wifi`
+
+Removes LTE default routes and asks NetworkManager to reconnect Wi-Fi.
+
+</details>
+
+<details>
+<summary>LTE workflow</summary>
+
+Fresh attempt:
+
+```bash
+sudo xmm7360-reset
+sleep 45
+xmm7360-status
+sudo xmm7360-use-lte
+ping -I wwan0 -c 4 1.1.1.1
+```
+
+Return to Wi-Fi:
+
+```bash
+sudo xmm7360-use-wifi
+ping -I wlp3s0 -c 4 1.1.1.1
+```
+
+The wait is needed because `wwan0` can receive an IP before the modem has
+finished attaching and setting up the packet data channel. The useful log signs
+are:
+
+```text
+INFO:root:IP address: ...
+INFO:root:DNS server(s): ...
+RPC executing UtaRPCPSConnectSetupReq
+response: 0x0
+```
+
+</details>
+
+<details>
+<summary>Limitations</summary>
+
+This is experimental support, not normal ModemManager integration.
+
+- Internet can work after the manual reset/connect/route flow.
+- DNS is not automatically configured by the current helper flow.
+- SMS and calls are not supported through this setup.
+- Restarts can leave the modem in a bad state; use `xmm7360-reset` or reboot.
+- A supported MBIM/QMI USB modem or hotspot would be more reliable for daily use.
+
+</details>
+
 </details>
