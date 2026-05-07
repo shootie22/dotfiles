@@ -28,8 +28,25 @@ let
     ip addr show wwan0 || true
 
     echo
+    echo "== wwan0 counters =="
+    ip -s link show wwan0 || true
+
+    echo
     echo "== routes =="
     ip route
+
+    echo
+    echo "== route test =="
+    ip route get 1.1.1.1 oif wwan0 2>/dev/null || true
+
+    echo
+    echo "== dns =="
+    sed -n '1,80p' /etc/resolv.conf || true
+    ${pkgs.openresolv}/bin/resolvconf -l 2>/dev/null || true
+
+    echo
+    echo "== recent modem log =="
+    journalctl -u xmm7360-connect --no-pager -n 40 | grep -E 'IP address|DNS server|Attach failed|ConnectSetup|response:|RegisteredPlmn|ActivateStatus' || true
   '';
   xmm7360UseLte = pkgs.writeShellScriptBin "xmm7360-use-lte" ''
     set -eu
@@ -45,6 +62,18 @@ let
     echo "DNS is not changed by this helper."
     ip route
   '';
+  xmm7360UseDns = pkgs.writeShellScriptBin "xmm7360-use-dns" ''
+    set -eu
+
+    ${pkgs.openresolv}/bin/resolvconf -d xmm7360 2>/dev/null || true
+    {
+      echo "nameserver 213.154.124.1"
+      echo "nameserver 193.231.252.1"
+    } | ${pkgs.openresolv}/bin/resolvconf -a xmm7360 -x
+
+    echo "Added LTE DNS servers through resolvconf key xmm7360."
+    sed -n '1,80p' /etc/resolv.conf
+  '';
   xmm7360UseWifi = pkgs.writeShellScriptBin "xmm7360-use-wifi" ''
     set -eu
 
@@ -53,6 +82,7 @@ let
     if [ -n "$ip_addr" ]; then
       ip route del default via "$ip_addr" dev wwan0 2>/dev/null || true
     fi
+    ${pkgs.openresolv}/bin/resolvconf -d xmm7360 2>/dev/null || true
     nmcli connection delete xmm7360 2>/dev/null || true
     nmcli radio wifi on 2>/dev/null || true
     nmcli device connect wlp3s0 2>/dev/null || true
@@ -64,14 +94,30 @@ let
     set -eu
 
     systemctl stop xmm7360-connect 2>/dev/null || true
+    systemctl kill --kill-who=all xmm7360-connect 2>/dev/null || true
     ip route del default dev wwan0 2>/dev/null || true
     ip_addr="$(ip -4 -o addr show dev wwan0 scope global | awk '{ split($4, a, "/"); print a[1]; exit }')"
     if [ -n "$ip_addr" ]; then
       ip route del default via "$ip_addr" dev wwan0 2>/dev/null || true
     fi
+    ip link set wwan0 down 2>/dev/null || true
+    ${pkgs.openresolv}/bin/resolvconf -d xmm7360 2>/dev/null || true
     nmcli connection delete xmm7360 2>/dev/null || true
 
-    modprobe -r xmm7360 2>/dev/null || true
+    ${pkgs.procps}/bin/pkill -f 'xmm7360-connect|open_xdatachannel.py' 2>/dev/null || true
+    for _ in 1 2 3 4 5; do
+      modprobe -r xmm7360 2>/dev/null || true
+      if ! lsmod | grep -q '^xmm7360 '; then
+        break
+      fi
+      sleep 1
+    done
+
+    if lsmod | grep -q '^xmm7360 '; then
+      echo "xmm7360 is still loaded. A reboot may be required to clear the modem state."
+      exit 1
+    fi
+
     sleep 2
     modprobe xmm7360
     systemctl start xmm7360-connect
@@ -194,6 +240,7 @@ in
   xmm7360Reset
   xmm7360Status
   xmm7360UseLte
+  xmm7360UseDns
   xmm7360UseWifi
   mobile-broadband-provider-info
   libmbim
@@ -261,7 +308,7 @@ in
   systemd.services.xmm7360-connect = {
     description = "Connect the experimental XMM7360 LTE modem";
     after = [ "network.target" ];
-    path = with pkgs; [ gawk kmod iproute2 ];
+    path = with pkgs; [ gawk kmod openresolv iproute2 ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
