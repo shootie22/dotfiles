@@ -8,121 +8,42 @@ let
   # Pull a few packages from the nixos-unstable channel while keeping the same
   # nixpkgs config/overlays as the stable `pkgs`.
   unstable = import <nixos-unstable> {
-    inherit (pkgs) system overlays config;
+    inherit (pkgs) overlays config;
+    system = pkgs.stdenv.hostPlatform.system;
   };
   xmm7360Pci = pkgs.callPackage ../../pkgs/xmm7360-pci {
     kernel = config.boot.kernelPackages.kernel;
   };
-  xmm7360Status = pkgs.writeShellScriptBin "xmm7360-status" ''
-    set -eu
-
-    echo "== service =="
-    systemctl --no-pager --plain status xmm7360-connect || true
-
-    echo
-    echo "== driver =="
-    lspci -nnk | grep -A4 -i xmm || true
-
-    echo
-    echo "== wwan0 =="
-    ip addr show wwan0 || true
-
-    echo
-    echo "== wwan0 counters =="
-    ip -s link show wwan0 || true
-
-    echo
-    echo "== routes =="
-    ip route
-
-    echo
-    echo "== route test =="
-    ip route get 1.1.1.1 oif wwan0 2>/dev/null || true
-
-    echo
-    echo "== dns =="
-    sed -n '1,80p' /etc/resolv.conf || true
-    ${pkgs.openresolv}/bin/resolvconf -l 2>/dev/null || true
-
-    echo
-    echo "== recent modem log =="
-    journalctl -u xmm7360-connect --no-pager -n 40 | grep -E 'IP address|DNS server|Attach failed|ConnectSetup|response:|RegisteredPlmn|ActivateStatus' || true
-  '';
-  xmm7360UseLte = pkgs.writeShellScriptBin "xmm7360-use-lte" ''
-    set -eu
-
-    ip_addr="$(ip -4 -o addr show dev wwan0 scope global | awk '{ split($4, a, "/"); print a[1]; exit }')"
-    if [ -z "$ip_addr" ]; then
-      echo "wwan0 has no IPv4 address. Start xmm7360-connect first."
-      exit 1
-    fi
-
-    ip route replace default via "$ip_addr" dev wwan0
-    echo "LTE is now the primary default route via $ip_addr."
-    echo "DNS is not changed by this helper."
-    ip route
-  '';
-  xmm7360UseDns = pkgs.writeShellScriptBin "xmm7360-use-dns" ''
-    set -eu
-
-    ${pkgs.openresolv}/bin/resolvconf -d xmm7360 2>/dev/null || true
-    {
-      echo "nameserver 213.154.124.1"
-      echo "nameserver 193.231.252.1"
-    } | ${pkgs.openresolv}/bin/resolvconf -a xmm7360 -x
-
-    echo "Added LTE DNS servers through resolvconf key xmm7360."
-    sed -n '1,80p' /etc/resolv.conf
-  '';
-  xmm7360UseWifi = pkgs.writeShellScriptBin "xmm7360-use-wifi" ''
-    set -eu
-
-    ip route del default dev wwan0 2>/dev/null || true
-    ip_addr="$(ip -4 -o addr show dev wwan0 scope global | awk '{ split($4, a, "/"); print a[1]; exit }')"
-    if [ -n "$ip_addr" ]; then
-      ip route del default via "$ip_addr" dev wwan0 2>/dev/null || true
-    fi
-    ${pkgs.openresolv}/bin/resolvconf -d xmm7360 2>/dev/null || true
-    nmcli connection delete xmm7360 2>/dev/null || true
-    nmcli radio wifi on 2>/dev/null || true
-    nmcli device connect wlp3s0 2>/dev/null || true
-
-    echo "Removed wwan0 default routes. NetworkManager/Wi-Fi routes are left alone."
-    ip route
-  '';
-  xmm7360Reset = pkgs.writeShellScriptBin "xmm7360-reset" ''
-    set -eu
-
-    systemctl stop xmm7360-connect 2>/dev/null || true
-    systemctl kill --kill-who=all xmm7360-connect 2>/dev/null || true
-    ip route del default dev wwan0 2>/dev/null || true
-    ip_addr="$(ip -4 -o addr show dev wwan0 scope global | awk '{ split($4, a, "/"); print a[1]; exit }')"
-    if [ -n "$ip_addr" ]; then
-      ip route del default via "$ip_addr" dev wwan0 2>/dev/null || true
-    fi
-    ip link set wwan0 down 2>/dev/null || true
-    ${pkgs.openresolv}/bin/resolvconf -d xmm7360 2>/dev/null || true
-    nmcli connection delete xmm7360 2>/dev/null || true
-
-    ${pkgs.procps}/bin/pkill -f 'xmm7360-connect|open_xdatachannel.py' 2>/dev/null || true
-    for _ in 1 2 3 4 5; do
-      modprobe -r xmm7360 2>/dev/null || true
-      if ! lsmod | grep -q '^xmm7360 '; then
-        break
-      fi
-      sleep 1
-    done
-
-    if lsmod | grep -q '^xmm7360 '; then
-      echo "xmm7360 is still loaded. A reboot may be required to clear the modem state."
-      exit 1
-    fi
-
-    sleep 2
-    modprobe xmm7360
-    systemctl start xmm7360-connect
-    echo "Restarted xmm7360-connect. Wait 45 seconds, then run xmm7360-status."
-  '';
+  xmm7360RuntimeInputs = with pkgs; [
+    coreutils
+    gawk
+    gnugrep
+    gnused
+    iproute2
+    iputils
+    kmod
+    networkmanager
+    openresolv
+    pciutils
+    procps
+    systemd
+  ];
+  xmm7360Helper = name: script: pkgs.writeShellApplication {
+    inherit name;
+    runtimeInputs = xmm7360RuntimeInputs;
+    text = ''
+      set -euo pipefail
+      # shellcheck source=/dev/null
+      source ${./xmm7360/common.sh}
+      ${builtins.readFile script}
+    '';
+  };
+  xmm7360HardReset = xmm7360Helper "xmm7360-hard-reset" ./xmm7360/hard-reset.sh;
+  xmm7360Reset = xmm7360Helper "xmm7360-reset" ./xmm7360/reset.sh;
+  xmm7360Status = xmm7360Helper "xmm7360-status" ./xmm7360/status.sh;
+  xmm7360UseDns = xmm7360Helper "xmm7360-use-dns" ./xmm7360/use-dns.sh;
+  xmm7360UseLte = xmm7360Helper "xmm7360-use-lte" ./xmm7360/use-lte.sh;
+  xmm7360UseWifi = xmm7360Helper "xmm7360-use-wifi" ./xmm7360/use-wifi.sh;
 in
 {
   imports =
@@ -167,7 +88,11 @@ in
   # ModemManager rejects this card in RPC mode, so keep iosm off and test the
   # out-of-tree module manually with `xmm7360-connect`.
   boot.blacklistedKernelModules = [ "iosm" ];
-  boot.extraModulePackages = [ xmm7360Pci ];
+  boot.kernelModules = [ "acpi_call" ];
+  boot.extraModulePackages = [
+    xmm7360Pci
+    config.boot.kernelPackages.acpi_call
+  ];
 
   # Set your time zone.
   time.timeZone = "Europe/Copenhagen";
@@ -237,6 +162,7 @@ in
   # Mobile broadband
   usbutils
   xmm7360Pci
+  xmm7360HardReset
   xmm7360Reset
   xmm7360Status
   xmm7360UseLte
@@ -308,10 +234,13 @@ in
   systemd.services.xmm7360-connect = {
     description = "Connect the experimental XMM7360 LTE modem";
     after = [ "network.target" ];
-    path = with pkgs; [ gawk kmod openresolv iproute2 ];
+    restartIfChanged = false;
+    path = with pkgs; [ coreutils gawk gnugrep kmod openresolv iproute2 ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
+      TimeoutStartSec = "90s";
+      TimeoutStopSec = "15s";
     };
     script = ''
       if ! grep -q '^apn=.*[^[:space:]]' /etc/xmm7360 2>/dev/null; then
