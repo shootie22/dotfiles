@@ -49,9 +49,27 @@ stdenv.mkDerivation {
       --replace-fail 'logging.basicConfig(level=logging.DEBUG)' \
                      'logging.basicConfig(level=logging.INFO)'
 
+    perl -0pi -e 's/except Exception as ex:\n\s+logging\.error\(ex\)\n\s+exit\(\)/except Exception as ex:\n    logging.error(ex)\n    sys.exit(1)/s' rpc/open_xdatachannel.py
+    if ! grep -A2 'except Exception as ex:' rpc/open_xdatachannel.py | grep -q 'sys.exit(1)'; then
+      echo "failed to patch open_xdatachannel.py RPC init failure"
+      exit 1
+    fi
+
     perl -0pi -e 's/if not cfg\.dbus:\n\s+sys\.exit\(1\)/if not cfg.dbus:\n    sys.exit(0)/s' rpc/open_xdatachannel.py
     if ! grep -A1 'if not cfg.dbus:' rpc/open_xdatachannel.py | grep -q 'sys.exit(0)'; then
       echo "failed to patch open_xdatachannel.py non-dbus exit"
+      exit 1
+    fi
+
+    perl -0pi -e 's/dcr = r\.execute\('"'"'UtaRPCPsConnectToDatachannelReq'"'"',\n                rpc\.pack_UtaRPCPsConnectToDatachannelReq\(\)\)/dcr = r.execute('"'"'UtaRPCPsConnectToDatachannelReq'"'"',\n                rpc.pack_UtaRPCPsConnectToDatachannelReq())\nif rpc.unpack('"'"'n'"'"', dcr['"'"'body'"'"'])[0] == 0xffffffff:\n    logging.error("UtaRPCPsConnectToDatachannelReq failed")\n    sys.exit(1)/s' rpc/open_xdatachannel.py
+    if ! grep -q 'UtaRPCPsConnectToDatachannelReq failed' rpc/open_xdatachannel.py; then
+      echo "failed to patch data-channel connect failure check"
+      exit 1
+    fi
+
+    perl -0pi -e 's/r\.execute\('"'"'UtaRPCPSConnectSetupReq'"'"', csr_req\)/setup = r.execute('"'"'UtaRPCPSConnectSetupReq'"'"', csr_req)\nif rpc.unpack('"'"'n'"'"', setup['"'"'body'"'"'])[0] == 0xffffffff:\n    logging.error("UtaRPCPSConnectSetupReq failed")\n    sys.exit(1)/s' rpc/open_xdatachannel.py
+    if ! grep -q 'UtaRPCPSConnectSetupReq failed' rpc/open_xdatachannel.py; then
+      echo "failed to patch data-channel setup failure check"
       exit 1
     fi
   '';
