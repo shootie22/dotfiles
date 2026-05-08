@@ -106,7 +106,7 @@ The host config:
 - disables ModemManager for this machine, because it cannot manage this modem
 - blacklists the in-kernel `iosm` driver, because the experimental driver must bind instead
 - builds a local `xmm7360-pci` kernel module from `pkgs/xmm7360-pci`
-- installs helper commands for reset, status, LTE routing, and Wi-Fi routing
+- installs helper commands for reset, hard reset, status, LTE routing/DNS, and Wi-Fi routing
 - installs `xmm7360-connect.service`, which attaches the modem but does not change default routes
 - removes `element-desktop`, because the current package pulled insecure `olm`
   and blocked NixOS rebuilds
@@ -116,6 +116,8 @@ The local package also patches upstream for the current kernel:
 - points the module build at the active NixOS kernel headers
 - adjusts the TTY write callback signature for Linux 6.8+
 - makes the RPC helper exit successfully after data-channel setup
+- makes failed data-channel RPC setup fail the service instead of pretending the
+  modem is connected
 - lowers helper logging from DEBUG to INFO
 
 </details>
@@ -149,9 +151,23 @@ use automatic LTE metrics. Route switching is explicit.
 Stops the service, removes stale LTE routes, deletes any stale NetworkManager
 `xmm7360` connection left from earlier experiments, removes the LTE DNS entry,
 kills leftover connector processes, reloads the `xmm7360` kernel module, and
-starts `xmm7360-connect.service`. It fails loudly if the module cannot be
-unloaded, because that usually means the modem is stuck in a state that may
-need a reboot.
+starts `xmm7360-connect.service`. It waits for `wwan0` to receive an IPv4
+address, but does not make LTE the default route.
+
+`xmm7360-hard-reset`
+
+Opt-in recovery command for stuck modem state. It performs the normal cleanup,
+unloads the module, calls the machine-specific ACPI reset method
+`\_SB.PCI0.GPP7.L850._RST`, waits for the `xmm7360` driver to bind, and falls
+back to PCI remove/rescan if needed. After reset it gives the modem firmware a
+boot delay before probing the driver, then a short settle delay after binding,
+waits for the RPC device node, starts the service, and waits for `wwan0` to
+receive an IPv4 address. Use it when `xmm7360-reset` cannot recover the modem
+without a reboot.
+
+`xmm7360-hard-reset` depends on the out-of-tree `acpi_call` kernel module. After
+first adding that module to the NixOS config, reboot once so it is available in
+`/run/booted-system`.
 
 `xmm7360-status`
 
@@ -160,8 +176,10 @@ routes, DNS state, and recent modem log lines.
 
 `xmm7360-use-lte`
 
-Adds the direct default route through the current `wwan0` IPv4 address. It does
-not change DNS and does not ask NetworkManager to manage `wwan0`.
+Adds the direct default route through the current `wwan0` IPv4 address, enables
+the LTE DNS resolver entry, and verifies packet flow with a bound ping. If the
+packet test fails, it removes the LTE route and DNS entry again so Wi-Fi routing
+is not left broken.
 
 `xmm7360-use-dns`
 
@@ -179,16 +197,21 @@ asks NetworkManager to reconnect Wi-Fi.
 <details>
 <summary>LTE workflow</summary>
 
-Fresh attempt:
+Current reliable LTE-on path:
+
+```bash
+sudo xmm7360-hard-reset
+xmm7360-status
+sudo xmm7360-use-lte
+ping -I wwan0 -c 4 1.1.1.1
+ping -I wwan0 -c 4 example.com
+```
+
+Lighter reconnect path, useful for debugging but less reliable after toggling:
 
 ```bash
 sudo xmm7360-reset
-sleep 45
-xmm7360-status
 sudo xmm7360-use-lte
-sudo xmm7360-use-dns
-ping -I wwan0 -c 4 1.1.1.1
-ping -I wwan0 -c 4 example.com
 ```
 
 Return to Wi-Fi:
@@ -217,10 +240,11 @@ response: 0x0
 This is experimental support, not normal ModemManager integration.
 
 - Internet can work after the manual reset/connect/route flow.
-- DNS is configured only when `xmm7360-use-dns` is run, and the LTE DNS entry
-  is removed by `xmm7360-use-wifi` or `xmm7360-reset`.
+- DNS is configured by `xmm7360-use-lte` or `xmm7360-use-dns`, and the LTE DNS
+  entry is removed by `xmm7360-use-wifi` or `xmm7360-reset`.
 - SMS and calls are not supported through this setup.
-- Restarts can leave the modem in a bad state; use `xmm7360-reset` or reboot.
+- Restarts can leave the modem in a bad state; use `xmm7360-reset`,
+  `xmm7360-hard-reset`, or reboot.
 - A supported MBIM/QMI USB modem or hotspot would be more reliable for daily use.
 
 </details>
