@@ -27,6 +27,7 @@ tooltip label {
 #window,
 #clock,
 #tray,
+#custom-screencast,
 #backlight,
 #pulseaudio,
 #cpu,
@@ -83,6 +84,16 @@ tooltip label {
 
 #temperature.critical {
   color: #d07a7a;
+}
+
+#custom-screencast.recording {
+  background: #7f2f35;
+  color: #ffffff;
+}
+
+#custom-screencast.sharing {
+  background: #6d5528;
+  color: #ffffff;
 }
 
 #battery.warning {

@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -eu
+
+runtime_dir=${XDG_RUNTIME_DIR:-/tmp}
+pid_file=$runtime_dir/screengrab-recording.pid
+
+is_our_recorder_active() {
+  [ -f "$pid_file" ] || return 1
+
+  pid=$(cat "$pid_file")
+  [ -n "$pid" ] || return 1
+
+  command=$(ps -p "$pid" -o args= 2>/dev/null || true)
+  case "$command" in
+    *wf-recorder*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+has_wf_recorder() {
+  pgrep -u "$USER" -fa '(^|/)wf-recorder([[:space:]]|$)' >/dev/null 2>&1
+}
+
+has_pipewire_video_stream() {
+  command -v pw-cli >/dev/null 2>&1 || return 1
+
+  pw-cli ls Node 2>/dev/null \
+    | grep -Eq 'media\.class = "Stream/(Input|Output)/Video"|media\.type = "Video"'
+}
+
+status=inactive
+text=
+tooltip=
+
+if is_our_recorder_active || has_wf_recorder; then
+  status=recording
+  text="󰑋 REC"
+  tooltip="Screen recording is active"
+elif has_pipewire_video_stream; then
+  status=sharing
+  text="󰍹 SHARE"
+  tooltip="Screen sharing or video capture is active"
+fi
+
+case "${1:-}" in
+  --active)
+    [ "$status" != inactive ]
+    exit
+    ;;
+esac
+
+if [ "$status" = inactive ]; then
+  exit 0
+fi
+
+printf '{"text":"%s","class":"%s","tooltip":"%s"}\n' "$text" "$status" "$tooltip"
