@@ -1,23 +1,33 @@
-{ pkgs, ... }:
+{ config, pkgs, ... }:
 
+let
+  dotfilesRoot = "/home/bro/gitrepos/github/dotfiles";
+  broHome = "${dotfilesRoot}/home/bro";
+  wallpaperScripts = "${broHome}/scripts/wallpaper";
+in
 {
   home.stateVersion = "25.11";
 
   home.packages = with pkgs; [
     meli
+    (writeShellScriptBin "chwp" ''
+      exec "${wallpaperScripts}/chwp" "$@"
+    '')
+    (writeShellScriptBin "change-wallpaper" ''
+      exec "${wallpaperScripts}/change-wallpaper" "$@"
+    '')
   ];
 
   xdg.configFile = {
     "hypr/hyprland.conf".source = ./hypr/hyprland.conf;
-    "hypr/hyprpaper.conf".source = ./hypr/hyprpaper.conf;
+    "hypr/hyprpaper.conf".source =
+      config.lib.file.mkOutOfStoreSymlink "${broHome}/hypr/hyprpaper.conf";
     "kitty/kitty.conf".source = ./kitty/kitty.conf;
     "swaync/config.json".source = ./swaync/config.json;
     "swaync/style.css".source = ./swaync/style.css;
     "waybar/config".source = ./waybar/config;
     "waybar/style.css".source = ./waybar/style.css;
   };
-
-  xdg.dataFile."wallpapers".source = ./wallpapers;
 
   # Git
   programs.git = {
