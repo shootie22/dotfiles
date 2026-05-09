@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+choice="$(
+  cliphist list | wofi --dmenu -i -p Clipboard || true
+)"
+
+if [ -z "$choice" ]; then
+  exit 0
+fi
+
+printf '%s' "$choice" | cliphist decode | wl-copy

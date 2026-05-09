@@ -3,6 +3,7 @@
 let
   dotfilesRoot = "/home/bro/gitrepos/github/dotfiles";
   broHome = "${dotfilesRoot}/home/bro";
+  clipboardScripts = "${broHome}/scripts/clipboard";
   wallpaperScripts = "${broHome}/scripts/wallpaper";
   screengrabScripts = "${broHome}/scripts/screengrab";
   mediaScripts = "${broHome}/scripts/media";
@@ -12,6 +13,7 @@ in
 
   home.packages = with pkgs; [
     meli
+    cliphist
     file
     mpv
     swayimg
@@ -33,6 +35,9 @@ in
     '')
     (writeShellScriptBin "preview" ''
       exec "${mediaScripts}/preview" "$@"
+    '')
+    (writeShellScriptBin "clipboard-history" ''
+      exec "${clipboardScripts}/clipboard-history" "$@"
     '')
   ];
 
