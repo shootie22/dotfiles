@@ -77,8 +77,21 @@ Home Manager creates those files from the tracked repo files:
 ~/.config/waybar/config       <- home/bro/waybar/config
 ```
 
-Wallpapers are tracked under `home/bro/wallpapers/` and exposed by Home Manager
-at `~/.local/share/wallpapers/`.
+Wallpaper startup config is managed by Home Manager as an out-of-store symlink so
+the helper can update the repo directly. The `chwp` command is installed through
+Home Manager as a small wrapper around the standalone repo script. To copy a
+wallpaper into the repo, persist it, and reload Hyprpaper, use:
+
+```sh
+chwp ~/Media/Wallpapers/foo.jpg
+```
+
+Use `chwp --move-file ~/Downloads/foo.jpg` to move the source file into the repo
+instead of copying it.
+
+The implementation lives at `home/bro/scripts/wallpaper/change-wallpaper`; `chwp`
+is only a short alias. It can be reused outside this repo by setting
+`CHWP_WALLPAPER_DIR` and `CHWP_HYPRPAPER_CONFIG`.
 
 ## Experimental LTE modem
 
