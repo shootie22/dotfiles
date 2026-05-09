@@ -92,6 +92,9 @@ Print        freeze screen, select a region, save a screenshot
 Ctrl+Print   select a region and start recording; press again to stop
 ```
 
+Waybar shows a recording/share indicator while `wf-recorder` or a PipeWire video
+capture stream is active.
+
 Files are saved under:
 
 ```text

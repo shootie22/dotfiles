@@ -12,6 +12,7 @@
   "modules-center": ["clock"],
   "modules-right": [
     "tray",
+    "custom/screencast",
     "backlight",
     "pulseaudio",
     "cpu",
@@ -52,6 +53,13 @@
   "tray": {
     "icon-size": 16,
     "spacing": 8
+  },
+
+  "custom/screencast": {
+    "exec": "screencast-status",
+    "exec-if": "screencast-status --active",
+    "return-type": "json",
+    "interval": 2
   },
 
   "backlight": {

@@ -28,6 +28,9 @@ in
     (writeShellScriptBin "record-region" ''
       exec "${screengrabScripts}/record-region" "$@"
     '')
+    (writeShellScriptBin "screencast-status" ''
+      exec "${screengrabScripts}/screencast-status" "$@"
+    '')
     (writeShellScriptBin "preview" ''
       exec "${mediaScripts}/preview" "$@"
     '')
