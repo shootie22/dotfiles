@@ -187,6 +187,7 @@ in
   wl-clipboard
   grim
   grimblast
+  ffmpegthumbnailer
   slurp
   wf-recorder
   hyprpaper
