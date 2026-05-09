@@ -5,12 +5,16 @@ let
   broHome = "${dotfilesRoot}/home/bro";
   wallpaperScripts = "${broHome}/scripts/wallpaper";
   screengrabScripts = "${broHome}/scripts/screengrab";
+  mediaScripts = "${broHome}/scripts/media";
 in
 {
   home.stateVersion = "25.11";
 
   home.packages = with pkgs; [
     meli
+    file
+    mpv
+    swayimg
     zellij
     (writeShellScriptBin "chwp" ''
       exec "${wallpaperScripts}/chwp" "$@"
@@ -23,6 +27,9 @@ in
     '')
     (writeShellScriptBin "record-region" ''
       exec "${screengrabScripts}/record-region" "$@"
+    '')
+    (writeShellScriptBin "preview" ''
+      exec "${mediaScripts}/preview" "$@"
     '')
   ];
 
