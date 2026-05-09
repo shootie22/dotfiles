@@ -27,6 +27,7 @@ tooltip label {
 #window,
 #clock,
 #tray,
+#custom-notification,
 #custom-screencast,
 #backlight,
 #pulseaudio,
@@ -76,6 +77,24 @@ tooltip label {
 #clock {
   background: #24313c;
   color: #f0f5f7;
+}
+
+#custom-notification {
+  min-width: 42px;
+}
+
+#custom-notification.notification,
+#custom-notification.dnd-notification,
+#custom-notification.inhibited-notification,
+#custom-notification.dnd-inhibited-notification {
+  color: #f0c674;
+}
+
+#custom-notification.dnd-none,
+#custom-notification.dnd-notification,
+#custom-notification.dnd-inhibited-none,
+#custom-notification.dnd-inhibited-notification {
+  background: #34424d;
 }
 
 #pulseaudio.muted {
