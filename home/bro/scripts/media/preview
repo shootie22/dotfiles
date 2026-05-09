@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -eu
+
+usage() {
+  echo "usage: preview FILE" >&2
+}
+
+if [ "$#" -ne 1 ]; then
+  usage
+  exit 2
+fi
+
+file=$1
+case "$file" in
+  "~/"*) file="$HOME/${file#"~/"}" ;;
+esac
+
+if [ ! -f "$file" ]; then
+  echo "preview: file not found: $file" >&2
+  exit 1
+fi
+
+mime=$(file --brief --mime-type "$file")
+
+case "$mime" in
+  image/*)
+    exec swayimg "$file"
+    ;;
+  video/*)
+    exec mpv "$file"
+    ;;
+  *)
+    echo "preview: unsupported file type: $mime" >&2
+    exit 1
+    ;;
+esac
