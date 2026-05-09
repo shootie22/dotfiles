@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "${CLIPBOARD_STATE:-data}" in
+  data)
+    exec cliphist store
+    ;;
+  *)
+    exit 0
+    ;;
+esac

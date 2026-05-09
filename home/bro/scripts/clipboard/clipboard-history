@@ -1,31 +1,150 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-entries="$(cliphist list)"
+debug_position=false
+
+if [ "${1:-}" = "--debug-position" ]; then
+  debug_position=true
+fi
+
+list_entries() {
+  cliphist list 2>/dev/null || true
+}
+
+ensure_clipboard_watchers() {
+  if ! pgrep -u "$UID" -f 'wl-paste --type text --watch .*store-clipboard' >/dev/null; then
+    setsid -f sh -c 'wl-paste --type text --watch bash "$HOME/gitrepos/github/dotfiles/home/bro/scripts/clipboard/store-clipboard" >/dev/null 2>&1' >/dev/null 2>&1 || true
+  fi
+
+  if ! pgrep -u "$UID" -f 'wl-paste --type image --watch .*store-clipboard' >/dev/null; then
+    setsid -f sh -c 'wl-paste --type image --watch bash "$HOME/gitrepos/github/dotfiles/home/bro/scripts/clipboard/store-clipboard" >/dev/null 2>&1' >/dev/null 2>&1 || true
+  fi
+}
+
+clipboard_popup_pids() {
+  pgrep -f 'wofi .*--prompt Clipboard' || true
+}
+
+active_window_is_wofi() {
+  hyprctl activewindow 2>/dev/null | grep -Eiq '(class|title):.*(wofi|clipboard)'
+}
+
+close_on_focus_loss() {
+  local pid="$1"
+
+  if ! command -v hyprctl >/dev/null 2>&1; then
+    return 0
+  fi
+
+  sleep 0.6
+
+  while kill -0 "$pid" 2>/dev/null; do
+    if ! active_window_is_wofi; then
+      sleep 0.25
+
+      if ! active_window_is_wofi; then
+        kill "$pid" 2>/dev/null || true
+        return 0
+      fi
+    fi
+
+    sleep 0.15
+  done
+}
+
+notify_popup_position() {
+  local info at size
+
+  if ! command -v hyprctl >/dev/null 2>&1; then
+    notify-send "Clipboard popup" "hyprctl unavailable"
+    return 0
+  fi
+
+  sleep 0.3
+
+  info="$(hyprctl activewindow 2>/dev/null || true)"
+  at="$(printf '%s\n' "$info" | sed -n 's/^[[:space:]]*at: //p' | head -n 1)"
+  size="$(printf '%s\n' "$info" | sed -n 's/^[[:space:]]*size: //p' | head -n 1)"
+
+  notify-send "Clipboard popup" "at: ${at:-unknown}
+size: ${size:-unknown}
+rule: move 100%-w-21 94"
+}
+
+store_current_clipboard() {
+  local mime_type
+
+  mime_type="$(
+    wl-paste --list-types 2>/dev/null \
+      | grep -E '^(text/plain|image/)' \
+      | head -n 1 || true
+  )"
+
+  if [ -z "$mime_type" ]; then
+    return 0
+  fi
+
+  wl-paste --type "$mime_type" --no-newline 2>/dev/null | cliphist store >/dev/null 2>&1 || true
+}
+
+if [ "$debug_position" = false ] && [ -n "$(clipboard_popup_pids)" ]; then
+  clipboard_popup_pids | xargs -r kill
+  exit 0
+fi
+
+ensure_clipboard_watchers
+
+entries="$(list_entries)"
+
+if [ -z "$entries" ]; then
+  store_current_clipboard
+  entries="$(list_entries)"
+fi
 
 if [ -z "$entries" ]; then
   notify-send "Clipboard" "No clipboard history"
   exit 0
 fi
 
-choice="$(
-  printf '%s\n' "$entries" | wofi \
+choice_file="$(mktemp)"
+cache_file="$(mktemp)"
+trap 'rm -f "$choice_file" "$cache_file"' EXIT
+
+printf '%s\n' "$entries" | wofi \
     --dmenu \
+    --normal-window \
+    --cache-file "$cache_file" \
     --insensitive \
     --no-custom-entry \
     --hide-scroll \
     --matching multi-contains \
+    --sort-order default \
     --prompt Clipboard \
     --width 420 \
     --height 520 \
     --location top_right \
-    --xoffset -12 \
-    --yoffset 48 \
-    --style "$HOME/.config/wofi/clipboard.css" || true
-)"
+    --xoffset -21 \
+    --yoffset 94 \
+    --define single_click=true \
+    --style "$HOME/.config/wofi/clipboard.css" \
+    >"$choice_file" &
+
+wofi_pid="$!"
+close_on_focus_loss "$wofi_pid" &
+watcher_pid="$!"
+
+if [ "$debug_position" = true ]; then
+  notify_popup_position &
+fi
+
+wait "$wofi_pid" || true
+kill "$watcher_pid" 2>/dev/null || true
+
+choice="$(cat "$choice_file")"
 
 if [ -z "$choice" ]; then
   exit 0
 fi
 
 printf '%s' "$choice" | cliphist decode | wl-copy
+clipboard_popup_pids | xargs -r kill

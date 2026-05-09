@@ -1,3 +1,5 @@
+@import url("file:///home/bro/.config/ui/panel.css");
+
 * {
   border: none;
   border-radius: 0;
@@ -9,18 +11,18 @@
 
 window#waybar {
   background: transparent;
-  color: #e7edf3;
+  color: @panel_text;
 }
 
 tooltip {
-  background: #1b2128;
-  border: 1px solid #3a4652;
+  background: @panel_tooltip_bg;
+  border: 1px solid @panel_tooltip_border;
   border-radius: 0;
-  color: #e7edf3;
+  color: @panel_text;
 }
 
 tooltip label {
-  color: #e7edf3;
+  color: @panel_text;
 }
 
 #workspaces,
@@ -36,8 +38,8 @@ tooltip label {
 #temperature,
 #memory,
 #battery {
-  background: rgba(24, 30, 36, 0.92);
-  border: 1px solid rgba(86, 104, 118, 0.55);
+  background: @panel_bg_bar;
+  border: 1px solid @panel_border_soft;
   border-radius: 0;
   margin: 0 2px;
   padding: 0 10px;
@@ -50,34 +52,34 @@ tooltip label {
 #workspaces button {
   background: transparent;
   border-radius: 0;
-  color: #9aa7b2;
+  color: @panel_text_dim;
   margin: 4px 2px;
   padding: 0 8px;
 }
 
 #workspaces button.active {
-  background: #2f8f7d;
-  color: #f7fbf9;
+  background: @panel_accent;
+  color: @panel_text_light;
 }
 
 #workspaces button.urgent {
-  background: #c95f5f;
-  color: #ffffff;
+  background: @panel_danger;
+  color: @panel_white;
 }
 
 #workspaces button:hover {
-  background: #34424d;
-  color: #ffffff;
+  background: @panel_bg_hover;
+  color: @panel_white;
 }
 
 #window {
-  color: #cad4dc;
+  color: @panel_text_soft;
   font-weight: 500;
 }
 
 #clock {
-  background: #24313c;
-  color: #f0f5f7;
+  background: @panel_bg_clock;
+  color: @panel_text_strong;
 }
 
 #custom-notification {
@@ -88,14 +90,14 @@ tooltip label {
 #custom-notification.dnd-notification,
 #custom-notification.inhibited-notification,
 #custom-notification.dnd-inhibited-notification {
-  color: #f0c674;
+  color: @panel_warning;
 }
 
 #custom-notification.dnd-none,
 #custom-notification.dnd-notification,
 #custom-notification.dnd-inhibited-none,
 #custom-notification.dnd-inhibited-notification {
-  background: #34424d;
+  background: @panel_bg_hover;
 }
 
 #custom-clipboard {
@@ -103,38 +105,38 @@ tooltip label {
 }
 
 #custom-clipboard:hover {
-  background: #34424d;
+  background: @panel_bg_hover;
 }
 
 #pulseaudio.muted {
-  color: #d07a7a;
+  color: @panel_danger_text;
 }
 
 #temperature.critical {
-  color: #d07a7a;
+  color: @panel_danger_text;
 }
 
 #custom-screencast.recording {
-  background: #7f2f35;
-  color: #ffffff;
+  background: @panel_bg_recording;
+  color: @panel_white;
 }
 
 #custom-screencast.sharing {
-  background: #6d5528;
-  color: #ffffff;
+  background: @panel_bg_sharing;
+  color: @panel_white;
 }
 
 #battery.warning {
-  color: #f0c674;
+  color: @panel_warning;
 }
 
 #battery.charging,
 #battery.plugged {
-  background: #2f8f7d;
-  color: #ffffff;
+  background: @panel_accent;
+  color: @panel_white;
 }
 
 #battery.critical {
-  background: #7f2f35;
-  color: #ffffff;
+  background: @panel_bg_recording;
+  color: @panel_white;
 }

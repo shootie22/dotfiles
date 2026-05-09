@@ -39,6 +39,9 @@ in
     (writeShellScriptBin "clipboard-history" ''
       exec "${clipboardScripts}/clipboard-history" "$@"
     '')
+    (writeShellScriptBin "cliphist-store" ''
+      exec ${pkgs.bash}/bin/bash "${clipboardScripts}/store-clipboard" "$@"
+    '')
   ];
 
   xdg.configFile = {
@@ -48,9 +51,42 @@ in
     "kitty/kitty.conf".source = ./kitty/kitty.conf;
     "swaync/config.json".source = ./swaync/config.json;
     "swaync/style.css".source = ./swaync/style.css;
+    "ui/panel.css".source = ./theme/panel.css;
     "waybar/config".source = ./waybar/config;
     "waybar/style.css".source = ./waybar/style.css;
     "wofi/clipboard.css".source = ./wofi/clipboard.css;
+  };
+
+  systemd.user.services.cliphist-text = {
+    Unit = {
+      Description = "Store text clipboard history";
+      PartOf = [ "graphical-session.target" ];
+      After = [ "graphical-session.target" ];
+    };
+
+    Service = {
+      ExecStart = "${pkgs.wl-clipboard}/bin/wl-paste --type text --watch ${pkgs.bash}/bin/bash ${clipboardScripts}/store-clipboard";
+      Restart = "always";
+      RestartSec = 2;
+    };
+
+    Install.WantedBy = [ "graphical-session.target" ];
+  };
+
+  systemd.user.services.cliphist-image = {
+    Unit = {
+      Description = "Store image clipboard history";
+      PartOf = [ "graphical-session.target" ];
+      After = [ "graphical-session.target" ];
+    };
+
+    Service = {
+      ExecStart = "${pkgs.wl-clipboard}/bin/wl-paste --type image --watch ${pkgs.bash}/bin/bash ${clipboardScripts}/store-clipboard";
+      Restart = "always";
+      RestartSec = 2;
+    };
+
+    Install.WantedBy = [ "graphical-session.target" ];
   };
 
   # Git

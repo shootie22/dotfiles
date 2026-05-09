@@ -82,7 +82,8 @@
     "tooltip": true,
     "format": "",
     "tooltip-format": "Clipboard history",
-    "on-click": "clipboard-history"
+    "on-click": "clipboard-history",
+    "on-click-right": "clipboard-history --debug-position"
   },
 
   "custom/screencast": {

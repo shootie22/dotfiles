@@ -1,3 +1,5 @@
+@import url("file:///home/bro/.config/ui/panel.css");
+
 * {
   border: none;
   border-radius: 0;
@@ -6,26 +8,27 @@
   font-weight: 600;
 }
 
-window {
+window,
+#window {
   background: transparent;
 }
 
 #outer-box {
-  background: rgba(22, 27, 33, 0.97);
-  border: 1px solid rgba(92, 111, 126, 0.7);
+  background: @panel_bg;
+  border: 1px solid @panel_border;
   padding: 12px;
 }
 
 #input {
-  background: #26323b;
-  border: 1px solid rgba(92, 111, 126, 0.55);
-  color: #e7edf3;
+  background: @panel_bg_alt;
+  border: 1px solid @panel_border_input;
+  color: @panel_text;
   margin: 0 0 10px;
   padding: 8px 10px;
 }
 
 #input:focus {
-  border-color: #2f8f7d;
+  border-color: @panel_accent;
 }
 
 #scroll {
@@ -38,14 +41,14 @@ window {
 
 #entry {
   background: transparent;
-  color: #cad5dd;
+  color: @panel_text_soft;
   margin: 2px 0;
   padding: 8px 10px;
 }
 
 #entry:selected {
-  background: #2f8f7d;
-  color: #ffffff;
+  background: @panel_accent;
+  color: @panel_white;
 }
 
 #text {
