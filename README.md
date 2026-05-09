@@ -100,7 +100,8 @@ Files are saved under:
 ```
 
 Save notifications use the screenshot image directly. Recording notifications
-use a generated thumbnail from the saved video.
+use a generated thumbnail from the saved video. Recording thumbnails are stored
+under `~/.cache/screengrab-thumbnails/` and old thumbnails are pruned.
 
 ## Media Preview
 

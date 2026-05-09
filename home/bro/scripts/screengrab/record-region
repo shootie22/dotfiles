@@ -23,11 +23,12 @@ notify() {
 
 thumbnail_for() {
   file=$1
-  thumbnail_dir=$recording_dir/.thumbnails
+  thumbnail_dir=${XDG_CACHE_HOME:-$HOME/.cache}/screengrab-thumbnails
   thumbnail=$thumbnail_dir/$(basename "${file%.*}").jpg
 
   if command -v ffmpegthumbnailer >/dev/null 2>&1 && [ -s "$file" ]; then
     mkdir -p "$thumbnail_dir"
+    find "$thumbnail_dir" -type f -mtime +14 -delete 2>/dev/null || true
     ffmpegthumbnailer -i "$file" -o "$thumbnail" -s 512 >/dev/null 2>&1 || true
   fi
 
