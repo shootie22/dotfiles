@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -eu
+
+screenshot_dir=${SCREENGRAB_SCREENSHOT_DIR:-$HOME/Media/Screengrabs/Screenshots}
+mkdir -p "$screenshot_dir"
+
+notify() {
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send "$@" >/dev/null 2>&1 || true
+  fi
+}
+
+timestamp=$(date +%Y-%m-%d_%H-%M-%S)
+file=$screenshot_dir/screenshot-$timestamp.png
+
+if grimblast --freeze save area "$file"; then
+  notify "Screenshot saved" "$file"
+fi
