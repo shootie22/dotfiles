@@ -228,6 +228,14 @@ in
 
   # Services
 
+  services.tlp = {
+    enable = true;
+    settings = {
+      START_CHARGE_THRESH_BAT0 = 90;
+      STOP_CHARGE_THRESH_BAT0 = 95;
+    };
+  };
+
   environment.etc."xmm7360.example".text = ''
     # Copy this to /etc/xmm7360 and set your carrier APN before starting
     # xmm7360-connect.service.
