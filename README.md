@@ -82,6 +82,23 @@ The implementation lives at `home/bro/scripts/wallpaper/change-wallpaper`; `chwp
 is only a short alias. It can be reused outside this repo by setting
 `CHWP_WALLPAPER_DIR` and `CHWP_HYPRPAPER_CONFIG`.
 
+## Screengrab Scripts
+
+Region screenshots and recordings are handled by small scripts in
+`home/bro/scripts/screengrab/`.
+
+```text
+Print        freeze screen, select a region, save a screenshot
+Ctrl+Print   select a region and start recording; press again to stop
+```
+
+Files are saved under:
+
+```text
+~/Media/Screengrabs/Screenshots/
+~/Media/Screengrabs/Recordings/
+```
+
 ## Experimental LTE modem
 
 <details>

@@ -186,7 +186,9 @@ in
   swaynotificationcenter
   wl-clipboard
   grim
+  grimblast
   slurp
+  wf-recorder
   hyprpaper
   networkmanagerapplet
   

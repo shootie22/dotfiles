@@ -4,17 +4,26 @@ let
   dotfilesRoot = "/home/bro/gitrepos/github/dotfiles";
   broHome = "${dotfilesRoot}/home/bro";
   wallpaperScripts = "${broHome}/scripts/wallpaper";
+  screengrabScripts = "${broHome}/scripts/screengrab";
 in
 {
   home.stateVersion = "25.11";
 
   home.packages = with pkgs; [
     meli
+    gomuks
+    zellij
     (writeShellScriptBin "chwp" ''
       exec "${wallpaperScripts}/chwp" "$@"
     '')
     (writeShellScriptBin "change-wallpaper" ''
       exec "${wallpaperScripts}/change-wallpaper" "$@"
+    '')
+    (writeShellScriptBin "screenshot-region" ''
+      exec "${screengrabScripts}/screenshot-region" "$@"
+    '')
+    (writeShellScriptBin "record-region" ''
+      exec "${screengrabScripts}/record-region" "$@"
     '')
   ];
 
