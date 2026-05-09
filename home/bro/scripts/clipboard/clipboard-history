@@ -1,8 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+entries="$(cliphist list)"
+
+if [ -z "$entries" ]; then
+  notify-send "Clipboard" "No clipboard history"
+  exit 0
+fi
+
 choice="$(
-  cliphist list | wofi --dmenu -i -p Clipboard || true
+  printf '%s\n' "$entries" | wofi \
+    --dmenu \
+    --insensitive \
+    --no-custom-entry \
+    --hide-scroll \
+    --matching multi-contains \
+    --prompt Clipboard \
+    --width 420 \
+    --height 520 \
+    --location top_right \
+    --xoffset -12 \
+    --yoffset 48 \
+    --style "$HOME/.config/wofi/clipboard.css" || true
 )"
 
 if [ -z "$choice" ]; then

@@ -28,6 +28,7 @@ tooltip label {
 #clock,
 #tray,
 #custom-notification,
+#custom-clipboard,
 #custom-screencast,
 #backlight,
 #pulseaudio,
@@ -94,6 +95,14 @@ tooltip label {
 #custom-notification.dnd-notification,
 #custom-notification.dnd-inhibited-none,
 #custom-notification.dnd-inhibited-notification {
+  background: #34424d;
+}
+
+#custom-clipboard {
+  min-width: 18px;
+}
+
+#custom-clipboard:hover {
   background: #34424d;
 }
 

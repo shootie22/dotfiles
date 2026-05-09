@@ -50,6 +50,7 @@ in
     "swaync/style.css".source = ./swaync/style.css;
     "waybar/config".source = ./waybar/config;
     "waybar/style.css".source = ./waybar/style.css;
+    "wofi/clipboard.css".source = ./wofi/clipboard.css;
   };
 
   # Git

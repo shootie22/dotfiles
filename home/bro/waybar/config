@@ -12,6 +12,7 @@
   "modules-center": ["clock"],
   "modules-right": [
     "custom/notification",
+    "custom/clipboard",
     "tray",
     "custom/screencast",
     "backlight",
@@ -75,6 +76,13 @@
     "on-click": "swaync-client -t -sw",
     "on-click-right": "swaync-client -d -sw",
     "escape": true
+  },
+
+  "custom/clipboard": {
+    "tooltip": true,
+    "format": "",
+    "tooltip-format": "Clipboard history",
+    "on-click": "clipboard-history"
   },
 
   "custom/screencast": {
