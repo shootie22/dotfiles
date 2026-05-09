@@ -1,3 +1,5 @@
+@import url("file:///home/bro/.config/ui/panel.css");
+
 * {
   font-family: "JetBrainsMono Nerd Font", "Font Awesome 6 Free", sans-serif;
   font-size: 13px;
@@ -19,20 +21,37 @@ blankwindow {
 }
 
 .notification-row .notification-background .notification {
-  background: rgba(22, 27, 33, 0.97);
-  border: 1px solid rgba(92, 111, 126, 0.7);
-  border-left: 3px solid #2f8f7d;
+  background: @panel_bg;
+  border: 1px solid @panel_border;
+  background-image: linear-gradient(to bottom, @panel_accent, @panel_accent);
+  background-position: left bottom;
+  background-repeat: no-repeat;
+  background-size: 3px 100%;
   border-radius: 0;
   box-shadow: none;
   padding: 0;
 }
 
 .notification-row .notification-background .notification.critical {
-  border-left-color: #c95f5f;
+  background-image: linear-gradient(to bottom, @panel_danger, @panel_danger);
 }
 
 .notification-row .notification-background .notification.low {
-  border-left-color: #6b7b86;
+  background-image: linear-gradient(to bottom, @panel_low, @panel_low);
+}
+
+notificationwindow .notification-row .notification-background .notification {
+  animation: notification-timeout 10s linear forwards;
+}
+
+@keyframes notification-timeout {
+  from {
+    background-size: 3px 100%;
+  }
+
+  to {
+    background-size: 3px 0%;
+  }
 }
 
 .notification-default-action,
@@ -41,7 +60,7 @@ blankwindow {
   border: none;
   border-radius: 0;
   box-shadow: none;
-  color: #e7edf3;
+  color: @panel_text;
   margin: 0;
   padding: 0;
 }
@@ -74,22 +93,22 @@ blankwindow {
 }
 
 .summary {
-  color: #f3f7fa;
+  color: @panel_text_strong;
   font-size: 14px;
   font-weight: 800;
   margin: 0 28px 3px 0;
 }
 
 .time {
-  color: #8fa1ad;
+  color: @panel_text_muted;
   font-size: 11px;
   font-weight: 600;
   margin: 0 28px 3px 8px;
 }
 
 .body {
-  border-top: 1px solid rgba(92, 111, 126, 0.38);
-  color: #cad5dd;
+  border-top: 1px solid @panel_border_subtle;
+  color: @panel_text_soft;
   font-size: 13px;
   font-weight: 500;
   line-height: 1.35;
@@ -99,7 +118,7 @@ blankwindow {
 
 .body-image {
   background: transparent;
-  border: 1px solid rgba(92, 111, 126, 0.45);
+  border: 1px solid @panel_border_image;
   border-radius: 0;
   margin-top: 8px;
 }
@@ -109,22 +128,22 @@ progressbar {
 }
 
 progressbar trough {
-  background: rgba(92, 111, 126, 0.28);
+  background: @panel_border_subtle;
   border-radius: 0;
   min-height: 3px;
 }
 
 progressbar progress {
-  background: #2f8f7d;
+  background: @panel_accent;
   border-radius: 0;
   min-height: 3px;
 }
 
 .close-button {
   background: transparent;
-  border: 1px solid rgba(143, 161, 173, 0.55);
+  border: 1px solid @panel_border_control;
   border-radius: 0;
-  color: #cbd6dd;
+  color: @panel_text_soft;
   margin: 8px;
   min-height: 22px;
   min-width: 22px;
@@ -132,13 +151,13 @@ progressbar progress {
 }
 
 .close-button:hover {
-  background: #c95f5f;
-  border-color: #c95f5f;
-  color: #ffffff;
+  background: @panel_danger;
+  border-color: @panel_danger;
+  color: @panel_white;
 }
 
 .notification-alt-actions {
-  background: rgba(15, 19, 24, 0.45);
+  background: @panel_bg_overlay;
   border-radius: 0;
   padding: 6px;
 }
@@ -149,24 +168,24 @@ progressbar progress {
 }
 
 .notification-action > button {
-  background: #26323b;
-  border: 1px solid rgba(92, 111, 126, 0.55);
+  background: @panel_bg_alt;
+  border: 1px solid @panel_border_input;
   border-radius: 0;
-  color: #e7edf3;
+  color: @panel_text;
   padding: 5px 9px;
 }
 
 .notification-action > button:hover {
-  background: #2f8f7d;
-  border-color: #2f8f7d;
-  color: #ffffff;
+  background: @panel_accent;
+  border-color: @panel_accent;
+  color: @panel_white;
 }
 
 .control-center {
-  background: rgba(22, 27, 33, 0.97);
-  border: 1px solid rgba(92, 111, 126, 0.7);
+  background: @panel_bg;
+  border: 1px solid @panel_border;
   border-radius: 0;
-  color: #e7edf3;
+  color: @panel_text;
   padding: 12px;
 }
 
@@ -175,38 +194,38 @@ progressbar progress {
 }
 
 .widget-title {
-  color: #f3f7fa;
+  color: @panel_text_strong;
   font-size: 15px;
   font-weight: 800;
   margin: 4px 4px 10px;
 }
 
 .widget-title button {
-  background: #2f8f7d;
+  background: @panel_accent;
   border-radius: 0;
-  color: #ffffff;
+  color: @panel_white;
   padding: 4px 10px;
 }
 
 .widget-title button:hover {
-  background: #3aa690;
+  background: @panel_accent_hover;
 }
 
 .widget-dnd {
-  color: #cad4dc;
+  color: @panel_text_soft;
   margin: 4px;
 }
 
 .widget-dnd switch {
-  background: #34424d;
+  background: @panel_bg_hover;
   border-radius: 0;
 }
 
 .widget-dnd switch:checked {
-  background: #2f8f7d;
+  background: @panel_accent;
 }
 
 .widget-dnd slider {
-  background: #e7edf3;
+  background: @panel_text;
   border-radius: 0;
 }

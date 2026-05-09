@@ -1,0 +1,33 @@
+@define-color panel_bg rgba(22, 27, 33, 0.97);
+@define-color panel_bg_bar rgba(24, 30, 36, 0.92);
+@define-color panel_bg_alt #26323b;
+@define-color panel_bg_hover #34424d;
+@define-color panel_bg_clock #24313c;
+@define-color panel_bg_recording #7f2f35;
+@define-color panel_bg_sharing #6d5528;
+@define-color panel_bg_overlay rgba(15, 19, 24, 0.45);
+
+@define-color panel_border rgba(92, 111, 126, 0.7);
+@define-color panel_border_soft rgba(86, 104, 118, 0.55);
+@define-color panel_border_input rgba(92, 111, 126, 0.55);
+@define-color panel_border_subtle rgba(92, 111, 126, 0.38);
+@define-color panel_border_image rgba(92, 111, 126, 0.45);
+@define-color panel_border_control rgba(143, 161, 173, 0.55);
+
+@define-color panel_text #e7edf3;
+@define-color panel_text_strong #f3f7fa;
+@define-color panel_text_soft #cad5dd;
+@define-color panel_text_muted #8fa1ad;
+@define-color panel_text_dim #9aa7b2;
+@define-color panel_text_light #f7fbf9;
+@define-color panel_white #ffffff;
+
+@define-color panel_accent #2f8f7d;
+@define-color panel_accent_hover #3aa690;
+@define-color panel_warning #f0c674;
+@define-color panel_danger #c95f5f;
+@define-color panel_danger_text #d07a7a;
+@define-color panel_low #6b7b86;
+
+@define-color panel_tooltip_bg #1b2128;
+@define-color panel_tooltip_border #3a4652;
