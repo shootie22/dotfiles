@@ -5,6 +5,7 @@ recording_dir=${SCREENGRAB_RECORDING_DIR:-$HOME/Media/Screengrabs/Recordings}
 runtime_dir=${XDG_RUNTIME_DIR:-/tmp}
 pid_file=$runtime_dir/screengrab-recording.pid
 path_file=$runtime_dir/screengrab-recording.path
+log_file=/tmp/wf-recorder.log
 
 notify() {
   if command -v notify-send >/dev/null 2>&1; then
@@ -12,11 +13,37 @@ notify() {
   fi
 }
 
-if [ -f "$pid_file" ]; then
+is_recording() {
+  [ -f "$pid_file" ] || return 1
+
   pid=$(cat "$pid_file")
-  if kill -0 "$pid" 2>/dev/null; then
-    kill -INT "$pid"
+  [ -n "$pid" ] || return 1
+
+  command=$(ps -p "$pid" -o args= 2>/dev/null || true)
+  case "$command" in
+    *wf-recorder*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+if [ -f "$pid_file" ]; then
+  if is_recording; then
+    pid=$(cat "$pid_file")
     file=$(cat "$path_file" 2>/dev/null || true)
+
+    kill -INT "$pid"
+
+    for _ in 1 2 3 4 5; do
+      if ! kill -0 "$pid" 2>/dev/null; then
+        break
+      fi
+      sleep 0.2
+    done
+
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -TERM "$pid"
+    fi
+
     rm -f "$pid_file" "$path_file"
     notify "Recording stopped" "$file"
     exit 0
@@ -26,13 +53,22 @@ if [ -f "$pid_file" ]; then
 fi
 
 geometry=$(slurp)
+[ -n "$geometry" ] || exit 0
+
 mkdir -p "$recording_dir"
 
 timestamp=$(date +%Y-%m-%d_%H-%M-%S)
 file=$recording_dir/recording-$timestamp.mp4
 
-wf-recorder -g "$geometry" -f "$file" >/tmp/wf-recorder.log 2>&1 &
+nohup wf-recorder -g "$geometry" -f "$file" >"$log_file" 2>&1 &
 pid=$!
+
+sleep 0.2
+if ! kill -0 "$pid" 2>/dev/null; then
+  rm -f "$pid_file" "$path_file"
+  notify "Recording failed" "$log_file"
+  exit 1
+fi
 
 printf '%s\n' "$pid" > "$pid_file"
 printf '%s\n' "$file" > "$path_file"
