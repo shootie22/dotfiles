@@ -152,7 +152,8 @@ The host config:
 - disables ModemManager for this machine, because it cannot manage this modem
 - blacklists the in-kernel `iosm` driver, because the experimental driver must bind instead
 - builds a local `xmm7360-pci` kernel module from `pkgs/xmm7360-pci`
-- installs helper commands for reset, hard reset, status, LTE routing/DNS, and Wi-Fi routing
+- installs `lte-on` / `lte-off` wrapper commands plus lower-level reset,
+  status, LTE routing/DNS, and Wi-Fi routing helpers
 - installs `xmm7360-connect.service`, which attaches the modem but does not change default routes
 - removes `element-desktop`, because the current package pulled insecure `olm`
   and blocked NixOS rebuilds
@@ -191,6 +192,19 @@ use automatic LTE metrics. Route switching is explicit.
 
 <details>
 <summary>Helper commands</summary>
+
+`lte-on`
+
+Normal command for getting online through LTE. It runs the tested hard-reset
+path, enables LTE routing/DNS, verifies packet flow, and then prints the public
+IP/location. Normal mode shows only a spinner and final result. Use
+`lte-on --verbose` for the full helper output and diagnostics.
+
+`lte-off`
+
+Normal command for returning to Wi-Fi. It stops the modem connector, removes LTE
+routes/DNS, asks NetworkManager to reconnect Wi-Fi, and then prints the public
+IP/location. Use `lte-off --verbose` for the full helper output and diagnostics.
 
 `xmm7360-reset`
 
@@ -246,28 +260,35 @@ asks NetworkManager to reconnect Wi-Fi.
 Current reliable LTE-on path:
 
 ```bash
-sudo xmm7360-hard-reset
-xmm7360-status
-sudo xmm7360-use-lte
-ping -I wwan0 -c 4 1.1.1.1
-ping -I wwan0 -c 4 example.com
+lte-on
 ```
 
-Lighter reconnect path, useful for debugging but less reliable after toggling:
+Verbose/debug LTE-on path:
 
 ```bash
-sudo xmm7360-reset
-sudo xmm7360-use-lte
+lte-on --verbose
 ```
 
 Return to Wi-Fi:
 
 ```bash
-sudo xmm7360-use-wifi
-ping -I wlp3s0 -c 4 1.1.1.1
+lte-off
 ```
 
-The wait is needed because `wwan0` can receive an IP before the modem has
+Verbose/debug Wi-Fi restore:
+
+```bash
+lte-off --verbose
+```
+
+The lower-level equivalent of `lte-on` is:
+
+```bash
+sudo xmm7360-hard-reset
+sudo xmm7360-use-lte
+```
+
+The reset wait is needed because `wwan0` can receive an IP before the modem has
 finished attaching and setting up the packet data channel. The useful log signs
 are:
 
