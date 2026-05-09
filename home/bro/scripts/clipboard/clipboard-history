@@ -2,10 +2,21 @@
 set -euo pipefail
 
 debug_position=false
+clear_history=false
 
-if [ "${1:-}" = "--debug-position" ]; then
-  debug_position=true
-fi
+case "${1:-}" in
+  --debug-position)
+    debug_position=true
+    ;;
+  --clear)
+    clear_history=true
+    ;;
+esac
+
+clear_entry="[ X ] Clear clipboard history"
+
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/cliphist"
+clear_marker="$cache_dir/cleared-by-waybar"
 
 list_entries() {
   cliphist list 2>/dev/null || true
@@ -23,6 +34,13 @@ ensure_clipboard_watchers() {
 
 clipboard_popup_pids() {
   pgrep -f 'wofi .*--prompt Clipboard' || true
+}
+
+clear_clipboard_history() {
+  mkdir -p "$cache_dir"
+  cliphist wipe >/dev/null 2>&1 || true
+  : >"$clear_marker"
+  clipboard_popup_pids | xargs -r kill
 }
 
 active_window_is_wofi() {
@@ -87,6 +105,11 @@ store_current_clipboard() {
   wl-paste --type "$mime_type" --no-newline 2>/dev/null | cliphist store >/dev/null 2>&1 || true
 }
 
+if [ "$clear_history" = true ]; then
+  clear_clipboard_history
+  exit 0
+fi
+
 if [ "$debug_position" = false ] && [ -n "$(clipboard_popup_pids)" ]; then
   clipboard_popup_pids | xargs -r kill
   exit 0
@@ -96,7 +119,7 @@ ensure_clipboard_watchers
 
 entries="$(list_entries)"
 
-if [ -z "$entries" ]; then
+if [ -z "$entries" ] && [ ! -e "$clear_marker" ]; then
   store_current_clipboard
   entries="$(list_entries)"
 fi
@@ -110,7 +133,7 @@ choice_file="$(mktemp)"
 cache_file="$(mktemp)"
 trap 'rm -f "$choice_file" "$cache_file"' EXIT
 
-printf '%s\n' "$entries" | wofi \
+printf '%s\n%s\n' "$clear_entry" "$entries" | wofi \
     --dmenu \
     --normal-window \
     --cache-file "$cache_file" \
@@ -143,6 +166,11 @@ kill "$watcher_pid" 2>/dev/null || true
 choice="$(cat "$choice_file")"
 
 if [ -z "$choice" ]; then
+  exit 0
+fi
+
+if [ "$choice" = "$clear_entry" ]; then
+  clear_clipboard_history
   exit 0
 fi
 

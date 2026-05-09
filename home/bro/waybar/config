@@ -75,6 +75,7 @@
     "exec": "swaync-client -swb",
     "on-click": "swaync-client -t -sw",
     "on-click-right": "swaync-client -d -sw",
+    "on-click-middle": "swaync-client -C -sw",
     "escape": true
   },
 
@@ -83,7 +84,7 @@
     "format": "",
     "tooltip-format": "Clipboard history",
     "on-click": "clipboard-history",
-    "on-click-right": "clipboard-history --debug-position"
+    "on-click-right": "clipboard-history --clear"
   },
 
   "custom/screencast": {
