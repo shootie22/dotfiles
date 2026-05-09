@@ -99,6 +99,9 @@ Files are saved under:
 ~/Media/Screengrabs/Recordings/
 ```
 
+Save notifications use the screenshot image directly. Recording notifications
+use a generated thumbnail from the saved video.
+
 ## Experimental LTE modem
 
 <details>

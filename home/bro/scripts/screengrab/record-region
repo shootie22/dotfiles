@@ -9,7 +9,30 @@ log_file=/tmp/wf-recorder.log
 
 notify() {
   if command -v notify-send >/dev/null 2>&1; then
-    notify-send "$@" >/dev/null 2>&1 || true
+    summary=$1
+    body=$2
+    icon=${3:-}
+
+    if [ -n "$icon" ]; then
+      notify-send -i "$icon" "$summary" "$body" >/dev/null 2>&1 || true
+    else
+      notify-send "$summary" "$body" >/dev/null 2>&1 || true
+    fi
+  fi
+}
+
+thumbnail_for() {
+  file=$1
+  thumbnail_dir=$recording_dir/.thumbnails
+  thumbnail=$thumbnail_dir/$(basename "${file%.*}").jpg
+
+  if command -v ffmpegthumbnailer >/dev/null 2>&1 && [ -s "$file" ]; then
+    mkdir -p "$thumbnail_dir"
+    ffmpegthumbnailer -i "$file" -o "$thumbnail" -s 512 >/dev/null 2>&1 || true
+  fi
+
+  if [ -f "$thumbnail" ]; then
+    printf '%s\n' "$thumbnail"
   fi
 }
 
@@ -45,7 +68,8 @@ if [ -f "$pid_file" ]; then
     fi
 
     rm -f "$pid_file" "$path_file"
-    notify "Recording stopped" "$file"
+    thumbnail=$(thumbnail_for "$file" || true)
+    notify "Recording saved" "$file" "$thumbnail"
     exit 0
   fi
 
