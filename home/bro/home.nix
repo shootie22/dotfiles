@@ -11,7 +11,6 @@ in
 
   home.packages = with pkgs; [
     meli
-    gomuks
     zellij
     (writeShellScriptBin "chwp" ''
       exec "${wallpaperScripts}/chwp" "$@"
