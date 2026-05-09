@@ -2,24 +2,38 @@
 
 Personal NixOS and user configuration.
 
-<details>
-<summary>nixpad</summary>
+## Repository layout
+
+```text
+hosts/
+  nixpad/             # NixOS host config
+    xmm7360/          # host-specific LTE modem helpers
+
+home/
+  bro/                # Home Manager user config
+    hypr/
+    kitty/
+    scripts/
+      wallpaper/
+    swaync/
+    wallpapers/
+    waybar/
+
+pkgs/
+  xmm7360-pci/        # local package override/module build
+```
 
 ## Host: nixpad
 
-The NixOS system configuration for `nixpad` lives here:
-
-```text
-hosts/nixpad/
-```
-
+The NixOS system configuration for `nixpad` lives in `hosts/nixpad/`.
 On the machine, `/etc/nixos` is a symlink to:
 
 ```text
 /home/bro/gitrepos/github/dotfiles/hosts/nixpad
 ```
-**Note**: The git structure defined in the nixOS config is: ~/gitrepos/github and ~/gitrepos/gitea. 
 
+The git structure defined in the NixOS config is `~/gitrepos/github` and
+`~/gitrepos/gitea`.
 
 To rebuild:
 
@@ -33,49 +47,22 @@ Or to rebuild explicitly from the repo:
 sudo nixos-rebuild switch -I nixos-config=/home/bro/gitrepos/github/dotfiles/hosts/nixpad/configuration.nix
 ```
 
-## Current structure
-
-```text
-hosts/
-  nixpad/
-    configuration.nix
-    hardware-configuration.nix
-
-home/
-  bro/
-    home.nix
-    hypr/
-      hyprland.conf
-      hyprpaper.conf
-    kitty/
-      kitty.conf
-    waybar/
-      config
-    wallpapers/
-      wallhaven-21dw6m.jpg
-      wallhaven-3q5ex3.jpg
-      wallhaven-zpqzzv.jpg
-```
-
-## Notes
+## Home Manager
 
 Home Manager user configuration lives in `home/bro/home.nix`.
-
 `hosts/nixpad/configuration.nix` imports that file with:
 
 ```nix
 home-manager.users.bro = import ../../home/bro/home.nix;
 ```
 
-Hyprland, Kitty, and Waybar still read their normal live paths under `~/.config`, but
-Home Manager creates those files from the tracked repo files:
+Hyprland, Kitty, SwayNC, and Waybar read their normal live paths under
+`~/.config`, and Home Manager creates those files from tracked repo files.
 
-```text
-~/.config/hypr/hyprland.conf  <- home/bro/hypr/hyprland.conf
-~/.config/hypr/hyprpaper.conf <- home/bro/hypr/hyprpaper.conf
-~/.config/kitty/kitty.conf    <- home/bro/kitty/kitty.conf
-~/.config/waybar/config       <- home/bro/waybar/config
-```
+Most configs are normal Home Manager store links. `hyprpaper.conf` is an
+out-of-store symlink so the wallpaper helper can update the repo config directly.
+
+## Wallpaper Scripts
 
 Wallpaper startup config is managed by Home Manager as an out-of-store symlink so
 the helper can update the repo directly. The `chwp` command is installed through
@@ -261,7 +248,5 @@ This is experimental support, not normal ModemManager integration.
 - Restarts can leave the modem in a bad state; use `xmm7360-reset`,
   `xmm7360-hard-reset`, or reboot.
 - A supported MBIM/QMI USB modem or hotspot would be more reliable for daily use.
-
-</details>
 
 </details>
