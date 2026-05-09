@@ -15,6 +15,69 @@ xmm_log() {
   printf '%s\n' "$*"
 }
 
+xmm_as_root() {
+  if [ "$(id -u)" -eq 0 ]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+xmm_spinner_wait() {
+  local pid="$1"
+  local message="$2"
+  local frame
+  local rc
+
+  printf '%s ' "$message"
+  while kill -0 "$pid" 2>/dev/null; do
+    for frame in '-' '\' '|' '/'; do
+      if ! kill -0 "$pid" 2>/dev/null; then
+        break
+      fi
+      printf '\b%s' "$frame"
+      sleep 0.15
+    done
+  done
+
+  set +e
+  wait "$pid"
+  rc=$?
+  set -e
+  printf '\b'
+  return "$rc"
+}
+
+xmm_public_location() {
+  local json
+  local ip
+  local city
+  local country
+
+  json="$(curl -4 -fsS --max-time 10 https://ipinfo.io/json 2>/dev/null)" || return 1
+  ip="$(printf '%s\n' "$json" | jq -r '.ip // empty')"
+  city="$(printf '%s\n' "$json" | jq -r '.city // empty')"
+  country="$(printf '%s\n' "$json" | jq -r '.country // empty')"
+
+  if [ -z "$ip" ]; then
+    return 1
+  fi
+
+  if [ -n "$city" ] && [ -n "$country" ]; then
+    printf 'IP: %s (%s, %s)\n' "$ip" "$city" "$country"
+  elif [ -n "$country" ]; then
+    printf 'IP: %s (%s)\n' "$ip" "$country"
+  else
+    printf 'IP: %s\n' "$ip"
+  fi
+}
+
+xmm_print_public_location() {
+  if ! xmm_public_location; then
+    echo "Public IP lookup failed."
+  fi
+}
+
 xmm_wwan_ip() {
   ip -4 -o addr show dev "$XMM7360_IFACE" scope global 2>/dev/null \
     | awk '{ split($4, a, "/"); print a[1]; exit }'

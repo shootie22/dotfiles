@@ -28,6 +28,15 @@ let
     procps
     systemd
   ];
+  lteWrapperRuntimeInputs = xmm7360RuntimeInputs ++ [
+    pkgs.curl
+    pkgs.jq
+    pkgs.sudo
+    xmm7360HardReset
+    xmm7360Status
+    xmm7360UseLte
+    xmm7360UseWifi
+  ];
   xmm7360Helper = name: script: pkgs.writeShellApplication {
     inherit name;
     runtimeInputs = xmm7360RuntimeInputs;
@@ -44,6 +53,18 @@ let
   xmm7360UseDns = xmm7360Helper "xmm7360-use-dns" ./xmm7360/use-dns.sh;
   xmm7360UseLte = xmm7360Helper "xmm7360-use-lte" ./xmm7360/use-lte.sh;
   xmm7360UseWifi = xmm7360Helper "xmm7360-use-wifi" ./xmm7360/use-wifi.sh;
+  lteWrapper = name: script: pkgs.writeShellApplication {
+    inherit name;
+    runtimeInputs = lteWrapperRuntimeInputs;
+    text = ''
+      set -euo pipefail
+      # shellcheck source=/dev/null
+      source ${./xmm7360/common.sh}
+      ${builtins.readFile script}
+    '';
+  };
+  lteOn = lteWrapper "lte-on" ./xmm7360/lte-on.sh;
+  lteOff = lteWrapper "lte-off" ./xmm7360/lte-off.sh;
 in
 {
   imports =
@@ -166,6 +187,8 @@ in
 
   # Mobile broadband
   usbutils
+  lteOn
+  lteOff
   xmm7360Pci
   xmm7360HardReset
   xmm7360Reset
