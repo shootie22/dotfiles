@@ -65,6 +65,9 @@ in
 
   hardware.enableRedistributableFirmware = true;
 
+  # BlueZ backend for Bluetooth managers like bluetuith.
+  hardware.bluetooth.enable = true;
+
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
@@ -146,6 +149,8 @@ in
   vim
   wget
   brightnessctl
+  bluetuith
+  unstable.wifitui
 
   # Monitoring vitals
   btop
@@ -180,6 +185,7 @@ in
   gitui
 
   # Hyprland stuff
+  adwaita-icon-theme
   kitty
   waybar
   wofi
