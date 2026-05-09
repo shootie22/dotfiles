@@ -14,6 +14,9 @@ home/
     hypr/
     kitty/
     scripts/
+      clipboard/
+      media/
+      screengrab/
       wallpaper/
     swaync/
     wallpapers/
@@ -61,6 +64,19 @@ Hyprland, Kitty, SwayNC, and Waybar read their normal live paths under
 
 Most configs are normal Home Manager store links. `hyprpaper.conf` is an
 out-of-store symlink so the wallpaper helper can update the repo config directly.
+
+## Clipboard History
+
+Clipboard history is handled by `cliphist` plus a small picker script in
+`home/bro/scripts/clipboard/`.
+
+```text
+Super+V         open clipboard history
+Super+Shift+V   toggle floating
+```
+
+Clipboard entries are captured automatically from Wayland via `wl-paste`, and
+the picker restores the selected entry with `wl-copy`.
 
 ## Wallpaper Scripts
 
