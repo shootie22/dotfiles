@@ -89,6 +89,8 @@ chwp ~/Media/Wallpapers/foo.jpg
 Use `chwp --move-file ~/Downloads/foo.jpg` to move the source file into the repo
 instead of copying it.
 
+Use `chwp --which` to print the wallpaper currently configured.
+
 The implementation lives at `home/bro/scripts/wallpaper/change-wallpaper`; `chwp`
 is only a short alias. It can be reused outside this repo by setting
 `CHWP_WALLPAPER_DIR` and `CHWP_HYPRPAPER_CONFIG`.

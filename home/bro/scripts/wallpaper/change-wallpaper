@@ -12,10 +12,15 @@ hyprpaper_config=${CHWP_HYPRPAPER_CONFIG:-$home_dir/hypr/hyprpaper.conf}
 
 usage() {
   echo "usage: $(basename "$0") [-m|--move-file] IMAGE" >&2
+  echo "       $(basename "$0") -w|--which" >&2
 }
 
 move_file=false
 case "${1:-}" in
+  -w|--which)
+    sed -n 's/^wallpaper[[:space:]]*=[[:space:]]*,//p' "$hyprpaper_config"
+    exit 0
+    ;;
   -m|--move-file)
     move_file=true
     shift
