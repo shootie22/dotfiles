@@ -13,11 +13,14 @@ in
 
   home.packages = with pkgs; [
     meli
+    iamb
     cliphist
     file
     mpv
     swayimg
     zellij
+    wiremix
+
     (writeShellScriptBin "chwp" ''
       exec "${wallpaperScripts}/chwp" "$@"
     '')
