@@ -1,0 +1,16 @@
+[accounts."hello@radunenu.com"]
+root_mailbox = "INBOX"
+format = "imap"
+server_hostname = "imap.mailfence.com"
+server_username = "cactus"
+server_password_command = 'bw get password "Mailfence IMAP"'
+server_port = 993
+use_tls = true
+use_starttls = false
+
+identity = "hello@radunenu.com"
+display_name = "Radu N."
+subscribed_mailboxes = ["*"]
+listing.index_style = "Conversations"
+
+send_mail = { hostname = "smtp.mailfence.com", port = 465, auth = { type = "auto", username = "cactus", password = { type = "command_eval", value = 'bw get password "Mailfence SMTP"' } }, security = { type = "tls" } }
