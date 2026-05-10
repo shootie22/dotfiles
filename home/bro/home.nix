@@ -14,6 +14,7 @@ in
   home.packages = with pkgs; [
     meli
     iamb
+    bitwarden-cli
     cliphist
     file
     mpv
@@ -53,6 +54,10 @@ in
       config.lib.file.mkOutOfStoreSymlink "${broHome}/hypr/hyprpaper.conf";
     "iamb/config.toml".source = ./iamb/config.toml;
     "kitty/kitty.conf".source = ./kitty/kitty.conf;
+    "meli/config.toml" = {
+      source = ./meli/config.toml;
+      force = true;
+    };
     "swaync/config.json".source = ./swaync/config.json;
     "swaync/style.css".source = ./swaync/style.css;
     "ui/panel.css".source = ./theme/panel.css;
