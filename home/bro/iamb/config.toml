@@ -1,0 +1,7 @@
+default_profile = "main"
+
+[profiles.main]
+user_id = "@cactus:nuke.zip"
+
+[settings.notifications]
+enabled = true
