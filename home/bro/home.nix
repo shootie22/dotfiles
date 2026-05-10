@@ -51,6 +51,7 @@ in
     "hypr/hyprland.conf".source = ./hypr/hyprland.conf;
     "hypr/hyprpaper.conf".source =
       config.lib.file.mkOutOfStoreSymlink "${broHome}/hypr/hyprpaper.conf";
+    "iamb/config.toml".source = ./iamb/config.toml;
     "kitty/kitty.conf".source = ./kitty/kitty.conf;
     "swaync/config.json".source = ./swaync/config.json;
     "swaync/style.css".source = ./swaync/style.css;
