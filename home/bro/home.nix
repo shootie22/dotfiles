@@ -22,6 +22,9 @@ in
     zellij
     wiremix
 
+    # Games
+    runelite
+
     (writeShellScriptBin "chwp" ''
       exec "${wallpaperScripts}/chwp" "$@"
     '')
