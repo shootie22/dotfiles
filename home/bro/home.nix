@@ -51,6 +51,15 @@ in
     '')
   ];
 
+  home.pointerCursor = {
+    package = pkgs.hackneyed;
+    name = "Hackneyed";
+    size = 24;
+
+    gtk.enable = true;
+    x11.enable = true;
+  };
+
   xdg.configFile = {
     "hypr/hyprland.conf".source = ./hypr/hyprland.conf;
     "hypr/hyprpaper.conf".source =
