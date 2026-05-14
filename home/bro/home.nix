@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, pkgs, unstable ? pkgs, ... }:
 
 let
   dotfilesRoot = "/home/bro/gitrepos/github/dotfiles";
@@ -13,7 +13,7 @@ in
 
   home.packages = with pkgs; [
     meli
-    iamb
+    unstable.iamb
     bitwarden-cli
     cliphist
     file

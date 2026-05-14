@@ -3,5 +3,9 @@ default_profile = "main"
 [profiles.main]
 user_id = "@cactus:nuke.zip"
 
+[settings.image_preview]
+protocol.type = "kitty"
+size = { height = 12, width = 60 }
+
 [settings.notifications]
 enabled = true
