@@ -11,6 +11,7 @@
   "modules-left": ["hyprland/workspaces", "hyprland/window"],
   "modules-center": ["clock"],
   "modules-right": [
+    "custom/weather",
     "custom/notification",
     "custom/clipboard",
     "tray",
@@ -55,6 +56,14 @@
   "tray": {
     "icon-size": 16,
     "spacing": 8
+  },
+
+  "custom/weather": {
+    "exec": "waybar-weather",
+    "return-type": "json",
+    "interval": 1800,
+    "tooltip": true,
+    "on-click": "kitty --title weather -e bash -lc 'waybar-weather --forecast; echo; read -r -p \"press enter to close\" _'"
   },
 
   "custom/notification": {

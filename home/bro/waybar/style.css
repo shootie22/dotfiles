@@ -32,6 +32,7 @@ tooltip label {
 #window,
 #clock,
 #tray,
+#custom-weather,
 #custom-notification,
 #custom-clipboard,
 #custom-screencast,
@@ -83,6 +84,10 @@ tooltip label {
 #clock {
   background: @waybar_bg_clock;
   color: @panel_text_strong;
+}
+
+#custom-weather.offline {
+  color: @panel_text_dim;
 }
 
 #custom-notification {
