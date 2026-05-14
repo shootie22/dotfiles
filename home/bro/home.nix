@@ -129,7 +129,7 @@ in
     Unit.Description = "Rotate Hyprland wallpaper";
 
     Timer = {
-      OnBootSec = "2min";
+      OnBootSec = "30min";
       OnUnitActiveSec = "30min";
     };
 
