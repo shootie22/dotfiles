@@ -76,6 +76,10 @@ in
       <home-manager/nixos>
     ];
 
+  home-manager.extraSpecialArgs = {
+    inherit unstable;
+  };
+
   home-manager.users.bro = import ../../home/bro/home.nix;
 
   # Enable graphics driver - unsure if needed
