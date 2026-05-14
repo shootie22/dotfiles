@@ -15,9 +15,17 @@ json_escape() {
   printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
 }
 
+lowercase() {
+  tr '[:upper:]' '[:lower:]'
+}
+
+weather_case() {
+  lowercase | sed 's/°c/°C/g'
+}
+
 case "${1:-}" in
   --forecast)
-    fetch "https://wttr.in/$url_location?F&n&Q" || {
+    fetch "https://wttr.in/$url_location?F&n&Q" | weather_case || {
       echo "weather unavailable" >&2
       exit 1
     }
@@ -56,8 +64,8 @@ details=${details:-$(printf '%s' "$raw_details" | tr -d '\r' | head -n1)}
 
 mkdir -p "$cache_dir"
 json=$(printf '{"text":"󰖕 %s","tooltip":"%s"}\n' \
-  "$(json_escape "$current")" \
-  "$(json_escape "$details")")
+  "$(json_escape "$(printf '%s' "$current" | weather_case)")" \
+  "$(json_escape "$(printf '%s' "$details" | weather_case)")")
 
 printf '%s' "$json" > "$cache_file"
 printf '%s' "$json"
