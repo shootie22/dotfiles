@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -eu
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+home_dir=$(cd -- "$script_dir/../.." && pwd -P)
+
+wallpaper_dir=${CHWP_WALLPAPER_DIR:-$home_dir/wallpapers}
+change_wallpaper=${CHWP_CHANGE_WALLPAPER:-$script_dir/change-wallpaper}
+
+current=$("$change_wallpaper" --which || true)
+
+wallpapers=$(
+  find "$wallpaper_dir" -maxdepth 1 -type f \
+    \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \
+    | sort
+)
+
+if [ -z "$wallpapers" ]; then
+  echo "rotate-wallpaper: no wallpapers found in $wallpaper_dir" >&2
+  exit 1
+fi
+
+next=$(
+  printf '%s\n' "$wallpapers" \
+    | awk -v current="$current" '
+      NR == 1 { first = $0 }
+      previous == current { print; found = 1; exit }
+      { previous = $0 }
+      END { if (!found) print first }
+    '
+)
+
+exec "$change_wallpaper" "$next"
