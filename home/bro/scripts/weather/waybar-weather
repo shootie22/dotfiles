@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -eu
+
+location=${WAYBAR_WEATHER_LOCATION:-Copenhagen}
+cache_dir=${XDG_CACHE_HOME:-"$HOME/.cache"}/waybar
+cache_file=$cache_dir/weather.json
+
+url_location=$(printf '%s' "$location" | sed 's/ /%20/g')
+
+fetch() {
+  curl --fail --silent --show-error --location --connect-timeout 5 --max-time 12 "$1"
+}
+
+json_escape() {
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+case "${1:-}" in
+  --forecast)
+    fetch "https://wttr.in/$url_location?F&n&Q" || {
+      echo "weather unavailable" >&2
+      exit 1
+    }
+    exit 0
+    ;;
+  -h|--help)
+    echo "usage: waybar-weather [--forecast]" >&2
+    exit 0
+    ;;
+esac
+
+raw_current=$(fetch "https://wttr.in/$url_location?format=%t") || {
+  if [ -f "$cache_file" ]; then
+    cat "$cache_file"
+  else
+    printf '{"text":"󰖕 --","tooltip":"weather unavailable","class":"offline"}\n'
+  fi
+  exit 0
+}
+
+current=$(printf '%s' "$raw_current" | tr -d '\r' | head -n1)
+
+if [ -z "$current" ]; then
+  if [ -f "$cache_file" ]; then
+    cat "$cache_file"
+  else
+    printf '{"text":"󰖕 --","tooltip":"weather unavailable","class":"offline"}\n'
+  fi
+  exit 0
+fi
+
+raw_details=$(fetch "https://wttr.in/$url_location?format=%l:+%C,+feels+like+%f,+wind+%w,+humidity+%h") || {
+  details="$location: $current"
+}
+details=${details:-$(printf '%s' "$raw_details" | tr -d '\r' | head -n1)}
+
+mkdir -p "$cache_dir"
+json=$(printf '{"text":"󰖕 %s","tooltip":"%s"}\n' \
+  "$(json_escape "$current")" \
+  "$(json_escape "$details")")
+
+printf '%s' "$json" > "$cache_file"
+printf '%s' "$json"

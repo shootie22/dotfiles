@@ -7,6 +7,7 @@ let
   wallpaperScripts = "${broHome}/scripts/wallpaper";
   screengrabScripts = "${broHome}/scripts/screengrab";
   mediaScripts = "${broHome}/scripts/media";
+  weatherScripts = "${broHome}/scripts/weather";
 in
 {
   home.stateVersion = "25.11";
@@ -45,6 +46,10 @@ in
     '')
     (writeShellScriptBin "preview" ''
       exec "${mediaScripts}/preview" "$@"
+    '')
+    (writeShellScriptBin "waybar-weather" ''
+      export PATH="${pkgs.curl}/bin:${pkgs.coreutils}/bin:${pkgs.gnused}/bin:$PATH"
+      exec "${weatherScripts}/waybar-weather" "$@"
     '')
     (writeShellScriptBin "clipboard-history" ''
       exec "${clipboardScripts}/clipboard-history" "$@"
