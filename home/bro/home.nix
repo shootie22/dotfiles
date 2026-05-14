@@ -31,6 +31,9 @@ in
     (writeShellScriptBin "change-wallpaper" ''
       exec "${wallpaperScripts}/change-wallpaper" "$@"
     '')
+    (writeShellScriptBin "rotate-wallpaper" ''
+      exec "${wallpaperScripts}/rotate-wallpaper" "$@"
+    '')
     (writeShellScriptBin "screenshot-region" ''
       exec "${screengrabScripts}/screenshot-region" "$@"
     '')
@@ -108,6 +111,29 @@ in
     };
 
     Install.WantedBy = [ "graphical-session.target" ];
+  };
+
+  systemd.user.services.rotate-wallpaper = {
+    Unit = {
+      Description = "Rotate Hyprland wallpaper";
+      After = [ "graphical-session.target" ];
+    };
+
+    Service = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.bash}/bin/bash ${wallpaperScripts}/rotate-wallpaper";
+    };
+  };
+
+  systemd.user.timers.rotate-wallpaper = {
+    Unit.Description = "Rotate Hyprland wallpaper";
+
+    Timer = {
+      OnBootSec = "2min";
+      OnUnitActiveSec = "30min";
+    };
+
+    Install.WantedBy = [ "timers.target" ];
   };
 
   # Git
