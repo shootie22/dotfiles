@@ -1,317 +1,251 @@
 # dotfiles
 
-Personal NixOS and user configuration.
+nixOS and user configuration for my machines
 
-## Repository layout
+## layout
 
 ```text
 hosts/
-  nixpad/             # NixOS host config
-    xmm7360/          # host-specific LTE modem helpers
+  nixpad/
+    configuration.nix          # host config
+    hardware-configuration.nix
+    xmm7360/                   # LTE helper scripts
 
 home/
-  bro/                # Home Manager user config
-    hypr/
+  bro/
+    home.nix                   # Home Manager config
+    hypr/                      # Hyprland + Hyprpaper
+    iamb/
     kitty/
+    meli/
     scripts/
       clipboard/
       media/
       screengrab/
       wallpaper/
     swaync/
+    theme/
     wallpapers/
     waybar/
+    wofi/
 
 pkgs/
-  xmm7360-pci/        # local package override/module build
+  xmm7360-pci/                 # local kernel module package
 ```
 
-## Host: nixpad
-
-The NixOS system configuration for `nixpad` lives in `hosts/nixpad/`.
-On the machine, `/etc/nixos` is a symlink to:
+On `nixpad`, `/etc/nixos` points at:
 
 ```text
 /home/bro/gitrepos/github/dotfiles/hosts/nixpad
 ```
 
-The git structure defined in the NixOS config is `~/gitrepos/github` and
-`~/gitrepos/gitea`.
+## commands
 
-To rebuild:
+### rebuild
 
 ```bash
 sudo nixos-rebuild switch
 ```
 
-Or to rebuild explicitly from the repo:
+explicit config path:
 
 ```bash
 sudo nixos-rebuild switch -I nixos-config=/home/bro/gitrepos/github/dotfiles/hosts/nixpad/configuration.nix
 ```
 
-## Home Manager
+### wallpaper
 
-Home Manager user configuration lives in `home/bro/home.nix`.
-`hosts/nixpad/configuration.nix` imports that file with:
-
-```nix
-home-manager.users.bro = import ../../home/bro/home.nix;
+```bash
+chwp IMAGE                 # copy image into the repo, set it, reload hyprpaper
+chwp --move-file IMAGE     # move image into the repo instead of copying
+chwp --which               # print the configured wallpaper
+change-wallpaper IMAGE     # same backend, more literal name
+rotate-wallpaper           # switch to the next wallpaper
 ```
 
-Hyprland, Kitty, SwayNC, and Waybar read their normal live paths under
-`~/.config`, and Home Manager creates those files from tracked repo files.
+automatic rotation is a Home Manager systemd user timer:
 
-Most configs are normal Home Manager store links. `hyprpaper.conf` is an
-out-of-store symlink so the wallpaper helper can update the repo config directly.
+```bash
+systemctl --user list-timers | grep rotate-wallpaper
+systemctl --user start rotate-wallpaper.service
+journalctl --user -u rotate-wallpaper.service
+```
 
-## Clipboard History
+### media
 
-Clipboard history is handled by `cliphist` plus a small picker script in
-`home/bro/scripts/clipboard/`.
+```bash
+preview FILE               # images in swayimg, videos in mpv
+kitten icat IMAGE          # show an image in kitty
+```
+
+### screengrabs
+
+```bash
+screenshot-region          # select region and save screenshot
+record-region              # select/start/stop recording
+screencast-status          # status text for waybar
+```
 
 ```text
-Super+V         open clipboard history
-Super+Shift+V   toggle floating
+Print                      region screenshot
+Ctrl+Print                 start/stop region recording
 ```
 
-Clipboard entries are captured automatically from Wayland via `wl-paste`, and
-the picker restores the selected entry with `wl-copy`.
-
-## Wallpaper Scripts
-
-Wallpaper startup config is managed by Home Manager as an out-of-store symlink so
-the helper can update the repo directly. The `chwp` command is installed through
-Home Manager as a small wrapper around the standalone repo script. To copy a
-wallpaper into the repo, persist it, and reload Hyprpaper, use:
-
-```sh
-chwp ~/Media/Wallpapers/foo.jpg
-```
-
-Use `chwp --move-file ~/Downloads/foo.jpg` to move the source file into the repo
-instead of copying it.
-
-Use `chwp --which` to print the wallpaper currently configured.
-
-The implementation lives at `home/bro/scripts/wallpaper/change-wallpaper`; `chwp`
-is only a short alias. It can be reused outside this repo by setting
-`CHWP_WALLPAPER_DIR` and `CHWP_HYPRPAPER_CONFIG`.
-
-## Screengrab Scripts
-
-Region screenshots and recordings are handled by small scripts in
-`home/bro/scripts/screengrab/`.
-
-```text
-Print        freeze screen, select a region, save a screenshot
-Ctrl+Print   select a region and start recording; press again to stop
-```
-
-Waybar shows a recording/share indicator while `wf-recorder` or a PipeWire video
-capture stream is active.
-
-Files are saved under:
+files go under:
 
 ```text
 ~/Media/Screengrabs/Screenshots/
 ~/Media/Screengrabs/Recordings/
 ```
 
-Save notifications use the screenshot image directly. Recording notifications
-use a generated thumbnail from the saved video. Recording thumbnails are stored
-under `~/.cache/screengrab-thumbnails/` and old thumbnails are pruned.
+### clipboard
 
-## Media Preview
+```bash
+clipboard-history          # open picker
+cliphist-store             # internal wl-paste store helper
+```
 
-`preview FILE` opens image files with `swayimg` and video files with `mpv`.
+```text
+Super+V                    clipboard history
+Super+Shift+V              toggle floating
+```
 
-## Experimental LTE modem
+### LTE
+
+```bash
+lte-on                     # switch internet to LTE
+lte-on --verbose
+lte-off                    # return to Wi-Fi
+lte-off --verbose
+xmm7360-status             # modem/service/routes/DNS status
+xmm7360-reset              # normal modem reset
+xmm7360-hard-reset         # ACPI/PCI recovery path
+xmm7360-use-lte            # lower-level LTE routing/DNS
+xmm7360-use-wifi           # lower-level Wi-Fi restore
+xmm7360-use-dns            # install LTE DNS only
+```
+
+## config notes
 
 <details>
-<summary>What hardware this is</summary>
+<summary>host</summary>
 
-`nixpad` has an internal Fibocom L850-GL / Intel XMM7360 LTE modem.
+`hosts/nixpad/configuration.nix` is the main NixOS file.
 
-The kernel can see the card, but ModemManager rejects it in RPC mode:
+it sets the machine basics, imports Home Manager, enables Hyprland/UWSM,
+installs system packages, configures fonts, Bluetooth, networking, greetd,
+TLP, and the experimental LTE stack.
+
+`<nixos-unstable>` is imported in the host config for selected packages.
+Home Manager receives it through `home-manager.extraSpecialArgs`.
+
+</details>
+
+<details>
+<summary>home manager</summary>
+
+`home/bro/home.nix` owns user packages, shell-wrapped helper commands, user
+services, and tracked config files under `~/.config`.
+
+most config files are normal Home Manager links. `hyprpaper.conf` is an
+out-of-store symlink on purpose, so wallpaper scripts can update the repo file
+directly.
+
+</details>
+
+<details>
+<summary>desktop</summary>
+
+tracked desktop config:
+
+```text
+home/bro/hypr/
+home/bro/kitty/
+home/bro/swaync/
+home/bro/theme/
+home/bro/waybar/
+home/bro/wofi/
+```
+
+current desktop pieces include Hyprland, Hyprpaper, Kitty, Waybar, Wofi,
+SwayNC, Hackneyed cursors, wallpaper rotation, clipboard history, screenshots,
+recording, and media previews.
+
+</details>
+
+<details>
+<summary>apps</summary>
+
+user-side apps are in Home Manager. currently notable ones:
+
+```text
+iamb      matrix client, using unstable package for newer media support
+meli      mail client
+gitui     terminal git UI, installed system-wide
+wiremix   audio mixer
+runelite
+```
+
+`iamb` config enables kitty image previews.
+
+</details>
+
+<details>
+<summary>wallpapers</summary>
+
+wallpapers live in:
+
+```text
+home/bro/wallpapers/
+```
+
+`chwp` persists a selected image and reloads Hyprpaper. `rotate-wallpaper`
+walks the wallpaper directory alphabetically and sets the next image.
+
+the timer is user-level systemd, generated by Home Manager:
+
+```nix
+OnBootSec = "30min";
+OnUnitActiveSec = "30min";
+```
+
+</details>
+
+<details>
+<summary>LTE modem</summary>
+
+`nixpad` has a Fibocom L850-GL / Intel XMM7360 modem.
+
+ModemManager does not manage this card in RPC mode:
 
 ```text
 Intel XMM7360 in RPC mode not supported
 ```
 
-Because of that, this setup uses the experimental `xmm7360-pci` driver and
-RPC helper instead of ModemManager.
+so this repo uses:
 
-</details>
+```text
+pkgs/xmm7360-pci/
+hosts/nixpad/xmm7360/
+```
 
-<details>
-<summary>What the NixOS config does</summary>
+the host config disables ModemManager for this machine, blacklists `iosm`,
+builds the local `xmm7360` module, enables `acpi_call`, and installs the LTE
+wrapper commands.
 
-The host config:
-
-- disables ModemManager for this machine, because it cannot manage this modem
-- blacklists the in-kernel `iosm` driver, because the experimental driver must bind instead
-- builds a local `xmm7360-pci` kernel module from `pkgs/xmm7360-pci`
-- installs `lte-on` / `lte-off` wrapper commands plus lower-level reset,
-  status, LTE routing/DNS, and Wi-Fi routing helpers
-- installs `xmm7360-connect.service`, which attaches the modem but does not change default routes
-- removes `element-desktop`, because the current package pulled insecure `olm`
-  and blocked NixOS rebuilds
-
-The local package also patches upstream for the current kernel:
-
-- points the module build at the active NixOS kernel headers
-- adjusts the TTY write callback signature for Linux 6.8+
-- makes the RPC helper exit successfully after data-channel setup
-- makes failed data-channel RPC setup fail the service instead of pretending the
-  modem is connected
-- lowers helper logging from DEBUG to INFO
-
-</details>
-
-<details>
-<summary>Configuration file</summary>
-
-Create `/etc/xmm7360` from the generated example:
+APN config lives outside git:
 
 ```bash
 sudo cp /etc/xmm7360.example /etc/xmm7360
 sudoedit /etc/xmm7360
 ```
 
-For Digi Mobil Romania, the APN is:
+for Digi Mobil Romania:
 
 ```ini
 apn=internet
 ```
 
-The example also includes `metric=1000`, but the current helper flow does not
-use automatic LTE metrics. Route switching is explicit.
-
-</details>
-
-<details>
-<summary>Helper commands</summary>
-
-`lte-on`
-
-Normal command for getting online through LTE. It runs the tested hard-reset
-path, enables LTE routing/DNS, verifies packet flow, and then prints the public
-IP/location. Normal mode shows only a spinner and final result. Use
-`lte-on --verbose` for the full helper output and diagnostics.
-
-`lte-off`
-
-Normal command for returning to Wi-Fi. It stops the modem connector, removes LTE
-routes/DNS, asks NetworkManager to reconnect Wi-Fi, and then prints the public
-IP/location. Use `lte-off --verbose` for the full helper output and diagnostics.
-
-`xmm7360-reset`
-
-Stops the service, removes stale LTE routes, deletes any stale NetworkManager
-`xmm7360` connection left from earlier experiments, removes the LTE DNS entry,
-kills leftover connector processes, reloads the `xmm7360` kernel module, and
-starts `xmm7360-connect.service`. It waits for `wwan0` to receive an IPv4
-address, but does not make LTE the default route.
-
-`xmm7360-hard-reset`
-
-Opt-in recovery command for stuck modem state. It performs the normal cleanup,
-unloads the module, calls the machine-specific ACPI reset method
-`\_SB.PCI0.GPP7.L850._RST`, waits for the `xmm7360` driver to bind, and falls
-back to PCI remove/rescan if needed. After reset it gives the modem firmware a
-boot delay before probing the driver, then a short settle delay after binding,
-waits for the RPC device node, starts the service, and waits for `wwan0` to
-receive an IPv4 address. Use it when `xmm7360-reset` cannot recover the modem
-without a reboot.
-
-`xmm7360-hard-reset` depends on the out-of-tree `acpi_call` kernel module. After
-first adding that module to the NixOS config, reboot once so it is available in
-`/run/booted-system`.
-
-`xmm7360-status`
-
-Prints the service state, active PCI driver, `wwan0` address, packet counters,
-routes, DNS state, and recent modem log lines.
-
-`xmm7360-use-lte`
-
-Adds the direct default route through the current `wwan0` IPv4 address, enables
-the LTE DNS resolver entry, and verifies packet flow with a bound ping. If the
-packet test fails, it removes the LTE route and DNS entry again so Wi-Fi routing
-is not left broken.
-
-`xmm7360-use-dns`
-
-Adds the Digi Mobil DNS servers through openresolv using an exclusive
-`xmm7360` resolver entry. This lets `/etc/resolv.conf` be regenerated by the
-system instead of editing it directly.
-
-`xmm7360-use-wifi`
-
-Removes LTE default routes, deletes the `xmm7360` openresolv DNS entry, and
-asks NetworkManager to reconnect Wi-Fi.
-
-</details>
-
-<details>
-<summary>LTE workflow</summary>
-
-Current reliable LTE-on path:
-
-```bash
-lte-on
-```
-
-Verbose/debug LTE-on path:
-
-```bash
-lte-on --verbose
-```
-
-Return to Wi-Fi:
-
-```bash
-lte-off
-```
-
-Verbose/debug Wi-Fi restore:
-
-```bash
-lte-off --verbose
-```
-
-The lower-level equivalent of `lte-on` is:
-
-```bash
-sudo xmm7360-hard-reset
-sudo xmm7360-use-lte
-```
-
-The reset wait is needed because `wwan0` can receive an IP before the modem has
-finished attaching and setting up the packet data channel. The useful log signs
-are:
-
-```text
-INFO:root:IP address: ...
-INFO:root:DNS server(s): ...
-RPC executing UtaRPCPSConnectSetupReq
-response: 0x0
-```
-
-</details>
-
-<details>
-<summary>Limitations</summary>
-
-This is experimental support, not normal ModemManager integration.
-
-- Internet can work after the manual reset/connect/route flow.
-- DNS is configured by `xmm7360-use-lte` or `xmm7360-use-dns`, and the LTE DNS
-  entry is removed by `xmm7360-use-wifi` or `xmm7360-reset`.
-- SMS and calls are not supported through this setup.
-- Restarts can leave the modem in a bad state; use `xmm7360-reset`,
-  `xmm7360-hard-reset`, or reboot.
-- A supported MBIM/QMI USB modem or hotspot would be more reliable for daily use.
+this is internet-only experimental support. SMS and calls are not handled here.
 
 </details>
