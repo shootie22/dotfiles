@@ -12,7 +12,11 @@ in
 {
   home.stateVersion = "25.11";
 
+  nixpkgs.config.allowUnfree = true;
+
   home.packages = with pkgs; [
+
+    # general
     meli
     unstable.iamb
     bitwarden-cli
@@ -22,6 +26,7 @@ in
     swayimg
     zellij
     wiremix
+    parsec-bin
 
     # Games
     runelite
