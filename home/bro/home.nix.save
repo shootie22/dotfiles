@@ -12,7 +12,7 @@ in
 {
   home.stateVersion = "25.11";
 
-  nixpkgs.config.allowUnfree = true;
+
 
   home.packages = with pkgs; [
 
@@ -27,7 +27,6 @@ in
     zellij
     wiremix
     parsec-bin
-    xfce.thunar
 
     # Games
     runelite
