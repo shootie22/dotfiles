@@ -29,6 +29,9 @@ in
     parsec-bin
     xfce.thunar
 
+    # utilities
+    calcurse
+
     # Games
     runelite
 
