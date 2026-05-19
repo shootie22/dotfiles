@@ -50,7 +50,8 @@
         "weeks": "<span color='#9fb0bc'>U{}</span>",
         "today": "<span color='#f2c66d'><b><u>{}</u></b></span>"
       }
-    }
+    },
+    "on-click": "kitty --title calcurse -e calcurse"
   },
 
   "tray": {
