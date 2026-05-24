@@ -31,6 +31,7 @@ in
 
     # utilities
     calcurse
+    helix
 
     # Games
     runelite
