@@ -184,7 +184,7 @@ in
   nvtopPackages.amd
 
   # General packages
-  librewolf
+  unstable.librewolf
   libnotify
   fastfetch
   #unstable.sone
