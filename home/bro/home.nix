@@ -31,7 +31,9 @@ in
 
     # utilities
     calcurse
+    tealdeer
     helix
+    unstable.claude-code
 
     # Games
     runelite
