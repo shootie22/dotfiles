@@ -75,33 +75,32 @@ let
 in
 {
   imports =
-    [ 
+    [
       # Include the results of the hardware scan.
       ./hardware-configuration.nix
-      
+
       # Home Manager
       <home-manager/nixos>
+
+      # Shared modules (see ../../modules/nixos/)
+      ../../modules/nixos/common.nix
+      ../../modules/nixos/desktop-hyprland.nix
+      ../../modules/nixos/gaming.nix
     ];
+
+  # Makes `unstable`/`noctalia` available to every imported NixOS module
+  # (home-manager modules get them separately via extraSpecialArgs below).
+  _module.args = {
+    inherit unstable noctalia;
+  };
+
+  modules.gaming.enable = true;
 
   home-manager.extraSpecialArgs = {
     inherit unstable;
   };
 
-  home-manager.users.bro = import ../../home/bro/home.nix;
-
-  # Enable graphics driver - unsure if needed
-  hardware.graphics = {
-    enable = true;
-    enable32Bit = true;
-  };
-
-  hardware.enableRedistributableFirmware = true;
-
-  # BlueZ backend for Bluetooth managers like bluetuith.
-  hardware.bluetooth.enable = true;
-
-  # udev rules for Steam controllers and other Steam-supported devices.
-  hardware.steam-hardware.enable = true;
+  home-manager.users.bro = import ../../home/bro/hosts/nixpad.nix;
 
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
@@ -168,37 +167,9 @@ in
     packages = with pkgs; [];
   };
 
-  # Allow unfree packages
-  nixpkgs.config.allowUnfree = true;
-
-  # Enable Nix command (like search n stuff)
-  nix.settings.experimental-features = [
-  "nix-command"
-  "flakes"
-  ];
-
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
-  
-  # System utils
-  vim
-  wget
-  brightnessctl
-  bluetuith
-  unstable.wifitui
-
-  # Monitoring vitals
-  btop
-  htop
-  lm_sensors
-  nvtopPackages.amd
-
-  # General packages
-  unstable.librewolf
-  libnotify
-  fastfetch
-  #unstable.sone
 
   # Mobile broadband
   usbutils
@@ -215,34 +186,6 @@ in
   libmbim
   libqmi
 
-  # Games
-  superTuxKart
-
-  # Development
-  unstable.codex
-  gitui
-
-  # Hyprland stuff
-  adwaita-icon-theme
-  kitty
-  noctalia # bar, notifications, launcher, clipboard, wallpaper (pinned v5, see let-binding)
-  wl-clipboard
-  grim
-  ffmpegthumbnailer
-  slurp
-  wf-recorder
-
-  ];
-
-  # Fonts
-
-  # Waybar uses these for glyphs
-  fonts.packages = with pkgs; [
-  font-awesome
-  noto-fonts
-  noto-fonts-color-emoji
-  nerd-fonts.symbols-only
-  nerd-fonts.jetbrains-mono
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
@@ -252,29 +195,6 @@ in
   #   enable = true;
   #   enableSSHSupport = true;
   # };
-
-  programs.hyprland = {
-    enable = true;
-    withUWSM = true;
-    xwayland.enable = true;
-  };
-
-  programs.steam = {
-    enable = true;
-    extraCompatPackages = with pkgs; [
-      proton-ge-bin
-    ];
-    extraPackages = with pkgs; [
-      gamescope
-      mangohud
-    ];
-    gamescopeSession.enable = true;
-    localNetworkGameTransfers.openFirewall = true;
-    protontricks.enable = true;
-    remotePlay.openFirewall = true;
-  };
-
-  programs.gamemode.enable = true;
 
   # Services
 
@@ -328,25 +248,6 @@ in
         ip route del default via "$ip_addr" dev wwan0 2>/dev/null || true
       fi
     '';
-  };
-
-  # Battery/power stats for noctalia's battery widget.
-  # (Its power-profile toggle would want power-profiles-daemon, but that
-  # conflicts with TLP, so we skip it.)
-  services.upower.enable = true;
-
-  # Keyring
-  services.gnome.gnome-keyring.enable = true;
-
-  # greetd
-  services.greetd = {
-    enable = true;
-    settings = {
-      default_session = {
-        user = "greeter";
-        command = "${pkgs.tuigreet}/bin/tuigreet --time --remember --cmd 'uwsm start hyprland-uwsm.desktop'";
-      };
-    };
   };
 
   # Enable the OpenSSH daemon.
