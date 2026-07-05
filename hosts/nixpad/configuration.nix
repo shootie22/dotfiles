@@ -100,6 +100,9 @@ in
   # BlueZ backend for Bluetooth managers like bluetuith.
   hardware.bluetooth.enable = true;
 
+  # udev rules for Steam controllers and other Steam-supported devices.
+  hardware.steam-hardware.enable = true;
+
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
@@ -254,6 +257,23 @@ in
     withUWSM = true;
     xwayland.enable = true;
   };
+
+  programs.steam = {
+    enable = true;
+    extraCompatPackages = with pkgs; [
+      proton-ge-bin
+    ];
+    extraPackages = with pkgs; [
+      gamescope
+      mangohud
+    ];
+    gamescopeSession.enable = true;
+    localNetworkGameTransfers.openFirewall = true;
+    protontricks.enable = true;
+    remotePlay.openFirewall = true;
+  };
+
+  programs.gamemode.enable = true;
 
   # Services
 
