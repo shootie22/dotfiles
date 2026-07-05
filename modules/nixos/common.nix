@@ -42,4 +42,15 @@
     nerd-fonts.symbols-only
     nerd-fonts.jetbrains-mono
   ];
+
+  # Always use Cloudflare for DNS, regardless of what the DHCP lease on
+  # whatever network we're connected to hands out. `networking.nameservers`
+  # doesn't reliably apply once NetworkManager is managing the connection
+  # (it manages resolv.conf itself), so this sets NetworkManager's *global*
+  # DNS override instead — it takes priority over any per-connection or
+  # DHCP-supplied DNS on every network.
+  environment.etc."NetworkManager/conf.d/dns-override.conf".text = ''
+    [global-dns-domain-*]
+    servers=1.1.1.1,1.0.0.1
+  '';
 }
