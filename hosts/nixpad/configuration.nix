@@ -11,6 +11,13 @@ let
     inherit (pkgs) overlays config;
     system = pkgs.stdenv.hostPlatform.system;
   };
+  # Noctalia pinned to v5 from its flake: nixos-unstable is still on 4.7.x,
+  # which uses the old settings.json format and can't read our v5
+  # ~/.local/state/noctalia/settings.toml. Switch to unstable.noctalia-shell
+  # (and delete this pin) once the channel reaches >= 5.0.0.
+  noctalia = (builtins.getFlake
+    "github:noctalia-dev/noctalia/81f2c83d8e06d8d0398b0a268dc7e19766a9213f")
+    .packages.${pkgs.stdenv.hostPlatform.system}.default;
   xmm7360Pci = pkgs.callPackage ../../pkgs/xmm7360-pci {
     kernel = config.boot.kernelPackages.kernel;
   };
@@ -214,18 +221,13 @@ in
   # Hyprland stuff
   adwaita-icon-theme
   kitty
-  waybar
-  wofi
-  swaynotificationcenter
+  noctalia # bar, notifications, launcher, clipboard, wallpaper (pinned v5, see let-binding)
   wl-clipboard
   grim
-  grimblast
   ffmpegthumbnailer
   slurp
   wf-recorder
-  hyprpaper
-  networkmanagerapplet
-  
+
   ];
 
   # Fonts
@@ -306,6 +308,11 @@ in
       fi
     '';
   };
+
+  # Battery/power stats for noctalia's battery widget.
+  # (Its power-profile toggle would want power-profiles-daemon, but that
+  # conflicts with TLP, so we skip it.)
+  services.upower.enable = true;
 
   # Keyring
   services.gnome.gnome-keyring.enable = true;
