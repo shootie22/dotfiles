@@ -53,6 +53,10 @@ in
 
   xdg.configFile = {
     "hypr/hyprland.conf".source = ./hypr/hyprland.conf;
+    "hypr/look.conf".source = ./hypr/look.conf;
+    "hypr/input.conf".source = ./hypr/input.conf;
+    "hypr/keybinds.conf".source = ./hypr/keybinds.conf;
+    "hypr/windowrules.conf".source = ./hypr/windowrules.conf;
     "iamb/config.toml".source = ./iamb/config.toml;
     "kitty/kitty.conf".source = ./kitty/kitty.conf;
     "meli/config.toml" = {

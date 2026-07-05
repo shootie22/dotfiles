@@ -7,14 +7,30 @@ nixOS and user configuration for my machines
 ```text
 hosts/
   nixpad/
-    configuration.nix          # host config
+    configuration.nix          # laptop-only bits: LTE, TLP, LUKS, locale
     hardware-configuration.nix
     xmm7360/                   # LTE helper scripts
+  desktop/
+    configuration.nix          # desktop-only bits: docker, no LTE
+    hardware-configuration.nix # placeholder until generated on the machine
+
+modules/
+  nixos/
+    common.nix                 # shared base packages, fonts, nix settings
+    desktop-hyprland.nix       # Hyprland/UWSM, greetd, graphics, keyring
+    gaming.nix                 # Steam/gamemode, behind modules.gaming.enable
 
 home/
   bro/
-    home.nix                   # Home Manager config
-    hypr/                      # Hyprland + Hyprpaper
+    home.nix                   # shared Home Manager config
+    hosts/
+      nixpad.nix                # thin per-host overlay -> imports ../home.nix
+      desktop.nix                # thin per-host overlay -> imports ../home.nix
+    hypr/                       # Hyprland; hyprland.conf sources the *.conf below
+      look.conf                  # general/decoration/animations
+      input.conf                  # keyboard/touchpad/gestures
+      keybinds.conf                # all binds — the file to edit for a new shortcut
+      windowrules.conf
     iamb/
     kitty/
     meli/
@@ -26,6 +42,11 @@ home/
 pkgs/
   xmm7360-pci/                 # local kernel module package
 ```
+
+Both hosts import the same `modules/nixos/*` files and set only what differs
+(host packages, `modules.gaming.enable`, LTE, locale). Adding a third
+machine means a new `hosts/<name>/` + `home/bro/hosts/<name>.nix` that import
+the existing modules and `home.nix`, picking which shared pieces to enable.
 
 On `nixpad`, `/etc/nixos` points at:
 
@@ -45,6 +66,7 @@ explicit config path:
 
 ```bash
 sudo nixos-rebuild switch -I nixos-config=/home/bro/gitrepos/github/dotfiles/hosts/nixpad/configuration.nix
+sudo nixos-rebuild switch -I nixos-config=/home/bro/gitrepos/github/dotfiles/hosts/desktop/configuration.nix
 ```
 
 ### media
@@ -100,14 +122,27 @@ xmm7360-use-dns            # install LTE DNS only
 <details>
 <summary>host</summary>
 
-`hosts/nixpad/configuration.nix` is the main NixOS file.
+each `hosts/<name>/configuration.nix` sets machine basics (hostname, locale,
+bootloader, users) and imports the shared modules under `modules/nixos/`:
+`common.nix` (base packages/fonts), `desktop-hyprland.nix` (Hyprland/UWSM,
+greetd, graphics, keyring — both hosts use this), and `gaming.nix` (Steam,
+opt-in per host via `modules.gaming.enable = true;`).
 
-it sets the machine basics, imports Home Manager, enables Hyprland/UWSM,
-installs system packages, configures fonts, Bluetooth, networking, greetd,
-TLP, and the experimental LTE stack.
+`nixpad` additionally owns the LTE modem stack, TLP, and LUKS — all
+laptop-specific, so they stay in `hosts/nixpad/configuration.nix` rather than
+a shared module. `desktop` additionally enables `virtualisation.docker` for
+container/dev work.
 
-`<nixos-unstable>` is imported in the host config for selected packages.
-Home Manager receives it through `home-manager.extraSpecialArgs`.
+`<nixos-unstable>` and the pinned Noctalia flake package are each imported in
+a host's `let` block, then exposed to every imported NixOS module via
+`_module.args` (so `modules/nixos/*.nix` can just take `unstable`/`noctalia`
+as ordinary module arguments) and to Home Manager via
+`home-manager.extraSpecialArgs`.
+
+setting up a new host: copy `hosts/nixpad/configuration.nix`'s `let` block for
+the `unstable`/`noctalia` pins, run
+`sudo nixos-generate-config --dir hosts/<name>` on the machine for a real
+`hardware-configuration.nix`, and pick which `modules/nixos/*` to import.
 
 </details>
 
@@ -115,7 +150,12 @@ Home Manager receives it through `home-manager.extraSpecialArgs`.
 <summary>home manager</summary>
 
 `home/bro/home.nix` owns user packages, shell-wrapped helper commands, user
-services, and tracked config files under `~/.config`.
+services, and tracked config files under `~/.config` — shared by every host.
+
+`home/bro/hosts/<name>.nix` is a thin per-host overlay that imports
+`../home.nix` and adds only what that machine needs (see `desktop.nix` for
+where dev/container tooling goes). Each NixOS host's
+`home-manager.users.bro` points at its own overlay file.
 
 </details>
 
@@ -131,6 +171,13 @@ home/bro/kitty/
 
 current desktop pieces include Hyprland, Noctalia, Kitty, Hackneyed cursors,
 recording, and media previews.
+
+`home/bro/hypr/hyprland.conf` only sets monitors/programs/autostart/env, then
+`source`s `look.conf`, `input.conf`, `keybinds.conf`, and `windowrules.conf`.
+Each of those is symlinked individually via `xdg.configFile` in `home.nix`
+(matching the pattern used for `iamb`/`kitty`/`meli`). To change a shortcut,
+edit `keybinds.conf` — no other file needs touching. Adding a brand-new
+partial still needs one line added to `home.nix`'s `xdg.configFile`.
 
 </details>
 
