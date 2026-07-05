@@ -152,8 +152,9 @@ in
 
   # Configure keymap in X11
   services.xserver.xkb = {
-    layout = "dk";
-    variant = "";
+    layout = "dk,us";
+    variant = ",";
+    options = "grp:win_space_toggle";
   };
 
   # Configure console keymap
