@@ -1,0 +1,93 @@
+<!DOCTYPE Menu PUBLIC "-//freedesktop//DTD Menu 1.0//EN"
+ "http://www.freedesktop.org/standards/menu-spec/1.0/menu.dtd">
+
+<!--
+  XDG application menu, installed as /etc/xdg/menus/applications.menu.
+
+  This is not (only) about having a pretty application menu. KDE's service
+  cache, ksycoca, is what Dolphin consults to answer "which applications can
+  open this file". kbuildsycoca populates it by walking *this* file via
+  VFolderMenu; it does not scan share/applications on its own. With no
+  applications.menu anywhere in $XDG_CONFIG_DIRS/menus, ksycoca is built with
+  zero application entries and Dolphin offers no handler for any mimetype at
+  all, however correct ~/.config/mimeapps.list is.
+
+  Plasma ships plasma-applications.menu for this; we are not running Plasma and
+  pulling in plasma-workspace just for one XML file is not worth its closure,
+  so this is a minimal stand-in with the standard freedesktop categories.
+-->
+
+<Menu>
+  <Name>Applications</Name>
+  <Directory>kde-main.directory</Directory>
+
+  <!-- Pick up .desktop files from every share/applications on XDG_DATA_DIRS,
+       .directory files from every share/desktop-directories, and any drop-ins
+       under menus/applications-merged/. -->
+  <DefaultAppDirs/>
+  <DefaultDirectoryDirs/>
+  <DefaultMergeDirs/>
+
+  <Menu>
+    <Name>Development</Name>
+    <Directory>kde-development.directory</Directory>
+    <Include><Category>Development</Category></Include>
+  </Menu>
+
+  <Menu>
+    <Name>Graphics</Name>
+    <Directory>kde-graphics.directory</Directory>
+    <Include><Category>Graphics</Category></Include>
+  </Menu>
+
+  <Menu>
+    <Name>Internet</Name>
+    <Directory>kde-internet.directory</Directory>
+    <Include><Category>Network</Category></Include>
+  </Menu>
+
+  <Menu>
+    <Name>Multimedia</Name>
+    <Directory>kde-multimedia.directory</Directory>
+    <Include><Category>AudioVideo</Category></Include>
+  </Menu>
+
+  <Menu>
+    <Name>Office</Name>
+    <Directory>kde-office.directory</Directory>
+    <Include><Category>Office</Category></Include>
+  </Menu>
+
+  <Menu>
+    <Name>Games</Name>
+    <Directory>kde-games.directory</Directory>
+    <Include><Category>Game</Category></Include>
+  </Menu>
+
+  <Menu>
+    <Name>System</Name>
+    <Directory>kde-system.directory</Directory>
+    <Include><Category>System</Category></Include>
+  </Menu>
+
+  <Menu>
+    <Name>Settings</Name>
+    <Directory>kde-settings.directory</Directory>
+    <Include><Category>Settings</Category></Include>
+  </Menu>
+
+  <Menu>
+    <Name>Utilities</Name>
+    <Directory>kde-utilities.directory</Directory>
+    <Include><Category>Utility</Category></Include>
+  </Menu>
+
+  <!-- Anything that carries none of the categories above still has to end up in
+       ksycoca, otherwise it silently stops being offered as a file handler. -->
+  <Menu>
+    <Name>Other</Name>
+    <Directory>kde-unknown.directory</Directory>
+    <OnlyUnallocated/>
+    <Include><All/></Include>
+  </Menu>
+</Menu>
