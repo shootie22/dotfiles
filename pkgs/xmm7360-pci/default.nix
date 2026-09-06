@@ -45,6 +45,26 @@ stdenv.mkDerivation {
       exit 1
     fi
 
+    # Linux 6.15 removed hrtimer_init(); the callback is now passed to
+    # hrtimer_setup() instead of being assigned afterwards. Define a shim on
+    # older kernels so the single call site below works on both.
+    substituteInPlace xmm7360.c \
+      --replace-fail '#include <linux/hrtimer.h>' '#include <linux/hrtimer.h>
+#include <linux/version.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
+#define hrtimer_setup(timer, fn, clock, mode) \
+	do { \
+		hrtimer_init((timer), (clock), (mode)); \
+		(timer)->function = (fn); \
+	} while (0)
+#endif'
+
+    perl -0pi -e 's/\thrtimer_init\(&xn->deadline, CLOCK_MONOTONIC, HRTIMER_MODE_REL\);\n\txn->deadline\.function = xmm7360_net_deadline_cb;/\thrtimer_setup(&xn->deadline, xmm7360_net_deadline_cb, CLOCK_MONOTONIC, HRTIMER_MODE_REL);/' xmm7360.c
+    if grep -q 'hrtimer_init(&xn->deadline' xmm7360.c; then
+      echo "failed to patch hrtimer_init for Linux 6.15+"
+      exit 1
+    fi
+
     substituteInPlace rpc/open_xdatachannel.py \
       --replace-fail 'logging.basicConfig(level=logging.DEBUG)' \
                      'logging.basicConfig(level=logging.INFO)'
