@@ -33,6 +33,21 @@
     noctalia # bar, notifications, launcher, clipboard, wallpaper (pinned v5, see host config)
   ];
 
+  # KDE applications (Dolphin, Gwenview, Ark) only look for Qt plugins inside
+  # their own store path unless QT_PLUGIN_PATH says otherwise, and `qt.enable`
+  # is what puts each profile's lib/qt-6/plugins on it. Dolphin's F4 terminal
+  # panel is a KPart shipped by Konsole, which lives in a *different* store
+  # path, so without this the panel stays missing even with Konsole installed.
+  qt.enable = true;
+
+  # Dolphin answers "which application opens this file" out of KDE's service
+  # cache (ksycoca), and kbuildsycoca populates that cache by walking the XDG
+  # menu file; it never scans share/applications directly. Nothing outside
+  # Plasma installs an applications.menu, so without this ksycoca is built with
+  # zero application entries and Dolphin offers no handler for any mimetype at
+  # all, however correct ~/.config/mimeapps.list happens to be.
+  environment.etc."xdg/menus/applications.menu".source = ./applications.menu;
+
   # Keyring
   services.gnome.gnome-keyring.enable = true;
 
