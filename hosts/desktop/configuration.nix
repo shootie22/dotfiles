@@ -7,26 +7,13 @@
 # then merge the boot.loader / fileSystems / swapDevices it produces here and
 # into hardware-configuration.nix, replacing the TODOs below.
 
-{ config, pkgs, ... }:
+# `unstable` and `noctalia` come from the flake via specialArgs.
+{ config, pkgs, unstable, noctalia, ... }:
 
-let
-  unstable = import <nixos-unstable> {
-    inherit (pkgs) overlays config;
-    system = pkgs.stdenv.hostPlatform.system;
-  };
-  # Keep in sync with hosts/nixpad/configuration.nix's pin until the
-  # nixos-unstable channel ships Noctalia >= 5.0.0.
-  noctalia = (builtins.getFlake
-    "github:noctalia-dev/noctalia/81f2c83d8e06d8d0398b0a268dc7e19766a9213f")
-    .packages.${pkgs.stdenv.hostPlatform.system}.default;
-in
 {
   imports = [
     # Include the results of the hardware scan.
     ./hardware-configuration.nix
-
-    # Home Manager
-    <home-manager/nixos>
 
     # Shared modules (see ../../modules/nixos/)
     ../../modules/nixos/common.nix
@@ -34,10 +21,6 @@ in
     ../../modules/nixos/gaming.nix
     ../../modules/nixos/docker.nix
   ];
-
-  _module.args = {
-    inherit unstable noctalia;
-  };
 
   modules.gaming.enable = true;
   modules.docker.enable = true;

@@ -58,16 +58,38 @@ On `nixpad`, `/etc/nixos` points at:
 
 ### rebuild
 
-```bash
-sudo nixos-rebuild switch
-```
-
-explicit config path:
+This is a flake. Every input (nixpkgs, nixpkgs-unstable, home-manager,
+noctalia) is pinned in `flake.lock`, so a rebuild produces the same system
+regardless of channel state.
 
 ```bash
-sudo nixos-rebuild switch -I nixos-config=/home/bro/gitrepos/github/dotfiles/hosts/nixpad/configuration.nix
-sudo nixos-rebuild switch -I nixos-config=/home/bro/gitrepos/github/dotfiles/hosts/desktop/configuration.nix
+cd /home/bro/gitrepos/github/dotfiles
+sudo nixos-rebuild switch --flake .#nixpad
+sudo nixos-rebuild switch --flake .#desktop
 ```
+
+Note `/etc/nixos` symlinks to `hosts/nixpad`, but `flake.nix` lives at the
+repo *root*, so `--flake /etc/nixos#nixpad` does not work. Either run from
+the repo root as above, or give the absolute path:
+
+```bash
+sudo nixos-rebuild switch --flake /home/bro/gitrepos/github/dotfiles#nixpad
+```
+
+**New files must be `git add`ed first.** Flakes only see git-tracked files,
+so an untracked module is invisible to the build and fails with a confusing
+"file not found". Modified tracked files are picked up without committing.
+
+Updating inputs is deliberate, and lands as a reviewable diff:
+
+```bash
+nix flake update              # all inputs
+nix flake update nixpkgs      # just one
+```
+
+Channels are no longer used for the system build. A `nix-channel --update`
+will not change what this repo builds -- which is the point: an unnoticed
+channel bump to Hyprland 0.55 is what broke the Hyprland config previously.
 
 ### media
 
@@ -133,16 +155,16 @@ laptop-specific, so they stay in `hosts/nixpad/configuration.nix` rather than
 a shared module. `desktop` additionally enables `virtualisation.docker` for
 container/dev work.
 
-`<nixos-unstable>` and the pinned Noctalia flake package are each imported in
-a host's `let` block, then exposed to every imported NixOS module via
-`_module.args` (so `modules/nixos/*.nix` can just take `unstable`/`noctalia`
-as ordinary module arguments) and to Home Manager via
+`unstable` (nixpkgs-unstable) and the pinned Noctalia package are built in
+`flake.nix` and handed to every NixOS module via `specialArgs`, so
+`modules/nixos/*.nix` and the host configs take `unstable`/`noctalia` as
+ordinary module arguments. Home Manager gets `unstable` via
 `home-manager.extraSpecialArgs`.
 
-setting up a new host: copy `hosts/nixpad/configuration.nix`'s `let` block for
-the `unstable`/`noctalia` pins, run
-`sudo nixos-generate-config --dir hosts/<name>` on the machine for a real
-`hardware-configuration.nix`, and pick which `modules/nixos/*` to import.
+setting up a new host: add a `nixosConfigurations.<name> = mkHost "<name>";`
+entry in `flake.nix`, run `sudo nixos-generate-config --dir hosts/<name>` on
+the machine for a real `hardware-configuration.nix`, and pick which
+`modules/nixos/*` to import.
 
 </details>
 
