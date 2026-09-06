@@ -173,6 +173,17 @@ in
   # $ nix search wget
   environment.systemPackages = with pkgs; [
 
+  # BlendToSMBStage2 Blender addon: runs GxModelViewer.exe (Windows build) via
+  # Mono for GMA/TPL export, since the prebuilt native Linux GxModelViewer
+  # binary can't run on NixOS and has its own CLI-argument-forwarding bug.
+  mono
+
+  # Same addon: ws2lzfrontend.exe compiles the stage into .lz/.lz.raw. Unlike
+  # GxModelViewer it is a native Windows binary, not a .NET assembly, so Mono
+  # cannot run it and it needs Wine. Only the Windows build is distributed;
+  # there is no prebuilt Linux ws2lzfrontend.
+  wineWowPackages.stable
+
   # Mobile broadband
   usbutils
   lteOn
@@ -203,8 +214,13 @@ in
   services.tlp = {
     enable = true;
     settings = {
+      # ThinkPad EC charge thresholds. These are written into the embedded
+      # controller and persist across reboots -- and across removing this
+      # setting -- so the only way to change them is to write new values.
+      # Charge all the way to 100%, then let the EC stop charging and run off
+      # AC while the battery self-discharges; top up again below 90%.
       START_CHARGE_THRESH_BAT0 = 90;
-      STOP_CHARGE_THRESH_BAT0 = 95;
+      STOP_CHARGE_THRESH_BAT0 = 100;
     };
   };
 

@@ -14,6 +14,8 @@
     # System utils
     vim
     wget
+    unzip
+    p7zip
     brightnessctl
     bluetuith
     unstable.wifitui
@@ -33,6 +35,12 @@
     unstable.codex
     gitui
   ];
+
+  # AirDrop-style LAN file transfer between my machines and phone. The module
+  # also opens TCP+UDP 53317, which discovery and receiving both need --
+  # installing the package alone leaves this host invisible behind the
+  # default firewall.
+  programs.localsend.enable = true;
 
   # Waybar/Noctalia glyphs
   fonts.packages = with pkgs; [
