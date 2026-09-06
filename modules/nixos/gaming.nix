@@ -34,7 +34,7 @@ in
     programs.gamemode.enable = true;
 
     environment.systemPackages = with pkgs; [
-      superTuxKart
+      supertuxkart
       dolphin-emu
       prismlauncher
       # osu! ships new releases far faster than the 25.11 stable channel

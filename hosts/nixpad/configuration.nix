@@ -182,7 +182,7 @@ in
   # GxModelViewer it is a native Windows binary, not a .NET assembly, so Mono
   # cannot run it and it needs Wine. Only the Windows build is distributed;
   # there is no prebuilt Linux ws2lzfrontend.
-  wineWowPackages.stable
+  wineWow64Packages.stable
 
   # Mobile broadband
   usbutils

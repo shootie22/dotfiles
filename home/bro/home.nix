@@ -24,8 +24,8 @@ in
     zellij
     wiremix
     parsec-bin
-    xfce.thunar
-    xfce.mousepad
+    thunar
+    mousepad
     kdePackages.ark
     kdePackages.dolphin
     kdePackages.filelight
