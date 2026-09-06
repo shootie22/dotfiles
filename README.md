@@ -190,6 +190,7 @@ user-side apps are in Home Manager. currently notable ones:
 iamb      matrix client, using unstable package for newer media support
 meli      mail client
 gitui     terminal git UI, installed system-wide
+localsend LAN file transfer, system-wide via `programs.localsend` (opens 53317)
 wiremix   audio mixer
 runelite
 ```
