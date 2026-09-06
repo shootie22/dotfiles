@@ -2,22 +2,10 @@
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
 
-{ config, pkgs, ... }:
+# `unstable` and `noctalia` come from the flake via specialArgs.
+{ config, pkgs, unstable, noctalia, ... }:
 
 let
-  # Pull a few packages from the nixos-unstable channel while keeping the same
-  # nixpkgs config/overlays as the stable `pkgs`.
-  unstable = import <nixos-unstable> {
-    inherit (pkgs) overlays config;
-    system = pkgs.stdenv.hostPlatform.system;
-  };
-  # Noctalia pinned to v5 from its flake: nixos-unstable is still on 4.7.x,
-  # which uses the old settings.json format and can't read our v5
-  # ~/.local/state/noctalia/settings.toml. Switch to unstable.noctalia-shell
-  # (and delete this pin) once the channel reaches >= 5.0.0.
-  noctalia = (builtins.getFlake
-    "github:noctalia-dev/noctalia/81f2c83d8e06d8d0398b0a268dc7e19766a9213f")
-    .packages.${pkgs.stdenv.hostPlatform.system}.default;
   xmm7360Pci = pkgs.callPackage ../../pkgs/xmm7360-pci {
     kernel = config.boot.kernelPackages.kernel;
   };
@@ -79,21 +67,12 @@ in
       # Include the results of the hardware scan.
       ./hardware-configuration.nix
 
-      # Home Manager
-      <home-manager/nixos>
-
       # Shared modules (see ../../modules/nixos/)
       ../../modules/nixos/common.nix
       ../../modules/nixos/desktop-hyprland.nix
       ../../modules/nixos/gaming.nix
       ../../modules/nixos/docker.nix
     ];
-
-  # Makes `unstable`/`noctalia` available to every imported NixOS module
-  # (home-manager modules get them separately via extraSpecialArgs below).
-  _module.args = {
-    inherit unstable noctalia;
-  };
 
   modules.gaming.enable = true;
   modules.docker.enable = true;

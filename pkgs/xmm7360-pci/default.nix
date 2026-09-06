@@ -17,11 +17,15 @@ stdenv.mkDerivation {
   pname = "xmm7360-pci";
   version = "unstable-2024-02-24";
 
-  # The project has no releases. Keep this as fetchGit while we are testing the
-  # modem, so the first rebuild can fetch the current experimental driver.
+  # The project has no releases, so this tracks a git revision directly.
+  # The rev is pinned rather than following master: an unpinned ref is an
+  # unlocked input, which flake pure evaluation rejects outright, and which
+  # under channels silently changed the driver from one rebuild to the next.
+  # Bump deliberately when testing a newer driver.
   src = builtins.fetchGit {
     url = "https://github.com/xmm7360/xmm7360-pci.git";
     ref = "master";
+    rev = "a8ff2c6ceee84cbe74df8a78cfaa5a016d362ed4";
   };
 
   nativeBuildInputs = kernel.moduleBuildDependencies ++ [

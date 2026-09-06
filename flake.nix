@@ -1,12 +1,23 @@
 {
-  description = "Dotfiles: workstation flake and independent channel-based laptop configuration";
+  description = "Dotfiles: reproducible workstation and nixpad NixOS configurations";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
+    # Nixpad deliberately remains on stable, with a small set of packages
+    # sourced from unstable. Keeping this separate preserves its tested build
+    # rather than changing it when the workstation's rolling input updates.
+    nixpkgs-nixpad.url = "github:NixOS/nixpkgs/nixos-26.05";
+    nixpkgs-nixpad-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    home-manager-nixpad = {
+      url = "github:nix-community/home-manager/release-26.05";
+      inputs.nixpkgs.follows = "nixpkgs-nixpad";
     };
 
     # CachyOS BORE+LTO kernel, prebuilt. Its binary cache is added automatically
@@ -15,6 +26,10 @@
 
     # Noctalia — Wayland shell / bar.
     noctalia.url = "github:noctalia-dev/noctalia";
+
+    # Pinned v5 package for Nixpad's existing TOML settings format.
+    noctalia-nixpad.url =
+      "github:noctalia-dev/noctalia/81f2c83d8e06d8d0398b0a268dc7e19766a9213f";
 
     # ai-usagebar — AI plan-quota CLI + TUI (Claude, Codex, ...). Upstream pins
     # a darwin nixpkgs branch; follow ours so it builds against the same tree
@@ -35,7 +50,17 @@
     llm-agents.url = "github:numtide/llm-agents.nix";
   };
 
-  outputs = { nixpkgs, home-manager, chaotic, noctalia, ... }@inputs: rec {
+  outputs = {
+    nixpkgs,
+    nixpkgs-nixpad,
+    nixpkgs-nixpad-unstable,
+    home-manager,
+    home-manager-nixpad,
+    chaotic,
+    noctalia,
+    noctalia-nixpad,
+    ...
+  }@inputs: rec {
     nixosConfigurations.workstation = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       specialArgs = { inherit inputs; };
@@ -55,5 +80,25 @@
     };
     # Compatibility for older installed helpers and rebuild commands.
     nixosConfigurations.nixos = nixosConfigurations.workstation;
+
+    nixosConfigurations.nixpad =
+      let
+        system = "x86_64-linux";
+        unstable = import nixpkgs-nixpad-unstable {
+          inherit system;
+          config.allowUnfree = true;
+        };
+      in
+      nixpkgs-nixpad.lib.nixosSystem {
+        inherit system;
+        specialArgs = {
+          inherit unstable;
+          noctalia = noctalia-nixpad.packages.${system}.default;
+        };
+        modules = [
+          ./hosts/nixpad/configuration.nix
+          home-manager-nixpad.nixosModules.home-manager
+        ];
+      };
   };
 }
