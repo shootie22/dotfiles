@@ -32,6 +32,7 @@ in
     ../../modules/nixos/common.nix
     ../../modules/nixos/desktop-hyprland.nix
     ../../modules/nixos/gaming.nix
+    ../../modules/nixos/docker.nix
   ];
 
   _module.args = {
@@ -39,6 +40,7 @@ in
   };
 
   modules.gaming.enable = true;
+  modules.docker.enable = true;
 
   home-manager.extraSpecialArgs = {
     inherit unstable;
@@ -72,15 +74,9 @@ in
   users.users.bro = {
     isNormalUser = true;
     description = "bro";
-    extraGroups = [ "networkmanager" "wheel" "docker" ];
+    extraGroups = [ "networkmanager" "wheel" ];
     packages = with pkgs; [];
   };
-
-  # Containers/dev workloads the laptop doesn't need.
-  virtualisation.docker.enable = true;
-  environment.systemPackages = with pkgs; [
-    docker-compose
-  ];
 
   system.stateVersion = "25.11";
 }

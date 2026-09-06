@@ -86,6 +86,7 @@ in
       ../../modules/nixos/common.nix
       ../../modules/nixos/desktop-hyprland.nix
       ../../modules/nixos/gaming.nix
+      ../../modules/nixos/docker.nix
     ];
 
   # Makes `unstable`/`noctalia` available to every imported NixOS module
@@ -95,6 +96,7 @@ in
   };
 
   modules.gaming.enable = true;
+  modules.docker.enable = true;
 
   home-manager.extraSpecialArgs = {
     inherit unstable;
