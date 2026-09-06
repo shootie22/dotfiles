@@ -6,7 +6,7 @@ packages and adding websites as LibreWolf cookie exceptions.
 ## where things go
 
 ```text
-flake.nix              # workstation entry point: dependencies + config to build
+flake.nix              # locked inputs and configurations for both machines
 flake.lock             # exact versions of those dependencies
 hosts/
   workstation/         # desktop system settings and hardware
@@ -27,9 +27,9 @@ they share a repo without needing to share every setting.
 
 ## flakes
 
-[flake.nix](flake.nix) says what the workstation depends on (`inputs`, including
-nixpkgs, the package collection) and what it can build (`outputs`, here the
-workstation's NixOS configuration). [flake.lock](flake.lock) records the exact
+[flake.nix](flake.nix) says what each machine depends on (`inputs`, including
+nixpkgs, the package collection) and what it can build (`outputs`, the
+workstation and Nixpad NixOS configurations). [flake.lock](flake.lock) records the exact
 dependency revisions, so a rebuild uses those versions until i update them.
 that's why i keep both files in Git. [more on flakes](https://nix.dev/manual/nix/stable/command-ref/new-cli/nix3-flake.html)
 
@@ -45,8 +45,9 @@ sudo nixos-rebuild switch --flake .#workstation
 `.` means this repo, `#workstation` picks the configuration, and `switch` builds
 and applies it. Home Manager is included in that rebuild.
 
-nixpad still builds through channels, using its own config under `/etc/nixos`.
-it doesn't use this root flake. i left its working setup alone.
+nixpad uses the same root flake, while retaining its own stable package set and
+host configuration. Its `/etc/nixos` link points to the host files, not to a
+flake root.
 
 ## helpers
 
@@ -110,7 +111,8 @@ on nixpad, `/etc/nixos` points to
 `/home/bro/gitrepos/github/dotfiles/hosts/nixpad`:
 
 ```bash
-sudo nixos-rebuild switch
+cd /home/bro/gitrepos/github/dotfiles
+sudo nixos-rebuild switch --flake .#nixpad
 ```
 
 </details>
