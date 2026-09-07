@@ -1,286 +1,161 @@
 # dotfiles
 
-nixOS and user configuration for my machines
+my NixOS setup for two machines: `workstation` (desktop, user `nixa`) and
+`nixpad` (laptop, user `bro`). both run Hyprland and Noctalia.
 
-## workstation (nixa)
+NixOS keeps my packages, services and system settings in files. Home Manager
+handles my apps and dotfiles. i edit, rebuild, and keep the changes in Git.
 
-The canonical checkout is `~/git/dotfiles`. The workstation configuration lives
-in `hosts/workstation/` and `home/nixa/`, with package-list parsing in `lib/`.
-It is independent of the `bro` configuration described below: its flake pins
-unstable nixpkgs, Home Manager, Chaotic, Noctalia, AI usage widgets and llm-agents.
+if you're borrowing from this repo, start with the bits you like. the disk
+layout, hardware config and usernames belong to my machines.
+
+## where things go
+
+```text
+flake.nix              # workstation entry point: dependencies + config to build
+flake.lock             # exact versions of those dependencies
+hosts/
+  workstation/         # desktop system settings and hardware
+  nixpad/              # laptop system settings and hardware
+  desktop/             # unfinished bro desktop config, not the workstation
+home/
+  nixa/                # workstation apps, dotfiles and helpers
+  bro/                 # laptop apps, dotfiles and helpers
+modules/nixos/         # modules used by nixpad and the unfinished desktop
+lib/                   # small Nix helpers, like reading package lists
+pkgs/                  # local package definitions
+```
+
+machine settings go in `hosts/`, personal settings go in `home/`. modules are
+Nix files i split out to make settings easier to find or reuse.
+
+the workstation has its own config; it doesn't import the laptop's modules.
+they share a repo without needing to share every setting.
+
+## why flakes
+
+[flake.nix](flake.nix) says what the workstation depends on (`inputs`, including
+nixpkgs, the package collection) and what it can build (`outputs`, here the
+workstation's NixOS configuration). [flake.lock](flake.lock) records the exact
+dependency revisions, so a rebuild uses those versions until i update them.
+that's why i keep both files in Git. [more on flakes](https://nix.dev/manual/nix/stable/command-ref/new-cli/nix3-flake.html)
+
+for a first look, follow `flake.nix` into
+[hosts/workstation/configuration.nix](hosts/workstation/configuration.nix) and
+[home/nixa/home.nix](home/nixa/home.nix).
 
 ```bash
-sudo nixos-rebuild switch --flake ~/git/dotfiles#workstation
-nixos-rebuild build --flake ~/git/dotfiles#workstation
-nh os switch
-nix-addpkg <package>...       # home/nixa/packages.txt
-nix-addpkg -s <package>...    # hosts/workstation/system-packages.txt
-nix-addpkg -l
-cookie-allow <domain>...      # home/nixa/librewolf-cookie-allow.txt
+cd ~/git/dotfiles
+sudo nixos-rebuild switch --flake .#workstation
 ```
 
-Both editing helpers default to this checkout; `NIXOS_CONFIG` can override
-the directory. Home Manager sets it and `NH_FLAKE` for new login sessions.
-Rebuild after editing the package or cookie lists. `#nixos` is a compatibility
-alias for `#workstation`; the machine's existing hostname remains `nixos`.
-The old `~/nixos-config` path can be a symlink to this checkout, so helpers
-installed before consolidation also edit the same files.
+`.` means this repo, `#workstation` picks the configuration, and `switch` builds
+and applies it. Home Manager is included in that rebuild.
 
-`main` contains both the upstream laptop configuration and the workstation
-configuration, including local edits consolidated from the former checkouts.
-The separate remote `flake-migration` branch migrates the `bro` hosts to flakes;
-that change has not been applied here. Keep it separate unless deliberately
-migrating the laptop's build setup.
+nixpad still builds through channels, using its own config under `/etc/nixos`.
+it doesn't use this root flake. i left its working setup alone.
 
-The remaining sections describe the channel-based `bro` machines. Run their
-rebuild commands only on those machines. Wallpapers remain tracked as upstream
-stores them, so this repository's flake source is large.
+## little helpers
 
-## layout
+these save me opening a config file for small edits. they're plain Bash scripts;
+Home Manager installs them as commands.
 
-```text
-hosts/
-  nixpad/
-    configuration.nix          # laptop-only bits: LTE, TLP, LUKS, locale
-    hardware-configuration.nix
-    xmm7360/                   # LTE helper scripts
-  desktop/
-    configuration.nix          # desktop-only bits: docker, no LTE
-    hardware-configuration.nix # placeholder until generated on the machine
+| command | what it does |
+| --- | --- |
+| `nix-addpkg ripgrep` | checks the name against the locked nixpkgs, then adds it to the user package list |
+| `nix-addpkg -s wget` | adds to the system package list instead |
+| `nix-addpkg -l` | shows both lists |
+| `cookie-allow github.com` | adds a site to LibreWolf's cookie exceptions so it can keep me logged in |
 
-modules/
-  nixos/
-    common.nix                 # shared base packages, fonts, nix settings
-    desktop-hyprland.nix       # Hyprland/UWSM, greetd, graphics, keyring
-    gaming.nix                 # Steam/gamemode, behind modules.gaming.enable
+both skip duplicates and stage the edited list in Git. rebuild to apply it,
+then commit when you're happy. you can also edit the lists by hand.
 
-home/
-  bro/
-    home.nix                   # shared Home Manager config
-    hosts/
-      nixpad.nix                # thin per-host overlay -> imports ../home.nix
-      desktop.nix                # thin per-host overlay -> imports ../home.nix
-    hypr/                       # Hyprland; hyprland.conf sources the *.conf below
-      look.conf                  # general/decoration/animations
-      input.conf                  # keyboard/touchpad/gestures
-      keybinds.conf                # all binds — the file to edit for a new shortcut
-      windowrules.conf
-    iamb/
-    kitty/
-    meli/
-    scripts/
-      media/
-      screengrab/
-    wallpapers/
+<details>
+<summary>using the helpers in your own config</summary>
 
-pkgs/
-  xmm7360-pci/                 # local kernel module package
+[nix-addpkg.sh](home/nixa/scripts/nix-addpkg.sh) and
+[cookie-allow.sh](home/nixa/scripts/cookie-allow.sh) can be copied separately.
+you don't need my desktop setup.
+
+- set `NIXOS_CONFIG` to your repo path (the default is `~/git/dotfiles`).
+- change the `home/nixa` and `hosts/workstation` paths inside the scripts to
+  match your layout, plus `#workstation` in the printed rebuild command.
+- copy the matching `writeShellApplication` block from
+  [home.nix](home/nixa/home.nix) to install each command with its dependencies.
+  or run it with Bash, with those dependencies on your `PATH`.
+
+`nix-addpkg` needs a flake with a `nixpkgs` input, both package-list files, and
+[read-packages.nix](lib/read-packages.nix). copy the imports that feed those
+lists into `home.packages` and `environment.systemPackages` too. the script
+only edits text; those imports turn the text into installed packages.
+
+`cookie-allow` needs the allow-list file and the
+`programs.librewolf.policies.Cookies.Allow` setting from my `home.nix`.
+that setting reads the list into LibreWolf's policy. the script alone won't
+change your browser.
+
+</details>
+
+<details>
+<summary>rebuilding and updating</summary>
+
+on the workstation:
+
+```bash
+cd ~/git/dotfiles
+nixos-rebuild build --flake .#workstation       # build without activating
+sudo nixos-rebuild switch --flake .#workstation # build and apply
+nh os switch                                  # shorter command on my setup
+nix flake update                              # update dependency versions
 ```
 
-Both hosts import the same `modules/nixos/*` files and set only what differs
-(host packages, `modules.gaming.enable`, LTE, locale). Adding a third
-machine means a new `hosts/<name>/` + `home/bro/hosts/<name>.nix` that import
-the existing modules and `home.nix`, picking which shared pieces to enable.
+review and commit `flake.lock` after an update and a successful rebuild.
+when adding a new config file, `git add` it before building so the flake can
+see it. `#nixos` also works as an alias for older commands.
 
-On `nixpad`, `/etc/nixos` points at:
-
-```text
-/home/bro/gitrepos/github/dotfiles/hosts/nixpad
-```
-
-## commands
-
-### rebuild
+on nixpad, `/etc/nixos` points to
+`/home/bro/gitrepos/github/dotfiles/hosts/nixpad`:
 
 ```bash
 sudo nixos-rebuild switch
 ```
 
-explicit config path:
+</details>
+
+<details>
+<summary>screenshots, recording and media</summary>
+
+`Print` takes a region screenshot; `Ctrl+Print` toggles region recording.
+
+- workstation: [screenrecord-toggle](home/nixa/hypr/screenrecord.sh), using
+  `slurp` and `wl-screenrec`. files go to `~/Videos/Recordings`; screenshots
+  go to `~/Pictures/Screenshots`.
+- nixpad: [record-region](home/bro/scripts/screengrab/record-region).
+  captures go under `~/Media/Screengrabs/`.
+- nixpad: [preview FILE](home/bro/scripts/media/preview) opens images in
+  swayimg and videos in mpv.
+
+check each recording script's dependencies and output paths before borrowing it.
+
+wallpapers in `home/bro/wallpapers/` account for most of the repo's size.
+
+</details>
+
+<details>
+<summary>nixpad LTE modem</summary>
+
+nixpad's XMM7360 modem uses the local package in `pkgs/xmm7360-pci/` and scripts
+in [hosts/nixpad/xmm7360](hosts/nixpad/xmm7360). these are specific to that modem.
 
 ```bash
-sudo nixos-rebuild switch -I nixos-config=/home/bro/gitrepos/github/dotfiles/hosts/nixpad/configuration.nix
-sudo nixos-rebuild switch -I nixos-config=/home/bro/gitrepos/github/dotfiles/hosts/desktop/configuration.nix
-```
-
-### media
-
-```bash
-preview FILE               # images in swayimg, videos in mpv
-kitten icat IMAGE          # show an image in kitty
-```
-
-### screengrabs
-
-```bash
-record-region              # select/start/stop recording
-```
-
-```text
-Print                      region screenshot with Noctalia
-Ctrl+Print                 start/stop region recording
-```
-
-files go under:
-
-```text
-~/Media/Screengrabs/Screenshots/
-~/Media/Screengrabs/Recordings/
-```
-
-### clipboard
-
-```text
-Super                      launcher
-Super+V                    Noctalia clipboard history
-Super+Z                    toggle floating
-```
-
-### LTE
-
-```bash
-lte-on                     # switch internet to LTE
-lte-on --verbose
+lte-on                     # switch to LTE
 lte-off                    # return to Wi-Fi
-lte-off --verbose
-xmm7360-status             # modem/service/routes/DNS status
-xmm7360-reset              # normal modem reset
-xmm7360-hard-reset         # ACPI/PCI recovery path
-xmm7360-use-lte            # lower-level LTE routing/DNS
-xmm7360-use-wifi           # lower-level Wi-Fi restore
-xmm7360-use-dns            # install LTE DNS only
+xmm7360-status             # check modem, routes and DNS
+xmm7360-reset              # reset the modem
+xmm7360-hard-reset         # PCI/ACPI recovery
 ```
 
-## config notes
-
-<details>
-<summary>host</summary>
-
-each `hosts/<name>/configuration.nix` sets machine basics (hostname, locale,
-bootloader, users) and imports the shared modules under `modules/nixos/`:
-`common.nix` (base packages/fonts), `desktop-hyprland.nix` (Hyprland/UWSM,
-greetd, graphics, keyring — both hosts use this), and `gaming.nix` (Steam,
-opt-in per host via `modules.gaming.enable = true;`).
-
-`nixpad` additionally owns the LTE modem stack, TLP, and LUKS — all
-laptop-specific, so they stay in `hosts/nixpad/configuration.nix` rather than
-a shared module. `desktop` additionally enables `virtualisation.docker` for
-container/dev work.
-
-`<nixos-unstable>` and the pinned Noctalia flake package are each imported in
-a host's `let` block, then exposed to every imported NixOS module via
-`_module.args` (so `modules/nixos/*.nix` can just take `unstable`/`noctalia`
-as ordinary module arguments) and to Home Manager via
-`home-manager.extraSpecialArgs`.
-
-setting up a new host: copy `hosts/nixpad/configuration.nix`'s `let` block for
-the `unstable`/`noctalia` pins, run
-`sudo nixos-generate-config --dir hosts/<name>` on the machine for a real
-`hardware-configuration.nix`, and pick which `modules/nixos/*` to import.
-
-</details>
-
-<details>
-<summary>home manager</summary>
-
-`home/bro/home.nix` owns user packages, shell-wrapped helper commands, user
-services, and tracked config files under `~/.config` — shared by every host.
-
-`home/bro/hosts/<name>.nix` is a thin per-host overlay that imports
-`../home.nix` and adds only what that machine needs (see `desktop.nix` for
-where dev/container tooling goes). Each NixOS host's
-`home-manager.users.bro` points at its own overlay file.
-
-</details>
-
-<details>
-<summary>desktop</summary>
-
-tracked desktop config:
-
-```text
-home/bro/hypr/
-home/bro/kitty/
-```
-
-current desktop pieces include Hyprland, Noctalia, Kitty, Hackneyed cursors,
-recording, and media previews.
-
-`home/bro/hypr/hyprland.conf` only sets monitors/programs/autostart/env, then
-`source`s `look.conf`, `input.conf`, `keybinds.conf`, and `windowrules.conf`.
-Each of those is symlinked individually via `xdg.configFile` in `home.nix`
-(matching the pattern used for `iamb`/`kitty`/`meli`). To change a shortcut,
-edit `keybinds.conf` — no other file needs touching. Adding a brand-new
-partial still needs one line added to `home.nix`'s `xdg.configFile`.
-
-</details>
-
-<details>
-<summary>apps</summary>
-
-user-side apps are in Home Manager. currently notable ones:
-
-```text
-iamb      matrix client, using unstable package for newer media support
-meli      mail client
-gitui     terminal git UI, installed system-wide
-localsend LAN file transfer, system-wide via `programs.localsend` (opens 53317)
-wiremix   audio mixer
-runelite
-```
-
-`iamb` config enables kitty image previews.
-
-</details>
-
-<details>
-<summary>wallpapers</summary>
-
-the wallpaper library lives in:
-
-```text
-home/bro/wallpapers/
-```
-
-Noctalia owns wallpaper selection and rotation.
-
-</details>
-
-<details>
-<summary>LTE modem</summary>
-
-`nixpad` has a Fibocom L850-GL / Intel XMM7360 modem.
-
-ModemManager does not manage this card in RPC mode:
-
-```text
-Intel XMM7360 in RPC mode not supported
-```
-
-so this repo uses:
-
-```text
-pkgs/xmm7360-pci/
-hosts/nixpad/xmm7360/
-```
-
-the host config disables ModemManager for this machine, blacklists `iosm`,
-builds the local `xmm7360` module, enables `acpi_call`, and installs the LTE
-wrapper commands.
-
-APN config lives outside git:
-
-```bash
-sudo cp /etc/xmm7360.example /etc/xmm7360
-sudoedit /etc/xmm7360
-```
-
-for Digi Mobil Romania:
-
-```ini
-apn=internet
-```
-
-this is internet-only experimental support. SMS and calls are not handled here.
+APN settings live in `/etc/xmm7360`, outside Git; `/etc/xmm7360.example` is the
+template. my Digi Mobil Romania APN is `internet`. internet only, no SMS or calls.
 
 </details>
