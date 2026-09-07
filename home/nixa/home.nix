@@ -106,13 +106,10 @@
   programs.bash = {
     enable = true;
 
-    # kitty sets TERM=xterm-kitty, and that terminfo entry only exists where
-    # kitty is installed — so ncurses programs (nano, htop) die on a remote
-    # host that has never seen it. `kitten ssh` ships the entry over on
-    # connect, keeping kitty's full capabilities instead of downgrading TERM.
-    # Aliases are interactive-only, so scripts, git and rsync still get plain
-    # ssh; `command ssh` bypasses it for a host where the copy fails.
-    shellAliases.ssh = "kitten ssh";
+    # Opt into Kitty's terminfo and shell integration on full remote systems.
+    # Keep plain ssh available for minimal environments such as the initrd,
+    # which lack the tools required by Kitty's remote setup.
+    shellAliases.kssh = "kitten ssh";
   };
 
   # Prompt — Starship. One line, dot separators, segments appear only when
