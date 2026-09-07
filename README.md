@@ -67,47 +67,7 @@ sudo nixos-rebuild switch --flake .#mixi --impure \
 the explicit feature option is only needed for the first switch from mixi's
 old non-flake configuration. later rebuilds can omit it.
 
-## Komodo Periphery on mixi
 
-mixi exposes its local Komodo Periphery listener through the paired FRP tunnel
-in the infrastructure repository. Periphery itself only listens on
-`127.0.0.1:8120`; Core connects through the edge endpoint. Because this Core is
-v1.19.5, use the same legacy passkey configured as Core's `KOMODO_PASSKEY`:
-
-```bash
-sudo install -m 600 /dev/null /etc/komodo-periphery.env
-sudoedit /etc/komodo-periphery.env
-```
-
-Add the following line using that existing Core passkey:
-
-```text
-PERIPHERY_PASSKEYS=the-same-value-as-KOMODO_PASSKEY
-```
-
-Decrypt the matching FRP client secret from the infrastructure repository and
-install it outside Git:
-
-```bash
-cd ~/git/infrastructure
-scripts/decrypt-service-secrets services/production/komodo-periphery-mixi/frpc
-sudo install -m 600 \
-  services/production/komodo-periphery-mixi/frpc/runtime.env \
-  /etc/frp-komodo-periphery.env
-```
-
-Apply the NixOS configuration and inspect both services:
-
-```bash
-cd ~/git/dotfiles
-sudo nixos-rebuild switch --flake .#mixi --impure
-journalctl -fu komodo-periphery -u frp-komodo-periphery
-```
-
-Create the `mixi` Server in Core using the edge address and remote port from
-the decrypted frpc environment. The environment files and Periphery's
-generated key under `/var/lib/komodo-periphery/keys` are machine-local state
-and must not be committed.
 
 ## helpers
 
