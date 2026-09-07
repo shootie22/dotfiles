@@ -46,6 +46,7 @@
 
   environment.systemPackages = with pkgs; [
     git
+    openssl
     vim
     wget
   ];
@@ -87,13 +88,7 @@
     enable = true;
     role = "client";
     environmentFiles = [ "/etc/frp-komodo-periphery.env" ];
-    settings = {
-      transport.tls.enable = true;
-      log = {
-        to = "console";
-        level = "info";
-      };
-    };
+    settings = { };
     # Connection details and the token are supplied by the encrypted runtime
     # environment, following the other FRP clients in infrastructure.
     extraConfig = ''
@@ -101,6 +96,9 @@
       serverPort = {{ .Envs.FRP_SERVER_PORT }}
       auth.method = "token"
       auth.token = "{{ .Envs.FRP_TOKEN }}"
+      transport.tls.enable = true
+      log.to = "console"
+      log.level = "info"
 
       [[proxies]]
       name = "komodo-periphery-mixi"
