@@ -65,6 +65,42 @@
 
   virtualisation.docker.enable = true;
 
+  systemd.services.ssh-tunnel = {
+    wantedBy = [ "multi-user.target" ];
+    wants = [ "network-online.target" ];
+    after = [ "network-online.target" "sshd.service" ];
+    unitConfig = {
+      ConditionPathExists = [
+        "/etc/ssh/mixi-tunnel/id_ed25519"
+        "/etc/ssh/mixi-tunnel/known_hosts"
+        "/etc/ssh/mixi-tunnel/config"
+      ];
+      StartLimitIntervalSec = 0;
+    };
+    serviceConfig = {
+      DynamicUser = true;
+      LoadCredential = [
+        "identity:/etc/ssh/mixi-tunnel/id_ed25519"
+        "known_hosts:/etc/ssh/mixi-tunnel/known_hosts"
+        "config:/etc/ssh/mixi-tunnel/config"
+      ];
+      ExecStart = "${pkgs.openssh}/bin/ssh -F %d/config -NT"
+        + " -i %d/identity"
+        + " -o UserKnownHostsFile=%d/known_hosts"
+        + " -o StrictHostKeyChecking=yes"
+        + " -o BatchMode=yes -o IdentitiesOnly=yes"
+        + " -o ExitOnForwardFailure=yes -o ConnectTimeout=15"
+        + " -o ServerAliveInterval=30 -o ServerAliveCountMax=3"
+        + " tunnel";
+      Restart = "always";
+      RestartSec = "10s";
+      NoNewPrivileges = true;
+      ProtectSystem = "strict";
+      ProtectHome = true;
+      PrivateTmp = true;
+    };
+  };
+
   services.komodo-periphery = {
     enable = true;
     package = pkgs.callPackage ../../packages/komodo-periphery-v1.nix { };
