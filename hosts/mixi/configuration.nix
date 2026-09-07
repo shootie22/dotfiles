@@ -64,20 +64,58 @@
 
   services.komodo-periphery = {
     enable = true;
-    inbound.port = 9218;
+    # Only the local FRP client can reach Periphery directly. FRP exposes this
+    # listener through the edge endpoint configured in the infrastructure repo.
+    inbound = {
+      serverEnabled = true;
+      bindIp = "127.0.0.1";
+      port = 8120;
+      ssl.enable = true;
+    };
+
+    # This local file supplies PERIPHERY_CORE_PUBLIC_KEYS. Although Core's
+    # public key is not secret, keeping it local makes key rotation independent
+    # of a system rebuild.
+    environmentFile = "/etc/komodo-periphery.env";
   };
 
-  systemd.services.komodo-periphery = {
-    environment = {
-      PERIPHERY_ROOT_DIRECTORY = "/etc/komodo";
-      PERIPHERY_SSL_ENABLED = "true";
-      PERIPHERY_DISABLE_TERMINALS = "false";
-      PERIPHERY_INCLUDE_DISK_MOUNTS = "/etc/hostname";
+  # Do not enter a restart loop before the local Core key file is created.
+  systemd.services.komodo-periphery.unitConfig = {
+    ConditionPathExists = "/etc/komodo-periphery.env";
+  };
+
+  services.frp.instances.komodo-periphery = {
+    enable = true;
+    role = "client";
+    environmentFiles = [ "/etc/frp-komodo-periphery.env" ];
+    settings = {
+      transport.tls.enable = true;
+      log = {
+        to = "console";
+        level = "info";
+      };
     };
-    serviceConfig = {
-      EnvironmentFile = "/etc/komodo-secrets.env";
-      SupplementaryGroups = [ "docker" ];
-    };
+    # Connection details and the token are supplied by the encrypted runtime
+    # environment, following the other FRP clients in infrastructure.
+    extraConfig = ''
+      serverAddr = "{{ .Envs.FRP_SERVER_ADDR }}"
+      serverPort = {{ .Envs.FRP_SERVER_PORT }}
+      auth.method = "token"
+      auth.token = "{{ .Envs.FRP_TOKEN }}"
+
+      [[proxies]]
+      name = "komodo-periphery-mixi"
+      type = "tcp"
+      localIP = "127.0.0.1"
+      localPort = 8120
+      remotePort = {{ .Envs.FRP_REMOTE_PORT }}
+      transport.useEncryption = true
+      transport.useCompression = true
+    '';
+  };
+
+  systemd.services.frp-komodo-periphery.unitConfig = {
+    ConditionPathExists = "/etc/frp-komodo-periphery.env";
   };
 
   # Keep the version from the machine's original installation. Changing it
