@@ -28,6 +28,7 @@
     max-jobs = 1;
     cores = 4;
   };
+  nixpkgs.config.allowUnfree = true;
 
   # Network ------------------------------------------------------------------
   networking.hostName = "mixi";
@@ -49,6 +50,7 @@
     openssl
     vim
     wget
+    (callPackage ../../pkgs/antigravity-cli { })
   ];
 
   # Services -----------------------------------------------------------------

@@ -70,6 +70,12 @@
     noctalia-nixpad,
     ...
   }@inputs: rec {
+    packages.aarch64-linux.antigravity-cli =
+      (import nixpkgs {
+        system = "aarch64-linux";
+        config.allowUnfree = true;
+      }).callPackage ./pkgs/antigravity-cli { };
+
     nixosConfigurations.mixi = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
       modules = [
