@@ -1,15 +1,16 @@
 # dotfiles
 
-nixOS setup for my machines. this repo contains helper scripts for adding
+NixOS setup for my machines. this repo contains helper scripts for adding
 packages and adding websites as LibreWolf cookie exceptions.
 
 ## where things go
 
 ```text
-flake.nix              # locked inputs and configurations for both machines
+flake.nix              # locked inputs and configurations for all machines
 flake.lock             # exact versions of those dependencies
 hosts/
   workstation/         # desktop system settings and hardware
+  mixi/                 # Apple Silicon Mac mini system settings and hardware
   nixpad/              # laptop system settings and hardware
 home/
   nixa/                # workstation apps, dotfiles and package/cookie lists
@@ -23,8 +24,8 @@ pkgs/                  # local package definitions
 machine settings go in `hosts/`, personal settings go in `home/`. modules are
 Nix files i split out to make settings easier to find or reuse.
 
-the workstation has its own config; it doesn't import the laptop's modules.
-they share a repo without needing to share every setting.
+each host has its own config. they share a repo without needing to share every
+setting.
 
 ## flakes
 
@@ -49,6 +50,21 @@ and applies it. Home Manager is included in that rebuild.
 nixpad uses the same root flake, while retaining its own stable package set and
 host configuration. Its `/etc/nixos` link points to the host files, not to a
 flake root.
+
+mixi uses the pinned `nixos-apple-silicon` input for its Asahi kernel and boot
+support. Its device-specific firmware remains in `/boot/vendorfw`: the Asahi
+project marks that firmware non-redistributable, so it must not be committed to
+this public repository. This is the one local input to an otherwise locked
+configuration, and requires `--impure` so Nix may copy it into the store:
+
+```bash
+cd ~/git/dotfiles
+sudo nixos-rebuild switch --flake .#mixi --impure \
+  --option experimental-features "nix-command flakes"
+```
+
+the explicit feature option is only needed for the first switch from mixi's
+old non-flake configuration. later rebuilds can omit it.
 
 ## helpers
 
