@@ -2,6 +2,8 @@
 { ... }:
 
 {
+  imports = [ ../shared/starship.nix ];
+
   home = {
     username = "mixa";
     homeDirectory = "/home/mixa";

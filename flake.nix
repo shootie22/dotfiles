@@ -124,6 +124,10 @@
         modules = [
           ./hosts/nixpad/configuration.nix
           home-manager-nixpad.nixosModules.home-manager
+          {
+            # programs.bash starts managing ~/.bashrc when Starship is enabled.
+            home-manager.backupFileExtension = "hm-backup";
+          }
         ];
       };
   };
