@@ -71,18 +71,18 @@ old non-flake configuration. later rebuilds can omit it.
 
 mixi exposes its local Komodo Periphery listener through the paired FRP tunnel
 in the infrastructure repository. Periphery itself only listens on
-`127.0.0.1:8120`; Core connects through the edge endpoint. In Komodo Core,
-copy the Core public key from Settings, then create the local root-only file:
+`127.0.0.1:8120`; Core connects through the edge endpoint. Because this Core is
+v1.19.5, use the same legacy passkey configured as Core's `KOMODO_PASSKEY`:
 
 ```bash
 sudo install -m 600 /dev/null /etc/komodo-periphery.env
 sudoedit /etc/komodo-periphery.env
 ```
 
-Add the following line using the Core public key:
+Add the following line using that existing Core passkey:
 
 ```text
-PERIPHERY_CORE_PUBLIC_KEYS=replace-with-core-public-key
+PERIPHERY_PASSKEYS=the-same-value-as-KOMODO_PASSKEY
 ```
 
 Decrypt the matching FRP client secret from the infrastructure repository and

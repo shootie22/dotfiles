@@ -73,9 +73,8 @@
       ssl.enable = true;
     };
 
-    # This local file supplies PERIPHERY_CORE_PUBLIC_KEYS. Although Core's
-    # public key is not secret, keeping it local makes key rotation independent
-    # of a system rebuild.
+    # Core v1 authenticates inbound Periphery connections with the shared
+    # legacy passkey. Keep it in a root-only environment file.
     environmentFile = "/etc/komodo-periphery.env";
   };
 
