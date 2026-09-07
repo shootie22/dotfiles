@@ -1,5 +1,5 @@
 {
-  description = "Dotfiles: reproducible workstation and nixpad NixOS configurations";
+  description = "Reproducible NixOS configurations for mixi, nixpad, and workstation";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
@@ -9,6 +9,14 @@
     # rather than changing it when the workstation's rolling input updates.
     nixpkgs-nixpad.url = "github:NixOS/nixpkgs/nixos-26.05";
     nixpkgs-nixpad-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+    # Kernel, bootloader, and peripheral support for the Apple Silicon Mac mini.
+    # Following the main nixpkgs input keeps the kernel module and userspace in
+    # sync while flake.lock pins the exact support revision.
+    apple-silicon = {
+      url = "github:nix-community/nixos-apple-silicon";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     home-manager = {
       url = "github:nix-community/home-manager";
@@ -54,6 +62,7 @@
     nixpkgs,
     nixpkgs-nixpad,
     nixpkgs-nixpad-unstable,
+    apple-silicon,
     home-manager,
     home-manager-nixpad,
     chaotic,
@@ -61,6 +70,14 @@
     noctalia-nixpad,
     ...
   }@inputs: rec {
+    nixosConfigurations.mixi = nixpkgs.lib.nixosSystem {
+      system = "aarch64-linux";
+      modules = [
+        ./hosts/mixi/configuration.nix
+        apple-silicon.nixosModules.apple-silicon-support
+      ];
+    };
+
     nixosConfigurations.workstation = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       specialArgs = { inherit inputs; };
