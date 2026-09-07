@@ -65,6 +65,7 @@
 
   services.komodo-periphery = {
     enable = true;
+    package = pkgs.callPackage ../../packages/komodo-periphery-v1.nix { };
     # Only the local FRP client can reach Periphery directly. FRP exposes this
     # listener through the edge endpoint configured in the infrastructure repo.
     inbound = {
