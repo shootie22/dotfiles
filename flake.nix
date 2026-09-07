@@ -75,6 +75,15 @@
       modules = [
         ./hosts/mixi/configuration.nix
         apple-silicon.nixosModules.apple-silicon-support
+
+        home-manager.nixosModules.home-manager
+        {
+          home-manager.useGlobalPkgs = true;
+          home-manager.useUserPackages = true;
+          # Preserve any unmanaged file on the first Home Manager activation.
+          home-manager.backupFileExtension = "hm-backup";
+          home-manager.users.mixa = import ./home/mixa/home.nix;
+        }
       ];
     };
 

@@ -15,6 +15,7 @@ hosts/
 home/
   nixa/                # workstation apps, dotfiles and package/cookie lists
   bro/                 # laptop apps, dotfiles and package/cookie lists
+  mixa/                # mixi shell and Git configuration
 scripts/                # shared hostname-aware helper sources
 modules/nixos/         # modules used by nixpad
 lib/                   # small Nix helpers, like reading package lists
