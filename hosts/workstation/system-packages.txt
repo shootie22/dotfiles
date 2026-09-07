@@ -1,0 +1,13 @@
+# System packages -> environment.systemPackages (see configuration.nix).
+#
+# These are installed system-wide: available to root, at a TTY, to systemd
+# system services, and while repairing a broken desktop. Keep this list small
+# and reserve it for things you'd need when your user session isn't up.
+# Everything else belongs in packages.txt.
+#
+# Add entries with:
+#     nix-addpkg -s <name>
+# then: sudo nixos-rebuild switch --flake ~/git/dotfiles#workstation
+
+git                      # required for flake rebuilds
+wget

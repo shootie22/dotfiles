@@ -1,0 +1,44 @@
+# User packages -> home.packages (see home.nix).
+#
+# One attribute name per line. Blank lines ignored, "#" starts a comment,
+# dotted paths like "kdePackages.konsole" work. Add entries with:
+#     nix-addpkg <name> [more...]
+# then: sudo nixos-rebuild switch --flake ~/git/dotfiles#workstation
+#
+# Packages needing an override or a wrapper stay in home.nix instead.
+# Root/TTY tools belong in system-packages.txt (nix-addpkg -s).
+
+claude-code
+btop
+brightnessctl
+playerctl
+wl-clipboard
+cliphist
+
+kdePackages.dolphin      # file manager
+kdePackages.kio-extras   # network/trash/thumbnail backends for Dolphin
+kdePackages.konsole      # required for Dolphin's embedded terminal panel (F4)
+
+dolphin-emu              # GameCube / Wii emulator
+osu-lazer-bin            # osu!lazer (official upstream binary)
+
+mpvpaper                 # video wallpapers (Noctalia wallpaper plugin backend)
+mpv                      #  └ picker thumbnails
+ffmpeg                   #  └ poster-frame extraction
+
+# Screenshots / screen recording
+grim
+slurp
+grimblast                # grim+slurp wrapper: region shot -> clipboard + file
+wl-screenrec             # region recorder; driven by screenrecord-toggle
+libnotify
+
+# cinny-desktop lives in home.nix: it needs a WebRTC-enabled WebKitGTK override.
+tidal-hifi
+localsend
+antigravity-cli
+supertuxkart
+kdePackages.ark
+high-tide
+onlyoffice-desktopeditors
+nh
