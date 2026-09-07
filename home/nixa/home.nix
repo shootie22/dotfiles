@@ -62,12 +62,12 @@
     (writeShellApplication {
       name = "cookie-allow";
       runtimeInputs = [ gnugrep coreutils git ];
-      text = builtins.readFile ./scripts/cookie-allow.sh;
+      text = builtins.readFile ../../scripts/cookie-allow.sh;
     })
     (writeShellApplication {
       name = "nix-addpkg";
       runtimeInputs = [ nix gnugrep gnused gawk coreutils git ];
-      text = builtins.readFile ./scripts/nix-addpkg.sh;
+      text = builtins.readFile ../../scripts/nix-addpkg.sh;
     })
   ]);
 

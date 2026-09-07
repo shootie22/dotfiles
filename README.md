@@ -51,8 +51,9 @@ flake root.
 
 ## helpers
 
-these save me opening a config file for small edits. they're plain Bash scripts;
-Home Manager installs them as commands.
+these save me opening a config file for small edits. The shared Bash sources
+live in [`scripts/`](scripts/); Home Manager installs them as commands on both
+machines and picks the matching files from the hostname.
 
 | command | what it does |
 | --- | --- |
@@ -67,8 +68,8 @@ then commit when you're happy. you can also edit the lists by hand.
 <details>
 <summary>using the helpers in your own config</summary>
 
-[nix-addpkg.sh](home/nixa/scripts/nix-addpkg.sh) and
-[cookie-allow.sh](home/nixa/scripts/cookie-allow.sh) can be copied separately.
+[nix-addpkg.sh](scripts/nix-addpkg.sh) and
+[cookie-allow.sh](scripts/cookie-allow.sh) can be copied separately.
 you don't need my desktop setup.
 
 - set `NIXOS_CONFIG` to your repo path (the default is `~/git/dotfiles`).

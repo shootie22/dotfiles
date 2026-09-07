@@ -1,4 +1,4 @@
-{ config, pkgs, unstable ? pkgs, ... }:
+{ config, lib, pkgs, unstable ? pkgs, ... }:
 
 let
   dotfilesRoot = "/home/bro/gitrepos/github/dotfiles";
@@ -11,51 +11,15 @@ in
 
   nixpkgs.config.allowUnfree = true;
 
-  home.packages = with pkgs; [
+  home.sessionVariables = {
+    NIXOS_CONFIG = dotfilesRoot;
+    NH_FLAKE = "${dotfilesRoot}#nixpad";
+  };
 
-    # general
-    meli
-    unstable.iamb
-    bitwarden-cli
-    file
-    mpv
-    swayimg
-    vlc
-    zellij
-    wiremix
-    parsec-bin
-    thunar
-    mousepad
-    kdePackages.ark
-    kdePackages.dolphin
-    kdePackages.filelight
-    kdePackages.gwenview
-    # Dolphin embeds Konsole's KPart as its F4 terminal panel, and KIO hands
-    # Terminal=true .desktop entries to Konsole too, so text files associated
-    # with a console editor actually open somewhere.
-    kdePackages.konsole
-    # keditfiletype, which is what Dolphin's Properties -> File type -> "Change"
-    # button shells out to, plus kioclient for testing associations from a shell.
-    kdePackages.kde-cli-tools
-    # kbuildsycoca6, to rebuild the service cache by hand after changing
-    # associations instead of waiting for an application to notice.
-    kdePackages.kservice
-    filezilla
-
-    # utilities
-    calcurse
-    tealdeer
-    helix
-    unstable.claude-code
-    opencode
-
-    # development
-    gh
-    godot
-    #antigravity
-
-    # Games
-    runelite
+  home.packages = (import ../../lib/read-packages.nix {
+    inherit lib pkgs unstable;
+    file = ./packages.txt;
+  }) ++ (with pkgs; [
 
     (writeShellScriptBin "record-region" ''
       exec "${screengrabScripts}/record-region" "$@"
@@ -63,7 +27,17 @@ in
     (writeShellScriptBin "preview" ''
       exec "${mediaScripts}/preview" "$@"
     '')
-  ];
+    (writeShellApplication {
+      name = "cookie-allow";
+      runtimeInputs = [ gnugrep coreutils git ];
+      text = builtins.readFile ../../scripts/cookie-allow.sh;
+    })
+    (writeShellApplication {
+      name = "nix-addpkg";
+      runtimeInputs = [ nix gnugrep gnused gawk coreutils git ];
+      text = builtins.readFile ../../scripts/nix-addpkg.sh;
+    })
+  ]);
 
   home.pointerCursor = {
     package = pkgs.hackneyed;
@@ -193,6 +167,14 @@ in
       "x-scheme-handler/discord-455712169795780630" = "discord-455712169795780630.desktop";
       "x-scheme-handler/discord-1216669957799018608" = "discord-1216669957799018608.desktop";
     };
+  };
+
+  programs.librewolf = {
+    enable = true;
+    package = unstable.librewolf;
+    policies.Cookies.Allow =
+      lib.filter (lib.hasPrefix "https://")
+        (lib.splitString "\n" (builtins.readFile ./librewolf-cookie-allow.txt));
   };
 
   xdg.configFile = {

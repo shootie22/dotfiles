@@ -1,0 +1,39 @@
+# User packages -> home.packages (see home.nix).
+# One attribute name per line. Add entries with: nix-addpkg <name>
+# Use unstable.NAME for packages intentionally sourced from unstable.
+
+# general
+meli
+unstable.iamb
+bitwarden-cli
+file
+mpv
+swayimg
+vlc
+zellij
+wiremix
+parsec-bin
+thunar
+mousepad
+kdePackages.ark
+kdePackages.dolphin
+kdePackages.filelight
+kdePackages.gwenview
+kdePackages.konsole
+kdePackages.kde-cli-tools
+kdePackages.kservice
+filezilla
+
+# utilities
+calcurse
+tealdeer
+helix
+unstable.claude-code
+opencode
+
+# development
+gh
+godot
+
+# games
+runelite

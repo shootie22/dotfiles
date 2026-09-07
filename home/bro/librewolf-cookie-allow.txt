@@ -1,0 +1,2 @@
+# LibreWolf: sites allowed to keep cookies across restarts.
+# One origin per line. Add entries with: cookie-allow <url-or-domain>

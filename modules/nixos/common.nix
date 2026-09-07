@@ -27,7 +27,6 @@
     nvtopPackages.amd
 
     # General packages
-    unstable.librewolf
     libnotify
     fastfetch
 

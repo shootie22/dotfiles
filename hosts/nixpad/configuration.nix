@@ -3,7 +3,7 @@
 # and in the NixOS manual (accessible by running ‘nixos-help’).
 
 # `unstable` and `noctalia` come from the flake via specialArgs.
-{ config, pkgs, unstable, noctalia, ... }:
+{ config, lib, pkgs, unstable, noctalia, ... }:
 
 let
   xmm7360Pci = pkgs.callPackage ../../pkgs/xmm7360-pci {
@@ -148,23 +148,10 @@ in
     packages = with pkgs; [];
   };
 
-  # List packages installed in system profile. To search, run:
-  # $ nix search wget
-  environment.systemPackages = with pkgs; [
-
-  # BlendToSMBStage2 Blender addon: runs GxModelViewer.exe (Windows build) via
-  # Mono for GMA/TPL export, since the prebuilt native Linux GxModelViewer
-  # binary can't run on NixOS and has its own CLI-argument-forwarding bug.
-  mono
-
-  # Same addon: ws2lzfrontend.exe compiles the stage into .lz/.lz.raw. Unlike
-  # GxModelViewer it is a native Windows binary, not a .NET assembly, so Mono
-  # cannot run it and it needs Wine. Only the Windows build is distributed;
-  # there is no prebuilt Linux ws2lzfrontend.
-  wineWow64Packages.stable
-
-  # Mobile broadband
-  usbutils
+  environment.systemPackages = (import ../../lib/read-packages.nix {
+    inherit lib pkgs unstable;
+    file = ./system-packages.txt;
+  }) ++ [
   lteOn
   lteOff
   xmm7360Pci
@@ -174,10 +161,6 @@ in
   xmm7360UseLte
   xmm7360UseDns
   xmm7360UseWifi
-  mobile-broadband-provider-info
-  libmbim
-  libqmi
-
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
