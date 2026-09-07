@@ -78,7 +78,7 @@
     environmentFile = "/etc/komodo-periphery.env";
   };
 
-  # Do not enter a restart loop before the local Core key file is created.
+  # Do not enter a restart loop before the local passkey file is created.
   systemd.services.komodo-periphery.unitConfig = {
     ConditionPathExists = "/etc/komodo-periphery.env";
   };
