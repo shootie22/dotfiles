@@ -1,0 +1,12 @@
+# System packages -> environment.systemPackages (see configuration.nix).
+# Add entries with: nix-addpkg --system <name>
+
+# BlendToSMBStage2 Windows helper programs
+mono
+wineWow64Packages.stable
+
+# Mobile broadband support
+usbutils
+mobile-broadband-provider-info
+libmbim
+libqmi

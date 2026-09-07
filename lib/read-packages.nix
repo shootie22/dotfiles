@@ -6,7 +6,7 @@
 #
 # Used by home.nix (packages.txt) and configuration.nix (system-packages.txt).
 # The `nix-addpkg` script appends to those files; this turns them into packages.
-{ lib, pkgs, file }:
+{ lib, pkgs, unstable ? pkgs, file }:
 
 let
   lines = lib.splitString "\n" (builtins.readFile file);
@@ -17,9 +17,12 @@ let
   );
 
   resolve = name:
-    let path = lib.splitString "." name;
+    let
+      isUnstable = lib.hasPrefix "unstable." name;
+      packageSet = if isUnstable then unstable else pkgs;
+      path = lib.splitString "." (if isUnstable then lib.removePrefix "unstable." name else name);
     in lib.attrByPath path
       (throw "read-packages: no such package '${name}' (from ${toString file})")
-      pkgs;
+      packageSet;
 in
 map resolve names

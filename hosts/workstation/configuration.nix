@@ -49,7 +49,7 @@
   nixpkgs.config.allowUnfree = true;
 
   # Networking ------------------------------------------------------------
-  networking.hostName = "nixos";
+  networking.hostName = "workstation";
   networking.networkmanager.enable = true;
 
   # Locale --------------------------------------------------------------
