@@ -1,13 +1,7 @@
 # dotfiles
 
-my NixOS setup for two machines: `workstation` (desktop, user `nixa`) and
-`nixpad` (laptop, user `bro`). both run Hyprland and Noctalia.
-
-NixOS keeps my packages, services and system settings in files. Home Manager
-handles my apps and dotfiles. i edit, rebuild, and keep the changes in Git.
-
-if you're borrowing from this repo, start with the bits you like. the disk
-layout, hardware config and usernames belong to my machines.
+nixOS setup for my machines. this repo contains helper scripts for adding
+packages and adding websites as LibreWolf cookie exceptions.
 
 ## where things go
 
@@ -17,11 +11,10 @@ flake.lock             # exact versions of those dependencies
 hosts/
   workstation/         # desktop system settings and hardware
   nixpad/              # laptop system settings and hardware
-  desktop/             # unfinished bro desktop config, not the workstation
 home/
   nixa/                # workstation apps, dotfiles and helpers
   bro/                 # laptop apps, dotfiles and helpers
-modules/nixos/         # modules used by nixpad and the unfinished desktop
+modules/nixos/         # modules used by nixpad
 lib/                   # small Nix helpers, like reading package lists
 pkgs/                  # local package definitions
 ```
@@ -32,7 +25,7 @@ Nix files i split out to make settings easier to find or reuse.
 the workstation has its own config; it doesn't import the laptop's modules.
 they share a repo without needing to share every setting.
 
-## why flakes
+## flakes
 
 [flake.nix](flake.nix) says what the workstation depends on (`inputs`, including
 nixpkgs, the package collection) and what it can build (`outputs`, here the
@@ -55,7 +48,7 @@ and applies it. Home Manager is included in that rebuild.
 nixpad still builds through channels, using its own config under `/etc/nixos`.
 it doesn't use this root flake. i left its working setup alone.
 
-## little helpers
+## helpers
 
 these save me opening a config file for small edits. they're plain Bash scripts;
 Home Manager installs them as commands.
