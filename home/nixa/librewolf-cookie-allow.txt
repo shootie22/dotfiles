@@ -1,0 +1,13 @@
+# LibreWolf: sites allowed to keep cookies across restarts (i.e. stay logged in).
+# One origin per line, e.g. https://github.com
+# Add entries with:  cookie-allow <url-or-domain>
+
+https://chatgpt.com
+https://claude.ai
+https://github.com
+https://git.radunenu.com
+https://google.com
+https://icloud.com
+https://steampowered.com
+https://tidal.com
+https://youtube.com

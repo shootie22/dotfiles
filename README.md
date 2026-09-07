@@ -2,6 +2,40 @@
 
 nixOS and user configuration for my machines
 
+## workstation (nixa)
+
+The canonical checkout is `~/git/dotfiles`. The workstation configuration lives
+in `hosts/workstation/` and `home/nixa/`, with package-list parsing in `lib/`.
+It is independent of the `bro` configuration described below: its flake pins
+unstable nixpkgs, Home Manager, Chaotic, Noctalia, AI usage widgets and llm-agents.
+
+```bash
+sudo nixos-rebuild switch --flake ~/git/dotfiles#workstation
+nixos-rebuild build --flake ~/git/dotfiles#workstation
+nh os switch
+nix-addpkg <package>...       # home/nixa/packages.txt
+nix-addpkg -s <package>...    # hosts/workstation/system-packages.txt
+nix-addpkg -l
+cookie-allow <domain>...      # home/nixa/librewolf-cookie-allow.txt
+```
+
+Both editing helpers default to this checkout; `NIXOS_CONFIG` can override
+the directory. Home Manager sets it and `NH_FLAKE` for new login sessions.
+Rebuild after editing the package or cookie lists. `#nixos` is a compatibility
+alias for `#workstation`; the machine's existing hostname remains `nixos`.
+The old `~/nixos-config` path can be a symlink to this checkout, so helpers
+installed before consolidation also edit the same files.
+
+`consolidate-workstation` is based on the latest upstream `main`, with the
+workstation configuration and local edits from both former checkouts imported.
+The older `merge-workstation` branch is preserved for reference. The separate
+remote `flake-migration` branch migrates the `bro` hosts to flakes; that change
+is not required for the workstation and has not been applied here.
+
+The remaining sections describe the channel-based `bro` machines. Run their
+rebuild commands only on those machines. Wallpapers remain tracked as upstream
+stores them, so this repository's flake source is large.
+
 ## layout
 
 ```text
