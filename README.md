@@ -26,11 +26,11 @@ alias for `#workstation`; the machine's existing hostname remains `nixos`.
 The old `~/nixos-config` path can be a symlink to this checkout, so helpers
 installed before consolidation also edit the same files.
 
-`consolidate-workstation` is based on the latest upstream `main`, with the
-workstation configuration and local edits from both former checkouts imported.
-The older `merge-workstation` branch is preserved for reference. The separate
-remote `flake-migration` branch migrates the `bro` hosts to flakes; that change
-is not required for the workstation and has not been applied here.
+`main` contains both the upstream laptop configuration and the workstation
+configuration, including local edits consolidated from the former checkouts.
+The separate remote `flake-migration` branch migrates the `bro` hosts to flakes;
+that change has not been applied here. Keep it separate unless deliberately
+migrating the laptop's build setup.
 
 The remaining sections describe the channel-based `bro` machines. Run their
 rebuild commands only on those machines. Wallpapers remain tracked as upstream
