@@ -42,3 +42,4 @@ kdePackages.ark
 high-tide
 onlyoffice-desktopeditors
 nh
+gnutar
