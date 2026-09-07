@@ -1,5 +1,5 @@
 # NixOS configuration for the Apple Silicon Mac mini.
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 
 {
   imports = [ ./hardware-configuration.nix ];
@@ -83,6 +83,8 @@
   systemd.services.komodo-periphery.unitConfig = {
     ConditionPathExists = "/etc/komodo-periphery.env";
   };
+  systemd.services.komodo-periphery.environment.PATH = lib.mkForce
+    "${pkgs.openssl}/bin:/run/current-system/sw/bin:/run/wrappers/bin";
 
   services.frp.instances.komodo-periphery = {
     enable = true;
