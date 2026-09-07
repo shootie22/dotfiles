@@ -1,5 +1,5 @@
 # NixOS configuration for the Apple Silicon Mac mini.
-{ lib, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 {
   imports = [ ./hardware-configuration.nix ];
@@ -22,6 +22,28 @@
     preLVM = true;
   };
 
+  # Unlock over Ethernet: ssh -t -p 2222 root@<LAN-IP> systemctl default
+  boot.initrd = {
+    availableKernelModules = [ "tg3" ];
+    systemd = {
+      enable = true;
+      network = {
+        enable = true;
+        networks."10-ethernet" = {
+          matchConfig.Name = "end0";
+          networkConfig.DHCP = "ipv4";
+        };
+      };
+    };
+    network.ssh = {
+      enable = true;
+      port = 2222; # Separate port avoids conflicts with the normal SSH host key.
+      # Dedicated key: copied into the unencrypted boot image.
+      hostKeys = [ "/etc/secrets/initrd/ssh_host_ed25519_key" ];
+      authorizedKeys = config.users.users.mixa.openssh.authorizedKeys.keys;
+    };
+  };
+
   # Nix ----------------------------------------------------------------------
   nix.settings = {
     experimental-features = [ "nix-command" "flakes" ];
@@ -42,6 +64,7 @@
     extraGroups = [ "wheel" "networkmanager" "docker" ];
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIP0XJEU56o+KB9aZkRR+hGRotn5tbnHd7xfqGFXJt2U nixa@nix-wks"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDHTTANn82vHV1t8BPgWPwH37Y3fnIT/12clqLjqqv98 radu@radus-Mac-mini.local"
     ];
   };
 
