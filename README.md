@@ -12,8 +12,9 @@ hosts/
   workstation/         # desktop system settings and hardware
   nixpad/              # laptop system settings and hardware
 home/
-  nixa/                # workstation apps, dotfiles and helpers
-  bro/                 # laptop apps, dotfiles and helpers
+  nixa/                # workstation apps, dotfiles and package/cookie lists
+  bro/                 # laptop apps, dotfiles and package/cookie lists
+scripts/                # shared hostname-aware helper sources
 modules/nixos/         # modules used by nixpad
 lib/                   # small Nix helpers, like reading package lists
 pkgs/                  # local package definitions
@@ -73,10 +74,9 @@ then commit when you're happy. you can also edit the lists by hand.
 you don't need my desktop setup.
 
 - set `NIXOS_CONFIG` to your repo path (the default is `~/git/dotfiles`).
-- change the `home/nixa` and `hosts/workstation` paths inside the scripts to
-  match your layout, plus `#workstation` in the printed rebuild command.
+- add a hostname case and matching package/cookie-list paths in the scripts.
 - copy the matching `writeShellApplication` block from
-  [home.nix](home/nixa/home.nix) to install each command with its dependencies.
+[home.nix](home/nixa/home.nix) to install each command with its dependencies.
   or run it with Bash, with those dependencies on your `PATH`.
 
 `nix-addpkg` needs a flake with a `nixpkgs` input, both package-list files, and
