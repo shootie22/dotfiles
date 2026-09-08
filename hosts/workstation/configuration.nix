@@ -1,5 +1,5 @@
 # System configuration. User-level settings live in home.nix.
-{ lib, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 {
   imports = [ ./hardware-configuration.nix ];
@@ -51,6 +51,45 @@
   # Networking ------------------------------------------------------------
   networking.hostName = "workstation";
   networking.networkmanager.enable = true;
+
+  # Keep the wired NIC armed for magic packets, including after shutdown.
+  networking.networkmanager.connectionConfig."ethernet.wake-on-lan" = 64; # magic
+
+  services.openssh = {
+    enable = true;
+    openFirewall = false;
+    settings = {
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
+      PermitRootLogin = "no";
+      AllowUsers = [ "nixa" ];
+    };
+  };
+  networking.firewall.interfaces.eno1.allowedTCPPorts = [ 22 ];
+
+  # Early boot has its own network stack; NetworkManager starts after unlock.
+  boot.initrd.availableKernelModules = [ "e1000e" ];
+  boot.initrd.systemd = {
+    enable = true;
+    network = {
+      enable = true;
+      networks."10-eno1" = {
+        matchConfig.Name = "eno1";
+        networkConfig.DHCP = "ipv4";
+        dhcpV4Config.ClientIdentifier = "mac";
+        linkConfig.RequiredForOnline = "no";
+      };
+    };
+  };
+  boot.initrd.network.ssh = {
+    enable = true;
+    port = 2222;
+    # Separate from the normal SSH identity; copied into /boot at rebuild time.
+    hostKeys = [ "/etc/secrets/initrd/ssh_host_ed25519_key" ];
+    authorizedKeys = map
+      (key: ''restrict,pty,command="systemctl default" ${key}'')
+      config.users.users.nixa.openssh.authorizedKeys.keys;
+  };
 
   # Locale --------------------------------------------------------------
   time.timeZone = "Europe/Oslo";
@@ -144,6 +183,11 @@
     isNormalUser = true;
     description = "nixa";
     extraGroups = [ "networkmanager" "wheel" ];
+    # Machine-local public keys, outside this public repository. Rebuild with
+    # --impure to read this file. Only public keys may go here: Nix stores them.
+    openssh.authorizedKeys.keys = lib.filter
+      (line: line != "" && !(lib.hasPrefix "#" line))
+      (lib.splitString "\n" (builtins.readFile "/etc/secrets/ssh/authorized_keys"));
   };
 
   # Managed by `nix-addpkg --system`; see system-packages.txt.
