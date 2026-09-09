@@ -131,8 +131,9 @@
           ./hosts/nixpad/configuration.nix
           home-manager-nixpad.nixosModules.home-manager
           {
-            # programs.bash starts managing ~/.bashrc when Starship is enabled.
-            home-manager.backupFileExtension = "hm-backup";
+            # Preserve the existing Starship config and prior .hm-backup file
+            # when Home Manager starts managing the shared Bash prompt.
+            home-manager.backupFileExtension = "hm-backup-previous";
           }
         ];
       };
