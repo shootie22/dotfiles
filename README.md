@@ -12,10 +12,12 @@ hosts/
   workstation/         # desktop system settings and hardware
   mixi/                 # Apple Silicon Mac mini system settings and hardware
   nixpad/              # laptop system settings and hardware
+  fuji/                # headless server system settings and hardware
 home/
   nixa/                # workstation apps, dotfiles and package/cookie lists
   bro/                 # laptop apps, dotfiles and package/cookie lists
   mixa/                # mixi shell and Git configuration
+  fuji/                # fuji server shell and Git configuration
 scripts/                # shared hostname-aware helper sources
 modules/nixos/         # modules used by nixpad
 lib/                   # small Nix helpers, like reading package lists
@@ -133,6 +135,15 @@ on nixpad, `/etc/nixos` points to
 ```bash
 cd /home/bro/gitrepos/github/dotfiles
 sudo nixos-rebuild switch --flake .#nixpad
+```
+
+fuji reads its authorized SSH keys from `/etc/secrets/ssh/authorized_keys`,
+outside this public repo, the same way workstation does. That requires
+`--impure` so Nix may read the file:
+
+```bash
+cd ~/git/dotfiles
+sudo nixos-rebuild switch --flake .#fuji --impure
 ```
 
 </details>
