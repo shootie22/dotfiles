@@ -16,6 +16,36 @@
   networking.hostName = "fuji";
   networking.networkmanager.enable = true;
 
+  # Keep the wired NIC armed for magic packets, including after shutdown.
+  networking.networkmanager.connectionConfig."ethernet.wake-on-lan" = 64; # magic
+
+  # Remote disk decryption: unlock over Ethernet with
+  # ssh -t -p 2222 root@<LAN-IP> systemctl default
+  #
+  # Early boot has its own network stack; NetworkManager starts after unlock.
+  boot.initrd.availableKernelModules = [ "e1000e" ];
+  boot.initrd.systemd = {
+    enable = true;
+    network = {
+      enable = true;
+      networks."10-eno1" = {
+        matchConfig.Name = "eno1";
+        networkConfig.DHCP = "ipv4";
+        dhcpV4Config.ClientIdentifier = "mac";
+        linkConfig.RequiredForOnline = "no";
+      };
+    };
+  };
+  boot.initrd.network.ssh = {
+    enable = true;
+    port = 2222; # Separate port avoids conflicts with the normal SSH host key.
+    # Dedicated key: copied into the unencrypted boot image.
+    hostKeys = [ "/etc/secrets/initrd/ssh_host_ed25519_key" ];
+    authorizedKeys = map
+      (key: ''restrict,pty,command="systemctl default" ${key}'')
+      config.users.users.fuji.openssh.authorizedKeys.keys;
+  };
+
   services.openssh = {
     enable = true;
     openFirewall = false;
