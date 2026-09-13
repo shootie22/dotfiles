@@ -86,12 +86,19 @@
       (lib.splitString "\n" (builtins.readFile "/etc/secrets/ssh/authorized_keys"));
   };
 
+  # Sys packages ----------------------------------------------------------
   environment.systemPackages = with pkgs; [
     git
     vim
     wget
     claude-code
   ];
+
+  # Kubernetes ------------------------------------------------------------
+  services.k3s = {
+    enable = true;
+    role = "server";
+  };
 
   # Keep the version from the machine's original installation. Changing it
   # can alter defaults for stateful services and data formats.
