@@ -68,6 +68,7 @@
     chaotic,
     noctalia,
     noctalia-nixpad,
+    sops-nix,
     ...
   }@inputs: rec {
     packages.aarch64-linux.antigravity-cli =
@@ -117,6 +118,7 @@
       system = "x86_64-linux";
       modules = [
         ./hosts/fuji/configuration.nix
+        sops-nix.nixosModules.sops
 
         home-manager.nixosModules.home-manager
         {
