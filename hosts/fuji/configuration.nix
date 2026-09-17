@@ -16,6 +16,9 @@
   networking.hostName = "fuji";
   networking.networkmanager.enable = true;
 
+  # tailscale
+  services.tailscale.enable = true;
+
   # Keep the wired NIC armed for magic packets, including after shutdown.
   networking.networkmanager.connectionConfig."ethernet.wake-on-lan" = 64; # magic
 
@@ -56,7 +59,11 @@
       AllowUsers = [ "fuji" ];
     };
   };
-  networking.firewall.interfaces.eno1.allowedTCPPorts = [ 22 ];
+  networking.firewall.interfaces.eno1.allowedTCPPorts = [
+    22
+    80
+    443
+  ];
 
   # Locale ------------------------------------------------------------------
   time.timeZone = "Europe/Bucharest";
@@ -92,12 +99,137 @@
     vim
     wget
     claude-code
+    age
+    sops
+    borgbackup
+    sqlite
   ];
 
   # Kubernetes ------------------------------------------------------------
   services.k3s = {
     enable = true;
     role = "server";
+
+    extraFlags = [
+      "--node-external-ip=100.64.0.1"
+      "--flannel-backend=wireguard-native"
+      "--flannel-external-ip"
+    ];
+  };
+
+  systemd.tmpfiles.rules = [
+    "v /var/lib/rancher/k3s/storage 0700 root root -"
+    "d /var/lib/rancher/k3s/backup-staging 0700 root root -"
+  ];
+
+  # sops -------------------------------------------------------------------
+  sops.age.keyFile = "/var/lib/sops-nix/key.txt";
+
+  sops.defaultSopsFile = ../../secrets/fuji.yaml;
+
+  # borg backup private ssh key
+  sops.secrets.borg_ssh_private_key = {
+    owner = "root";
+    mode = "0400";
+  };
+
+  sops.secrets.borg_repo_passphrase = {
+    owner = "root";
+    mode = "0400";
+  };
+
+  # k3s server token
+  sops.secrets.k3s_server_token = {
+    owner = "root";
+    mode = "0400";
+  };
+
+  services.k3s.tokenFile = "/run/secrets/k3s_server_token";
+
+  # M4 ssh key -------------------------------------------------------------
+  programs.ssh.knownHosts."m4-borg" = {
+    hostNames = [ "100.64.0.3" ];
+    publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPGMOJiwYgSQmZiK1qEAueUK1DWUruOa0yByKkOgzfwu";
+  };
+
+  # borg backup setup ------------------------------------------------------
+    services.borgbackup.jobs.k3s = {
+    paths = [
+      "/var/lib/rancher/k3s/backup-staging/storage"
+      "/var/lib/rancher/k3s/backup-staging/state.db"
+    ];
+
+    repo = "ssh://borgworker@100.64.0.3/Volumes/Expansion/borg_repos/fuji-k3s";
+
+    # Existing repository: never initialize/replace it.
+    doInit = false;
+
+    # We'll enable the timer after the manual test.
+    startAt = "03:30";
+    persistentTimer = true;
+
+    prune.keep = {
+      daily = 7;
+      weekly = 4;
+      monthly = 6;
+    };
+
+    archiveBaseName = "FUJI---K3s";
+    compression = "zlib";
+
+    # Only relevant when initializing a repo; ours already exists and is repokey-encrypted.
+    encryption = {
+      mode = "repokey";
+      passCommand = "cat /run/secrets/borg_repo_passphrase";
+    };
+
+    environment.BORG_RSH =
+      "ssh -i /run/secrets/borg_ssh_private_key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes";
+
+    extraArgs = [
+      "--remote-path=/opt/homebrew/bin/borg"
+    ];
+
+    extraCreateArgs = [
+      "--stats"
+    ];
+
+    readWritePaths = [
+      "/var/lib/rancher/k3s/backup-staging"
+    ];
+
+    preHook = ''
+      staging="/var/lib/rancher/k3s/backup-staging"
+
+      if ${pkgs.btrfs-progs}/bin/btrfs subvolume show "$staging/storage" >/dev/null 2>&1; then
+        ${pkgs.btrfs-progs}/bin/btrfs subvolume delete "$staging/storage"
+      fi
+
+      ${pkgs.coreutils}/bin/rm -f "$staging/state.db"
+
+      ${pkgs.btrfs-progs}/bin/btrfs subvolume snapshot -r \
+        /var/lib/rancher/k3s/storage \
+        "$staging/storage"
+
+      ${pkgs.sqlite}/bin/sqlite3 -batch \
+        /var/lib/rancher/k3s/server/db/state.db \
+        ".backup '$staging/state.db'"
+
+      ${pkgs.sqlite}/bin/sqlite3 -batch -noheader -list \
+        "$staging/state.db" \
+        'PRAGMA integrity_check;' \
+        | ${pkgs.gnugrep}/bin/grep -qx ok
+    '';
+
+    postHook = ''
+      staging="/var/lib/rancher/k3s/backup-staging"
+
+      if ${pkgs.btrfs-progs}/bin/btrfs subvolume show "$staging/storage" >/dev/null 2>&1; then
+        ${pkgs.btrfs-progs}/bin/btrfs subvolume delete "$staging/storage"
+      fi
+
+      ${pkgs.coreutils}/bin/rm -f "$staging/state.db"
+    '';
   };
 
   # Keep the version from the machine's original installation. Changing it
