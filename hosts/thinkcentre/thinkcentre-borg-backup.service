@@ -1,0 +1,9 @@
+[Unit]
+Description=ThinkCentre Borg backup of /home/main
+Wants=network-online.target
+After=network-online.target tailscaled.service
+
+[Service]
+Type=oneshot
+BindReadOnlyPaths=/home/main:/local
+ExecStart=/home/main/git/dotfiles/hosts/thinkcentre/bin/backup-home-main

@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RUNTIME_DIR="/run/thinkcentre-backup"
+SECRETS="/home/main/git/dotfiles/secrets/thinkcentre.yaml"
+KNOWN_HOSTS="/home/main/git/dotfiles/hosts/thinkcentre/ssh_known_hosts"
+REPO="ssh://borgworker@100.64.0.3/Volumes/Expansion/borg_repos/server-backups"
+
+cleanup() {
+  rm -rf "$RUNTIME_DIR"
+}
+trap cleanup EXIT
+
+install -d -m 700 "$RUNTIME_DIR"
+umask 077
+
+export SOPS_AGE_KEY_FILE="/etc/sops/age/keys.txt"
+
+/usr/local/bin/sops -d --extract '["borg_ssh_private_key"]' \
+  "$SECRETS" > "$RUNTIME_DIR/id_ed25519"
+
+/usr/local/bin/sops -d --extract '["borg_repo_passphrase"]' \
+  "$SECRETS" > "$RUNTIME_DIR/passphrase"
+
+export BORG_RSH="ssh -i $RUNTIME_DIR/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$KNOWN_HOSTS -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o TCPKeepAlive=yes"
+export BORG_PASSCOMMAND="cat $RUNTIME_DIR/passphrase"
+export BORG_CACHE_DIR="/var/cache/thinkcentre-borg"
+
+borg --remote-path /opt/homebrew/bin/borg \
+  create \
+  --stats \
+  --compression zlib \
+  "$REPO::THINKCENTRE---Weekly-backup---$(date +%Y-%m-%dT%H:%M:%S.%3N)" \
+  /local
+
+borg --remote-path /opt/homebrew/bin/borg \
+  prune -v \
+  --list \
+  --glob-archives 'THINKCENTRE---Weekly-backup---*' \
+  --keep-daily 7 \
+  --keep-weekly 4 \
+  --keep-monthly 6 \
+  --keep-yearly 1 \
+  "$REPO"
+
+borg --remote-path /opt/homebrew/bin/borg \
+  compact -v \
+  "$REPO"

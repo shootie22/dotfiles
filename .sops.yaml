@@ -1,3 +1,9 @@
 creation_rules:
-  - path_regex: secrets/.*\.yaml$
+  - path_regex: secrets/fuji\.yaml$
     age: age1qwuleu9k2gzgex43tyhhy80vgg9kym5dcdne32x4f0lw4xzsxy3spau58l
+
+  - path_regex: secrets/mixi\.yaml$
+    age: age1kq4c5jnjyv4d5vhtm8hvntwg0l2jcv640wvfaexgwz5ctwh9dg4qn9d2rp
+
+  - path_regex: secrets/thinkcentre\.yaml$
+    age: age1yvhkx6094utagx3xdfzyq08pwkatyj8lyrpt7jpufq70v8yer9csv66dfc
