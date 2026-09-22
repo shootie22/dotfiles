@@ -56,6 +56,9 @@
   networking.hostName = "mixi";
   networking.networkmanager.enable = true;
 
+  # Komodo Periphery is reachable only through the tailnet.
+  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 8120 ];
+
   time.timeZone = "Europe/Oslo";
 
   # Users --------------------------------------------------------------------
@@ -131,7 +134,7 @@
     # listener through the edge endpoint configured in the infrastructure repo.
     inbound = {
       serverEnabled = true;
-      bindIp = "127.0.0.1";
+      bindIp = "0.0.0.0";
       port = 8120;
       ssl.enable = true;
     };
