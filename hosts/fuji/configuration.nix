@@ -2,7 +2,7 @@
 { config, lib, pkgs, ... }:
 
 {
-  imports = [ ./hardware-configuration.nix ];
+  imports = [ ./hardware-configuration.nix ./raw-edge.nix ];
 
   # Boot ----------------------------------------------------------------------
   boot.loader.systemd-boot.enable = true;
