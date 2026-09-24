@@ -16,8 +16,21 @@
   networking.hostName = "fuji";
   networking.networkmanager.enable = true;
 
+  # Infrastructure DNS must not depend on DHCP or Tailscale state.
+  networking.networkmanager.dns = "none";
+  networking.nameservers = [
+    "1.1.1.1"
+    "9.9.9.9"
+    "8.8.8.8"
+  ];
+
   # tailscale
-  services.tailscale.enable = true;
+  services.tailscale = {
+    enable = true;
+
+    # Keep Fuji's host DNS independent from the tailnet control plane.
+    extraSetFlags = [ "--accept-dns=false" ];
+  };
 
   # Keep the wired NIC armed for magic packets, including after shutdown.
   networking.networkmanager.connectionConfig."ethernet.wake-on-lan" = 64; # magic
@@ -112,6 +125,8 @@
 
     extraFlags = [
       "--node-external-ip=100.64.0.1"
+      "--advertise-address=192.168.100.136"
+      "--egress-selector-mode=disabled"
       "--flannel-backend=wireguard-native"
       "--flannel-external-ip"
     ];
