@@ -31,7 +31,8 @@ borg --remote-path /opt/homebrew/bin/borg \
   --stats \
   --compression zlib \
   "$REPO::THINKCENTRE---Weekly-backup---$(date +%Y-%m-%dT%H:%M:%S.%3N)" \
-  /local
+  /local \
+  /minecraft-hc
 
 borg --remote-path /opt/homebrew/bin/borg \
   prune -v \
