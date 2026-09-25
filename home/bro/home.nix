@@ -194,6 +194,17 @@ in
     };
   };
 
+  # Kitty sets TERM=xterm-kitty, which most remote hosts have no terminfo
+  # entry for — ncurses programs there die with "cannot initialize terminal
+  # type". `kitten ssh` copies kitty's terminfo across (cached in the remote's
+  # ~/.terminfo) and keeps full-fidelity keys and colours. `sshp` is the plain
+  # fallback for hosts the kitten cannot set up — restricted shells, busybox,
+  # appliances, initrd unlock prompts — and just claims a TERM every host knows.
+  programs.bash.shellAliases = {
+    ssh  = "kitten ssh";
+    sshp = "TERM=xterm-256color command ssh";
+  };
+
   # Git
   programs.git = {
     enable = true;

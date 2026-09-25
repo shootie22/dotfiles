@@ -233,8 +233,20 @@ in
   # Enable the OpenSSH daemon.
   # services.openssh.enable = true;
 
+  # Chromecast discovery uses multicast DNS.  Without a local mDNS responder
+  # and UDP/5353 admitted by the firewall, desktop applications such as
+  # Stremio cannot see Cast targets on the LAN.
+  services.avahi = {
+    enable = true;
+    nssmdns4 = true;
+    openFirewall = true;
+  };
+
   # Open ports in the firewall.
-  # networking.firewall.allowedTCPPorts = [ ... ];
+  networking.firewall.allowedTCPPorts = [
+    25565 # Minecraft LAN
+    11470 # Stremio media server; Chromecast fetches the stream from this host.
+  ];
   # networking.firewall.allowedUDPPorts = [ ... ];
   # Or disable the firewall altogether.
   # networking.firewall.enable = false;

@@ -19,6 +19,7 @@ kdePackages.ark
 kdePackages.dolphin
 kdePackages.filelight
 kdePackages.gwenview
+kdePackages.kio-extras   # sftp://, smb://, trash, thumbnails for Dolphin
 kdePackages.konsole
 kdePackages.kde-cli-tools
 kdePackages.kservice
@@ -37,3 +38,10 @@ godot
 
 # games
 runelite
+nh
+element-desktop
+unstable.pi-coding-agent
+stremio-linux-shell
+ffmpeg # Required by Stremio to probe and transcode streams for Chromecast.
+remmina
+sourcegit
