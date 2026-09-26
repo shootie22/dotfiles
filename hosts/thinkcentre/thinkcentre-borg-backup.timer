@@ -1,0 +1,10 @@
+[Unit]
+Description=ThinkCentre Borg backup schedule
+
+[Timer]
+OnCalendar=Tue,Thu,Sat,Sun *-*-* 03:00:00 UTC
+Persistent=true
+Unit=thinkcentre-borg-backup.service
+
+[Install]
+WantedBy=timers.target
