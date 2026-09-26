@@ -1,5 +1,5 @@
 {
-  description = "Reproducible NixOS configurations for mixi, nixpad, and workstation";
+  description = "Reproducible NixOS configurations for mixi, nixpad, workstation, and fuji";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
@@ -68,6 +68,7 @@
     chaotic,
     noctalia,
     noctalia-nixpad,
+    sops-nix,
     ...
   }@inputs: rec {
     packages.aarch64-linux.antigravity-cli =
@@ -112,6 +113,21 @@
     };
     # Compatibility for older installed helpers and rebuild commands.
     nixosConfigurations.nixos = nixosConfigurations.workstation;
+
+    nixosConfigurations.fuji = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ./hosts/fuji/configuration.nix
+        sops-nix.nixosModules.sops
+
+        home-manager.nixosModules.home-manager
+        {
+          home-manager.useGlobalPkgs = true;
+          home-manager.useUserPackages = true;
+          home-manager.users.fuji = import ./home/fuji/home.nix;
+        }
+      ];
+    };
 
     nixosConfigurations.nixpad =
       let
