@@ -78,6 +78,16 @@
     443
   ];
 
+  # Pods need to reach the Kubernetes API, including through the
+  # kubernetes.default ClusterIP. Keep access limited to the API rather than
+  # trusting the CNI interfaces and exposing every host service to workloads.
+  networking.firewall.interfaces.cni0.allowedTCPPorts = [ 6443 ];
+  networking.firewall.interfaces.flannel-wg.allowedTCPPorts = [ 6443 ];
+
+  # Flannel uses the node external addresses on Tailscale for its native
+  # WireGuard overlay. IPv4 pod networking uses UDP/51820 between nodes.
+  networking.firewall.interfaces.tailscale0.allowedUDPPorts = [ 51820 ];
+
   # Locale ------------------------------------------------------------------
   time.timeZone = "Europe/Bucharest";
   i18n.defaultLocale = "en_US.UTF-8";
