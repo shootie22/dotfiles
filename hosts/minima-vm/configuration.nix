@@ -62,5 +62,16 @@
     vulkan-tools
   ];
 
+  services.tailscale = {
+    enable = true;
+    extraSetFlags = [ "--accept-dns=false" ];
+  };
+
+  # k3s node traffic over the tailnet.
+  networking.firewall.interfaces.tailscale0 = {
+    allowedTCPPorts = [ 10250 ];
+    allowedUDPPorts = [ 51820 51821 ];
+  };
+
   system.stateVersion = "26.05";
 }
