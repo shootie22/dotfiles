@@ -5,7 +5,7 @@
     (modulesPath + "/profiles/qemu-guest.nix")
   ];
 
-  networking.hostName = "minima-k3s";
+  networking.hostName = "minima";
 
   # Lima creates/manages the login user at boot.
   users.mutableUsers = true;
