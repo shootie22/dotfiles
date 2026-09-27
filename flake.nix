@@ -9,6 +9,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    nixos-lima = {
+      url = "github:nixos-lima/nixos-lima";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
 
     # Nixpad deliberately remains on stable, with a small set of packages
     # sourced from unstable. Keeping this separate preserves its tested build
@@ -67,6 +72,7 @@
   outputs = {
     nixpkgs,
     nix-darwin,
+    nixos-lima,
     nixpkgs-nixpad,
     nixpkgs-nixpad-unstable,
     apple-silicon,
@@ -81,6 +87,14 @@
     darwinConfigurations.minima = nix-darwin.lib.darwinSystem {
       modules = [
         ./hosts/minima/configuration.nix
+      ];
+    };
+
+    nixosConfigurations.minima-vm = nixpkgs.lib.nixosSystem {
+      system = "aarch64-linux";
+      modules = [
+        nixos-lima.nixosModules.lima
+        ./hosts/minima-vm/configuration.nix
       ];
     };
 
