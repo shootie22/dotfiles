@@ -4,6 +4,12 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
+    nix-darwin = {
+      url = "github:nix-darwin/nix-darwin";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+
     # Nixpad deliberately remains on stable, with a small set of packages
     # sourced from unstable. Keeping this separate preserves its tested build
     # rather than changing it when the workstation's rolling input updates.
@@ -60,6 +66,7 @@
 
   outputs = {
     nixpkgs,
+    nix-darwin,
     nixpkgs-nixpad,
     nixpkgs-nixpad-unstable,
     apple-silicon,
@@ -71,6 +78,12 @@
     sops-nix,
     ...
   }@inputs: rec {
+    darwinConfigurations.minima = nix-darwin.lib.darwinSystem {
+      modules = [
+        ./hosts/minima/configuration.nix
+      ];
+    };
+
     packages.aarch64-linux.antigravity-cli =
       (import nixpkgs {
         system = "aarch64-linux";
