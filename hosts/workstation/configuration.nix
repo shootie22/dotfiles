@@ -142,6 +142,10 @@
     recommendedServices.enable = true;
   };
 
+  # Virtual machines -----------------------------------------------------
+  virtualisation.libvirtd.enable = true;
+  programs.virt-manager.enable = true;
+
   # Audio -------------------------------------------------------------
   security.rtkit.enable = true;
   services.pipewire = {
@@ -182,7 +186,7 @@
   users.users.nixa = {
     isNormalUser = true;
     description = "nixa";
-    extraGroups = [ "networkmanager" "wheel" ];
+    extraGroups = [ "networkmanager" "wheel" "libvirtd" ];
     # Machine-local public keys, outside this public repository. Rebuild with
     # --impure to read this file. Only public keys may go here: Nix stores them.
     openssh.authorizedKeys.keys = lib.filter
