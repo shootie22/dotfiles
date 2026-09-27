@@ -35,7 +35,7 @@
     enable = true;
     promptInit = ''
       autoload -U colors && colors
-      PROMPT='%F{cyan}%n%f@%F{green}%m%f:%F{blue}%~%f %# '
+      PROMPT='%F{green}[%f%F{cyan}%n%f%F{white}@%f%F{magenta}%m%f%F{green}]%f %F{yellow}·%f %F{blue}%~%f %(!.%F{red}⌘%f.%F{green}⌘%f) '
     '';
   };
 
