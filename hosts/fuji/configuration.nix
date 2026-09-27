@@ -76,6 +76,7 @@
     22
     80
     443
+    8443
   ];
 
   # Pods need to reach the Kubernetes API, including through the
@@ -87,6 +88,33 @@
   # Flannel uses the node external addresses on Tailscale for its native
   # WireGuard overlay. IPv4 pod networking uses UDP/51820 between nodes.
   networking.firewall.interfaces.tailscale0.allowedUDPPorts = [ 51820 ];
+
+  # For not having to add ports to *.infra URLs
+  systemd.services.tailnet-https = {
+    description = "Forward tailnet HTTPS to the private proxy";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "firewall.service" ];
+    before = [ "k3s.service" ];
+
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStop = "-${pkgs.nftables}/bin/nft delete table ip tailnet_https";
+    };
+
+    script = ''
+      ${pkgs.nftables}/bin/nft -f - <<'EOF'
+      add table ip tailnet_https
+      flush table ip tailnet_https
+      table ip tailnet_https {
+        chain prerouting {
+          type nat hook prerouting priority -110; policy accept;
+          iifname "tailscale0" ip daddr 100.64.0.1 tcp dport 443 counter dnat to 100.64.0.1:8443
+        }
+      }
+      EOF
+    '';
+  };
 
   # Locale ------------------------------------------------------------------
   time.timeZone = "Europe/Bucharest";
@@ -126,6 +154,7 @@
     sops
     borgbackup
     sqlite
+    codex
   ];
 
   # Kubernetes ------------------------------------------------------------
@@ -165,6 +194,11 @@
 
   # k3s server token
   sops.secrets.k3s_server_token = {
+    owner = "root";
+    mode = "0400";
+  };
+
+  sops.secrets.nut_upsmon_password = {
     owner = "root";
     mode = "0400";
   };
@@ -255,6 +289,45 @@
 
       ${pkgs.coreutils}/bin/rm -f "$staging/state.db"
     '';
+  };
+
+  # UPS -------------------------------------------------------------------
+  power.ups = {
+    enable = true;
+    mode = "standalone";
+
+    ups.cyberpower = {
+      driver = "usbhid-ups";
+      port = "auto";
+      description = "CyberPower CP900EPFCLCD";
+
+      directives = [
+        "vendorid = 0764"
+        "productid = 0501"
+        "serial = CX7RQ2000038"
+
+        # Treat either <30% charge or <5 min runtime as low battery.
+        "ignorelb"
+        "override.battery.charge.low = 30"
+        "override.battery.runtime.low = 300"
+      ];
+    };
+
+    users.upsmon = {
+      passwordFile = config.sops.secrets.nut_upsmon_password.path;
+      upsmon = "primary";
+    };
+
+    upsmon = {
+      enable = true;
+
+      monitor.cyberpower = {
+        system = "cyberpower@localhost";
+        powerValue = 1;
+        user = "upsmon";
+        type = "primary";
+      };
+    };
   };
 
   # Keep the version from the machine's original installation. Changing it
