@@ -186,6 +186,8 @@ in
     };
   };
 
+  services.tailscale.enable = true;
+
   environment.etc."xmm7360.example".text = ''
     # Copy this to /etc/xmm7360 and set your carrier APN before starting
     # xmm7360-connect.service.
