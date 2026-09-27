@@ -135,7 +135,6 @@
 
     extraFlags = [
       "--node-external-ip=100.64.0.1"
-      "--advertise-address=100.64.0.1"
       "--egress-selector-mode=disabled"
       "--flannel-backend=wireguard-native"
       "--flannel-external-ip"
