@@ -73,5 +73,26 @@
     allowedUDPPorts = [ 51820 51821 ];
   };
 
+  # Secrets
+  sops.age.keyFile = "/var/lib/sops-nix/key.txt";
+  sops.defaultSopsFile = ../../secrets/minima.yaml;
+  sops.secrets.k3s_agent_token = {
+    owner = "root";
+    mode = "0400";
+  };
+
+  # Kubernetes worker
+  services.k3s = {
+    enable = true;
+    role = "agent";
+    serverAddr = "https://100.64.0.1:6443";
+    tokenFile = "/run/secrets/k3s_agent_token";
+
+    extraFlags = [
+      "--node-ip=100.64.0.8"
+      "--node-external-ip=100.64.0.8"
+    ];
+  };
+
   system.stateVersion = "26.05";
 }

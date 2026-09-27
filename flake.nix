@@ -94,6 +94,7 @@
       system = "aarch64-linux";
       modules = [
         nixos-lima.nixosModules.lima
+        sops-nix.nixosModules.sops
         ./hosts/minima-vm/configuration.nix
       ];
     };
