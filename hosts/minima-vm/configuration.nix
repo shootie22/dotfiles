@@ -30,6 +30,18 @@
   fileSystems."/boot" = {
     device = lib.mkForce "/dev/vda1";
     fsType = "vfat";
+    # FAT has no journal: unflushed metadata lost to a VM crash or hard stop
+    # once left grub.cfg unreadable and the VM unbootable. Write synchronously;
+    # /boot is only written during bootloader installs.
+    #
+    # Not an automount: containers that mount the host root keep it busy, so
+    # it never idles out. Changing mount types needs `nixos-rebuild boot` and
+    # a reboot; `switch` drops the system into emergency mode.
+    options = [
+      "sync"
+      "fmask=0077"
+      "dmask=0077"
+    ];
   };
 
   fileSystems."/" = {
