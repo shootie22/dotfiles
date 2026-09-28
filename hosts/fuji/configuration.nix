@@ -32,8 +32,15 @@
   services.tailscale = {
     enable = true;
 
-    # Keep Fuji's host DNS independent from the tailnet control plane.
-    extraSetFlags = [ "--accept-dns=false" ];
+    extraSetFlags = [
+      # Keep Fuji's host DNS independent from the tailnet control plane.
+      "--accept-dns=false"
+
+      # The API server stays advertised on the LAN address, so Fuji's own
+      # pods (Traefik -> Headscale) never need the tailnet to reach it. Remote
+      # nodes reach that one address through the tailnet instead.
+      "--advertise-routes=192.168.100.136/32"
+    ];
   };
 
   # Keep the wired NIC armed for magic packets, including after shutdown.

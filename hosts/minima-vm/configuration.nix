@@ -65,7 +65,13 @@
 
   services.tailscale = {
     enable = true;
-    extraSetFlags = [ "--accept-dns=false" ];
+    # Accept Fuji's route to its LAN API address (the kubernetes Service
+    # endpoint); loosens reverse-path filtering for routed replies.
+    useRoutingFeatures = "client";
+    extraSetFlags = [
+      "--accept-dns=false"
+      "--accept-routes"
+    ];
   };
 
   # k3s node traffic over the tailnet.

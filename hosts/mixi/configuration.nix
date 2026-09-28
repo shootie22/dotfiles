@@ -171,7 +171,13 @@
 
 
   # tailscale ----------------------------------------------------------------
-  services.tailscale.enable = true;
+  services.tailscale = {
+    enable = true;
+    # Accept Fuji's route to its LAN API address (the kubernetes Service
+    # endpoint); loosens reverse-path filtering for routed replies.
+    useRoutingFeatures = "client";
+    extraSetFlags = [ "--accept-routes" ];
+  };
 
   # kubernetes
   services.k3s = {
