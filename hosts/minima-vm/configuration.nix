@@ -3,6 +3,7 @@
 {
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
+    ../../modules/nixos/k3s-tailnet-guard.nix
   ];
 
   networking.hostName = "minima";
@@ -88,10 +89,17 @@
     serverAddr = "https://100.64.0.1:6443";
     tokenFile = "/run/secrets/k3s_agent_token";
 
+    # Only the external address is the tailnet one. The API server reaches
+    # kubelets via ExternalIP first, and Flannel uses it for its endpoint, so
+    # k3s never needs the tailnet address to exist when it starts.
     extraFlags = [
-      "--node-ip=100.64.0.8"
       "--node-external-ip=100.64.0.8"
     ];
+  };
+
+  systemd.services.k3s = {
+    wants = [ "tailscaled.service" ];
+    after = [ "tailscaled.service" ];
   };
 
   system.stateVersion = "26.05";

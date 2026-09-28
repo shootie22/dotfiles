@@ -1,0 +1,16 @@
+# Debian counterpart of modules/nixos/k3s-tailnet-guard.nix; see there.
+# Install: sudo cp to /etc/systemd/system/, then
+#          sudo systemctl daemon-reload && sudo systemctl enable --now k3s-tailnet-guard
+[Unit]
+Description=Keep Tailscale transport out of the Kubernetes pod network
+Before=tailscaled.service k3s-agent.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/usr/sbin/ip rule del priority 5200
+ExecStart=/usr/sbin/ip rule add priority 5200 fwmark 0x80000/0xff0000 to 10.42.0.0/16 unreachable
+ExecStop=/usr/sbin/ip rule del priority 5200
+
+[Install]
+WantedBy=multi-user.target
