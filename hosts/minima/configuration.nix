@@ -9,6 +9,11 @@
   nixpkgs.hostPlatform = "aarch64-darwin";
 
   system.primaryUser = "radu";
+
+  # Admin devices log in with keys (served to sshd from /etc/ssh); Borg's
+  # purpose-limited keys for borgworker stay in that user's own file.
+  users.users.radu.openssh.authorizedKeys.keys =
+    builtins.attrValues (import ../../lib/admin-ssh-keys.nix);
   networking.hostName = "minima";
 
   nix.enable = true;

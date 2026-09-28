@@ -23,11 +23,31 @@ sudo install -D -m 0600 k3s-config.yaml /etc/rancher/k3s/config.yaml
 sudo systemctl restart k3s-agent
 ```
 
+## SSH access
+
+Logins are granted to the admin devices in `lib/admin-ssh-keys.nix`, plus the
+Borg key (forced `borg serve`) that must stay as it is. Rebuild main's list
+from the repo, keeping the Borg line:
+
+```sh
+cd ~/.ssh && cp -p authorized_keys authorized_keys.bak-$(date +%F)
+{ grep -o '"ssh-[^"]*"' ~/git/dotfiles/lib/admin-ssh-keys.nix | tr -d '"'
+  grep 'borg serve' authorized_keys.bak-$(date +%F); } > authorized_keys.new
+chmod 600 authorized_keys.new && mv authorized_keys.new authorized_keys
+```
+
+Password logins are off (`/etc/ssh/sshd_config.d/10-keys-only.conf`):
+
+```
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+```
+
 ## Remote disk unlock
 
 The root disk is LUKS; nobody is on site to type the passphrase. An early-boot
 SSH server (dropbear-initramfs) takes it instead, reachable on the LAN only, so
-unlock through mixi:
+unlock through mixi (from an admin device):
 
 ```sh
 ssh -J mixa@100.64.0.2 -p 2222 root@192.168.88.250   # runs cryptroot-unlock
@@ -38,7 +58,7 @@ console prompt keeps working. Setup:
 
 ```sh
 sudo apt-get install -y dropbear-initramfs
-grep -E 'radu@radus-Mac-mini.local|mixa@mixi' ~/.ssh/authorized_keys \
+grep -o '"ssh-[^"]*"' ~/git/dotfiles/lib/admin-ssh-keys.nix | tr -d '"' \
   | sudo tee /etc/dropbear/initramfs/authorized_keys >/dev/null
 sudo chmod 600 /etc/dropbear/initramfs/authorized_keys
 echo 'DROPBEAR_OPTIONS="-p 2222 -s -j -k -I 120 -c cryptroot-unlock"' \
