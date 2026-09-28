@@ -97,6 +97,12 @@
   networking.hostName = "mixi";
   networking.networkmanager.enable = true;
 
+  # Reach Gitea straight through Traefik on Fuji (over the tailnet route to
+  # Fuji's LAN address) instead of via Cloudflare, which rejects request
+  # bodies over 100 MB: the Gitea runner here pushes image layers larger
+  # than that. Also keeps registry traffic inside the network.
+  networking.hosts."192.168.100.136" = [ "git.radunenu.com" ];
+
   time.timeZone = "Europe/Oslo";
 
   # Users --------------------------------------------------------------------
