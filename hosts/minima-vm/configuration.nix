@@ -4,6 +4,7 @@
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
     ../../modules/nixos/k3s-tailnet-guard.nix
+    ../../modules/nixos/k3s-dns.nix
   ];
 
   networking.hostName = "minima";

@@ -5,6 +5,7 @@
   imports = [
     ./hardware-configuration.nix
     ../../modules/nixos/k3s-tailnet-guard.nix
+    ../../modules/nixos/k3s-dns.nix
   ];
 
   # Apple Silicon ------------------------------------------------------------

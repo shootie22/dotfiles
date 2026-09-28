@@ -6,6 +6,7 @@
     ./hardware-configuration.nix
     ./raw-edge.nix
     ../../modules/nixos/k3s-tailnet-guard.nix
+    ../../modules/nixos/k3s-dns.nix
   ];
 
   # Boot ----------------------------------------------------------------------
