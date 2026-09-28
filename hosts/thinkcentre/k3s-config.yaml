@@ -1,0 +1,2 @@
+# /etc/rancher/k3s/config.yaml: see modules/nixos/k3s-dns.nix
+resolv-conf: /etc/k3s-resolv.conf
