@@ -1,7 +1,10 @@
 { ... }:
 
 {
-  imports = [ ./lima-vm.nix ];
+  imports = [
+    ./lima-vm.nix
+    ./vm-backup.nix
+  ];
 
   nixpkgs.hostPlatform = "aarch64-darwin";
 
