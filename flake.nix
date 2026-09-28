@@ -110,6 +110,7 @@
       modules = [
         ./hosts/mixi/configuration.nix
         apple-silicon.nixosModules.apple-silicon-support
+        sops-nix.nixosModules.sops
 
         home-manager.nixosModules.home-manager
         {

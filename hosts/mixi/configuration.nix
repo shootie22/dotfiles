@@ -27,6 +27,35 @@
     availableKernelModules = [ "tg3" ];
     systemd = {
       enable = true;
+      storePaths = [ "${pkgs.openssh}/bin/ssh" ];
+      services.ssh-unlock-tunnel = {
+        description = "Reverse SSH tunnel for remote disk unlock";
+        wantedBy = [ "initrd.target" ];
+        after = [ "network.target" "sshd.service" "initrd-nixos-copy-secrets.service" ];
+        before = [ "shutdown.target" ];
+        conflicts = [ "shutdown.target" ];
+        unitConfig = {
+          # Start before the encrypted root is mounted; retry if DHCP/DNS
+          # or the relay is not ready yet, without blocking local unlock.
+          DefaultDependencies = false;
+          StartLimitIntervalSec = 0;
+        };
+        preStart = ''
+          /bin/chmod 0600 /etc/ssh/initrd-tunnel/id_ed25519
+        '';
+        serviceConfig = {
+          ExecStart = "${pkgs.openssh}/bin/ssh -F /etc/ssh/initrd-tunnel/config -NT"
+            + " -i /etc/ssh/initrd-tunnel/id_ed25519"
+            + " -o UserKnownHostsFile=/etc/ssh/initrd-tunnel/known_hosts"
+            + " -o GlobalKnownHostsFile=/dev/null -o StrictHostKeyChecking=yes"
+            + " -o BatchMode=yes -o IdentitiesOnly=yes -o IdentityAgent=none"
+            + " -o ExitOnForwardFailure=yes -o ConnectTimeout=15"
+            + " -o ServerAliveInterval=30 -o ServerAliveCountMax=3"
+            + " tunnel";
+          Restart = "always";
+          RestartSec = "10s";
+        };
+      };
       network = {
         enable = true;
         networks."10-ethernet" = {
@@ -42,6 +71,14 @@
       hostKeys = [ "/etc/secrets/initrd/ssh_host_ed25519_key" ];
       authorizedKeys = config.users.users.mixa.openssh.authorizedKeys.keys;
     };
+    # Appended at bootloader installation time, outside the Nix store.
+    # Keep connection details machine-local. The dedicated client key resides
+    # on the unencrypted boot disk and must have restricted relay authorization.
+    secrets = {
+      "/etc/ssh/initrd-tunnel/id_ed25519" = "/etc/secrets/initrd/tunnel_ed25519";
+      "/etc/ssh/initrd-tunnel/config" = "/etc/secrets/initrd/tunnel_config";
+      "/etc/ssh/initrd-tunnel/known_hosts" = "/etc/ssh/mixi-tunnel/known_hosts";
+    };
   };
 
   # Nix ----------------------------------------------------------------------
@@ -56,7 +93,6 @@
   networking.hostName = "mixi";
   networking.networkmanager.enable = true;
 
-
   time.timeZone = "Europe/Oslo";
 
   # Users --------------------------------------------------------------------
@@ -70,10 +106,13 @@
   };
 
   environment.systemPackages = with pkgs; [
+    gnutar
     git
     openssl
     vim
     wget
+    age
+    sops
     (callPackage ../../pkgs/antigravity-cli { })
   ];
 
@@ -127,6 +166,31 @@
 
 
 
+
+  # tailscale ----------------------------------------------------------------
+  services.tailscale.enable = true;
+
+  # kubernetes
+  services.k3s = {
+    enable = true;
+    role = "agent";
+    serverAddr = "https://100.64.0.1:6443";
+    tokenFile = "/run/secrets/k3s_agent_token";
+    extraFlags = [
+      "--node-external-ip=100.64.0.2"
+      "--node-label=location=denmark"
+      "--node-label=hardware=m1"
+    ];
+  };
+
+  # age sops setup ----------------------------------------------------------
+  sops.age.keyFile = "/var/lib/sops-nix/key.txt";
+  sops.defaultSopsFile = ../../secrets/mixi.yaml;
+
+  sops.secrets.k3s_agent_token = {
+    owner = "root";
+    mode = "0400";
+  };
 
   # Keep the version from the machine's original installation. Changing it
   # can alter defaults for stateful services and data formats.
