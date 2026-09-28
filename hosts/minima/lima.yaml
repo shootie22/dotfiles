@@ -3,7 +3,10 @@
 
 vmType: krunkit
 cpus: 8
-memory: 13GiB
+# GPU memory (Ollama, image generation) is allocated by krunkit on the Mac,
+# outside the guest: the guest itself uses ~2.5 GiB. More guest RAM only
+# fills with cached model files that the Mac then cannot use for the GPU.
+memory: 8GiB
 disk: 200GiB
 
 # Used only when the instance is first created.
