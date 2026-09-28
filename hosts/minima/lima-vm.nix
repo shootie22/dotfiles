@@ -49,7 +49,10 @@ let
   control = pkgs.writeShellScriptBin "minima-vm" ''
     case "''${1:-}" in
       start)  sudo launchctl bootstrap system ${plist} ;;
-      stop)   sudo launchctl bootout system/${label} ;;  # clean guest poweroff
+      stop)   # SIGTERM makes the supervisor power the guest off cleanly.
+              sudo launchctl bootout system/${label}
+              while [ "$(${limactl} list ${instance} --format '{{.Status}}')" = Running ]; do sleep 1; done
+              echo "${instance} is off" ;;
       status) ${limactl} list ${instance}; sudo launchctl print system/${label} | grep -E '^\s*(state|pid|last exit code) =' ;;
       log)    tail -n "''${2:-50}" ${home}/.lima/${instance}/launchd.log ;;
       *) echo "usage: minima-vm start|stop|status|log [lines]" >&2; exit 2 ;;
