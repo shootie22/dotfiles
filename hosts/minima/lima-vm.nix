@@ -48,7 +48,13 @@ let
 
   control = pkgs.writeShellScriptBin "minima-vm" ''
     case "''${1:-}" in
-      start)  sudo launchctl bootstrap system ${plist} ;;
+      start)  # launchd briefly refuses (error 5) right after a bootout.
+              for _ in 1 2 3 4 5; do
+                sudo launchctl bootstrap system ${plist} 2>/dev/null && { echo "starting ${instance}"; exit 0; }
+                sudo launchctl print system/${label} >/dev/null 2>&1 && { echo "already running"; exit 0; }
+                sleep 3
+              done
+              sudo launchctl bootstrap system ${plist} ;;
       stop)   # SIGTERM makes the supervisor power the guest off cleanly.
               sudo launchctl bootout system/${label}
               while [ "$(${limactl} list ${instance} --format '{{.Status}}')" = Running ]; do sleep 1; done
