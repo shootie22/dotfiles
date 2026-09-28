@@ -1,6 +1,8 @@
 { ... }:
 
 {
+  imports = [ ./lima-vm.nix ];
+
   nixpkgs.hostPlatform = "aarch64-darwin";
 
   system.primaryUser = "radu";
