@@ -14,6 +14,15 @@ curl -sfL https://get.k3s.io | K3S_URL=https://100.64.0.1:6443 K3S_TOKEN=<agent 
   INSTALL_K3S_VERSION=v1.35.8+k3s1 sh -s - agent --node-external-ip=100.64.0.4
 ```
 
+The kubelet gets a resolv.conf without search domains (see
+`modules/nixos/k3s-dns.nix` for why):
+
+```sh
+sudo install -m 0644 k3s-resolv.conf /etc/k3s-resolv.conf
+sudo install -D -m 0600 k3s-config.yaml /etc/rancher/k3s/config.yaml
+sudo systemctl restart k3s-agent
+```
+
 ## Tailscale
 
 Joined to Headscale (`https://hs.radunenu.com`). Preferences persist in
