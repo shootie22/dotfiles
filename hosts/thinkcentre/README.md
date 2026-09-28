@@ -23,6 +23,30 @@ sudo install -D -m 0600 k3s-config.yaml /etc/rancher/k3s/config.yaml
 sudo systemctl restart k3s-agent
 ```
 
+## Remote disk unlock
+
+The root disk is LUKS; nobody is on site to type the passphrase. An early-boot
+SSH server (dropbear-initramfs) takes it instead, reachable on the LAN only, so
+unlock through mixi:
+
+```sh
+ssh -J mixa@100.64.0.2 -p 2222 root@192.168.88.250   # runs cryptroot-unlock
+```
+
+Host key: `ED25519 SHA256:kSLy0h8gLWQbfbraKjXMFEjfXYUvHEI46eKoUzCeqTs`. The
+console prompt keeps working. Setup:
+
+```sh
+sudo apt-get install -y dropbear-initramfs
+grep -E 'radu@radus-Mac-mini.local|mixa@mixi' ~/.ssh/authorized_keys \
+  | sudo tee /etc/dropbear/initramfs/authorized_keys >/dev/null
+sudo chmod 600 /etc/dropbear/initramfs/authorized_keys
+echo 'DROPBEAR_OPTIONS="-p 2222 -s -j -k -I 120 -c cryptroot-unlock"' \
+  | sudo tee /etc/dropbear/initramfs/dropbear.conf
+echo 'IP=:::::enp0s31f6:dhcp' | sudo tee /etc/initramfs-tools/conf.d/remote-unlock
+sudo update-initramfs -u -k all
+```
+
 ## Tailscale
 
 Joined to Headscale (`https://hs.radunenu.com`). Preferences persist in
