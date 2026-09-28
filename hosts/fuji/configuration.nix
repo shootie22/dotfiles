@@ -77,6 +77,8 @@
   services.openssh = {
     enable = true;
     openFirewall = false;
+    # Logins are granted only by lib/admin-ssh-keys.nix, never by hand.
+    authorizedKeysInHomedir = false;
     settings = {
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;
@@ -149,11 +151,7 @@
     isNormalUser = true;
     description = "fuji";
     extraGroups = [ "wheel" "networkmanager" ];
-    # Machine-local public keys, outside this public repository. Rebuild with
-    # --impure to read this file. Only public keys may go here: Nix stores them.
-    openssh.authorizedKeys.keys = lib.filter
-      (line: line != "" && !(lib.hasPrefix "#" line))
-      (lib.splitString "\n" (builtins.readFile "/etc/secrets/ssh/authorized_keys"));
+    openssh.authorizedKeys.keys = builtins.attrValues (import ../../lib/admin-ssh-keys.nix);
   };
 
   # Sys packages ----------------------------------------------------------

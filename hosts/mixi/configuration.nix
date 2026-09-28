@@ -103,10 +103,7 @@
   users.users.mixa = {
     isNormalUser = true;
     extraGroups = [ "wheel" "networkmanager" "docker" ];
-    openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIP0XJEU56o+KB9aZkRR+hGRotn5tbnHd7xfqGFXJt2U nixa@nix-wks"
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDHTTANn82vHV1t8BPgWPwH37Y3fnIT/12clqLjqqv98 radu@radus-Mac-mini.local"
-    ];
+    openssh.authorizedKeys.keys = builtins.attrValues (import ../../lib/admin-ssh-keys.nix);
   };
 
   environment.systemPackages = with pkgs; [
@@ -123,6 +120,8 @@
   # Services -----------------------------------------------------------------
   services.openssh = {
     enable = true;
+    # Logins are granted only by lib/admin-ssh-keys.nix, never by hand.
+    authorizedKeysInHomedir = false;
     settings = {
       PasswordAuthentication = false;
       PermitRootLogin = "no";

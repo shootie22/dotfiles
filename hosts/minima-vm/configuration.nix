@@ -29,6 +29,14 @@
   };
   security.sudo.wheelNeedsPassword = false;
 
+  # Admin devices may log in as the Lima-managed user (not declared here), next
+  # to Lima's own key in ~/.ssh/authorized_keys.
+  environment.etc."ssh/authorized_keys.d/radu" = {
+    text = builtins.concatStringsSep "\n"
+      (builtins.attrValues (import ../../lib/admin-ssh-keys.nix)) + "\n";
+    mode = "0444";
+  };
+
   # Network ---------------------------------------------------------------
   # eth0 is Lima's user-mode NAT (host <-> guest). The LAN NIC is bridged onto
   # the Mac's Ethernet (hosts/minima/lima.yaml) so Tailscale gets direct paths
