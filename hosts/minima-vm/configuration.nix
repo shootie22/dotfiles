@@ -47,6 +47,8 @@
     device = "nodev";
     efiSupport = true;
     efiInstallAsRemovable = true;
+    # The 250 MB ESP holds a kernel+initrd pair (~90 MB) per distinct kernel.
+    configurationLimit = 5;
   };
 
   fileSystems."/boot" = {
