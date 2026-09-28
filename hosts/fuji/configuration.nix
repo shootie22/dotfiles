@@ -2,7 +2,11 @@
 { config, lib, pkgs, ... }:
 
 {
-  imports = [ ./hardware-configuration.nix ./raw-edge.nix ];
+  imports = [
+    ./hardware-configuration.nix
+    ./raw-edge.nix
+    ../../modules/nixos/k3s-tailnet-guard.nix
+  ];
 
   # Boot ----------------------------------------------------------------------
   boot.loader.systemd-boot.enable = true;

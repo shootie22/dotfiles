@@ -2,7 +2,10 @@
 { config, lib, pkgs, ... }:
 
 {
-  imports = [ ./hardware-configuration.nix ];
+  imports = [
+    ./hardware-configuration.nix
+    ../../modules/nixos/k3s-tailnet-guard.nix
+  ];
 
   # Apple Silicon ------------------------------------------------------------
   hardware.asahi.enable = true;
