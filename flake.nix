@@ -67,6 +67,9 @@
     };
 
     llm-agents.url = "github:numtide/llm-agents.nix";
+
+    # Secrets for the server hosts.
+    sops-nix.url = "github:Mic92/sops-nix";
   };
 
   outputs = {
