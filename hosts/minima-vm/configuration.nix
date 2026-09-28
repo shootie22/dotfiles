@@ -36,6 +36,8 @@
       (builtins.attrValues (import ../../lib/admin-ssh-keys.nix)) + "\n";
     mode = "0444";
   };
+  # sshd reads the file as the user; the directory must be traversable.
+  systemd.tmpfiles.rules = [ "z /etc/ssh/authorized_keys.d 0755 root root -" ];
 
   # Network ---------------------------------------------------------------
   # eth0 is Lima's user-mode NAT (host <-> guest). The LAN NIC is bridged onto
