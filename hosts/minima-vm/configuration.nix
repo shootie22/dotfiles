@@ -17,8 +17,29 @@
     "flakes"
   ];
 
-  services.openssh.enable = true;
+  # Reachable from the LAN (lan0): keys only.
+  services.openssh = {
+    enable = true;
+    settings = {
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
+      PermitRootLogin = "no";
+    };
+  };
   security.sudo.wheelNeedsPassword = false;
+
+  # Network ---------------------------------------------------------------
+  # eth0 is Lima's user-mode NAT (host <-> guest). The LAN NIC is bridged onto
+  # the Mac's Ethernet (hosts/minima/lima.yaml) so Tailscale gets direct paths
+  # instead of relays; name it by MAC and prefer it for the default route.
+  systemd.network.links."10-lan0" = {
+    matchConfig.MACAddress = "52:55:55:4d:4e:01";
+    linkConfig.Name = "lan0";
+  };
+  networking.dhcpcd.extraConfig = ''
+    interface lan0
+    metric 100
+  '';
 
   # Match the nixos-lima disk image layout.
   boot.loader.grub = {

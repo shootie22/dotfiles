@@ -1,0 +1,36 @@
+# Lima instance config for the Minima VM, installed to ~/.lima/minima/lima.yaml
+# by nix-darwin (lima-vm.nix). Takes effect on the next VM start.
+
+vmType: krunkit
+cpus: 8
+memory: 13GiB
+disk: 200GiB
+
+# Used only when the instance is first created.
+images:
+- location: "https://github.com/nixos-lima/nixos-lima/releases/download/v0.2.1/nixos-lima-v0.2.1-aarch64.qcow2"
+  arch: "aarch64"
+  digest: "sha512:748c723b69dbdec40a9acaf78cc9070ae784dcb64b0856ab906efdac822d9abcc65565b8f8dfa4cf8b49cc6c12c372072e83bb5ed9247330a7c22675d9e141ce"
+
+# Only the configuration repo, read-only: the VM is a cluster node and must
+# not see the rest of the Mac's home directory (keys, kubeconfig).
+mounts:
+- location: "~/git/dotfiles"
+  writable: false
+
+# A LAN presence of its own, bridged onto the Mac's Ethernet by the root
+# socket_vmnet daemon (lima-vm.nix). The router reserves an address for this
+# MAC. Lima's own user-mode NIC stays for host <-> guest access.
+networks:
+- socket: /var/run/socket_vmnet.bridged.en0
+  macAddress: "52:55:55:4d:4e:01"
+
+portForwards:
+- proto: udp
+  guestPort: 68
+  guestIP: 0.0.0.0
+  ignore: true
+
+containerd:
+  system: false
+  user: false

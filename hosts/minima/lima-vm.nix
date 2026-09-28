@@ -78,6 +78,27 @@ in
     StandardErrorPath = "${home}/.lima/${instance}/launchd.log";
   };
 
+  # Bridges the VM's second NIC onto the Ethernet LAN (vmnet needs root).
+  # Lima connects to the socket; it must exist before the VM starts, and the
+  # VM supervisor simply retries until it does.
+  launchd.daemons.socket-vmnet-bridged = {
+    command = "${pkgs.socket-vmnet}/bin/socket_vmnet --vmnet-mode=bridged"
+      + " --vmnet-interface=en0 --socket-group=staff"
+      + " /var/run/socket_vmnet.bridged.en0";
+    serviceConfig = {
+      Label = "org.nixos.socket-vmnet-bridged";
+      RunAtLoad = true;
+      KeepAlive = true;
+      StandardOutPath = "/var/log/socket_vmnet.bridged.en0.log";
+      StandardErrorPath = "/var/log/socket_vmnet.bridged.en0.log";
+    };
+  };
+
+  # The instance config lives in this repo; Lima reads it on each VM start.
+  system.activationScripts.postActivation.text = ''
+    install -m 0644 -o ${user} -g staff ${./lima.yaml} ${home}/.lima/${instance}/lima.yaml
+  '';
+
   environment.systemPackages = [ control ];
 
   # A server: come back after power loss, never sleep.
