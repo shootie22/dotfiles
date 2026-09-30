@@ -14,6 +14,7 @@
       19132  # Minecraft Bedrock
       24545  # MegaBopl3D
       5520   # Hytale
+      7777   # Crosty
     ];
   };
 
@@ -58,6 +59,12 @@
       server {
         listen 5520 udp reuseport;
         proxy_pass 100.64.0.4:5520;
+        proxy_timeout 2m;
+      }
+
+      server {
+        listen 7777 udp reuseport;
+        proxy_pass 100.64.0.4:7777;
         proxy_timeout 2m;
       }
     '';
