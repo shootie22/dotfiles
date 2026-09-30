@@ -10,3 +10,14 @@ creation_rules:
 
   - path_regex: secrets/minima\.yaml$
     age: age14y8ufs6pmctu6rcyz6kmm63m6a0ctga24s7zxkcf38akj7tvzyxqy564tk
+
+  # edge: its age identity is derived from its SSH host key (ssh-to-age), so
+  # the host key is the only thing to keep. The personal key can always
+  # decrypt, from nixpad or the workstation.
+  - path_regex: secrets/edge\.yaml$
+    age: age1zmj70ksy0te2fy3qkfq20ednn6cha62eas0e8cc2qtjp4x6lk9ns046l8q,age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659
+
+  # The edge's SSH host key itself, for reinstalls (scripts/edge-install).
+  # Personal key only: the edge never needs to read this file.
+  - path_regex: secrets/edge-bootstrap\.yaml$
+    age: age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659

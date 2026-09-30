@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Installs NixOS on a VPS as the edge host, wiping its disk.
+#   hosts/edge/install <user>@<ip>     user must be root or have passwordless sudo
+#   hosts/edge/install --vm-test       install into a local VM instead
+# The SSH host key comes from secrets/edge-bootstrap.yaml (needs the personal
+# age key), so a reinstall keeps the same identity: same known_hosts entry,
+# same sops-nix age key.
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+target=${1:?usage: hosts/edge/install <user>@<ip> | --vm-test}
+
+run() { nix run --inputs-from . "nixpkgs#$1" -- "${@:2}"; }
+
+if [[ $target == --vm-test ]]; then
+  exec nix run --inputs-from . nixpkgs#nixos-anywhere -- --flake .#edge --vm-test
+fi
+
+authkey=$(run sops --decrypt --extract '["tailscale_authkey"]' secrets/edge.yaml)
+if [[ $authkey == REPLACE_* ]]; then
+  printf 'secrets/edge.yaml still has a placeholder Tailscale auth key.\n' >&2
+  printf 'Create a pre-auth key in Headscale and set it with: sops secrets/edge.yaml\n' >&2
+  exit 1
+fi
+
+extra=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/edge-install.XXXX")
+trap 'find "$extra" -type f -exec shred -u {} +; rm -rf "$extra"' EXIT
+install -d -m 0755 "$extra/etc/ssh"
+run sops --decrypt --extract '["ssh_host_ed25519_key"]' secrets/edge-bootstrap.yaml \
+  > "$extra/etc/ssh/ssh_host_ed25519_key"
+chmod 0600 "$extra/etc/ssh/ssh_host_ed25519_key"
+install -m 0644 hosts/edge/ssh_host_ed25519_key.pub "$extra/etc/ssh/ssh_host_ed25519_key.pub"
+
+printf 'This wipes the disk on %s. Type the address again to continue: ' "$target"
+read -r confirm
+[[ $confirm == "$target" ]] || { printf 'Aborted.\n' >&2; exit 1; }
+
+run nixos-anywhere --flake .#edge --extra-files "$extra" --target-host "$target"
+
+printf '\nDone. Add this to known_hosts if it is a new address:\n%s %s\n' \
+  "${target#*@}" "$(cat hosts/edge/ssh_host_ed25519_key.pub)"
