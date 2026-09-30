@@ -1,5 +1,5 @@
 {
-  description = "Reproducible NixOS configurations for mixi, nixpad, workstation, and fuji";
+  description = "Reproducible NixOS configurations for mixi, nixpad, workstation, fuji and edge";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
@@ -70,6 +70,12 @@
 
     # Secrets for the server hosts.
     sops-nix.url = "github:Mic92/sops-nix";
+
+    # Declarative disk layouts, used by nixos-anywhere to install the edge.
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = {
@@ -85,6 +91,7 @@
     noctalia,
     noctalia-nixpad,
     sops-nix,
+    disko,
     ...
   }@inputs: rec {
     darwinConfigurations.minima = nix-darwin.lib.darwinSystem {
@@ -158,6 +165,15 @@
           home-manager.useUserPackages = true;
           home-manager.users.fuji = import ./home/fuji/home.nix;
         }
+      ];
+    };
+
+    nixosConfigurations.edge = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        disko.nixosModules.disko
+        sops-nix.nixosModules.sops
+        ./hosts/edge/configuration.nix
       ];
     };
 
