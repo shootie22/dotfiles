@@ -32,6 +32,13 @@ helix
 unstable.claude-code
 opencode
 
+# infrastructure
+opentofu
+sops
+age
+jq
+dnsutils
+
 # development
 gh
 godot

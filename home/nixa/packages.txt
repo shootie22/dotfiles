@@ -43,3 +43,10 @@ high-tide
 onlyoffice-desktopeditors
 nh
 gnutar
+
+# infrastructure
+opentofu
+sops
+age
+jq
+dnsutils
