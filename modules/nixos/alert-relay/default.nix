@@ -23,6 +23,7 @@ in
     sops.secrets.relay_pushover_user_key = secret "pushover_user_key";
     sops.secrets.relay_pushover_app_token = secret "pushover_app_token";
     sops.secrets.relay_ntfy_topic = secret "ntfy_topic";
+    sops.secrets.relay_healthchecks_url = secret "healthchecks_relay_url";
 
     systemd.services.alert-relay = {
       description = "Alert relay: Pushover, then ntfy";
@@ -38,6 +39,7 @@ in
           "pushover_user_key:${config.sops.secrets.relay_pushover_user_key.path}"
           "pushover_app_token:${config.sops.secrets.relay_pushover_app_token.path}"
           "ntfy_topic:${config.sops.secrets.relay_ntfy_topic.path}"
+          "healthchecks_url:${config.sops.secrets.relay_healthchecks_url.path}"
         ];
         NoNewPrivileges = true;
         ProtectSystem = "strict";
