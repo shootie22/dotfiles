@@ -105,5 +105,7 @@
 
   environment.systemPackages = with pkgs; [ vim git htop ];
 
+  users.motd = "edge: deployed by comin from github.com/shootie22/dotfiles. Change it there, not here.\n";
+
   system.stateVersion = "26.05";
 }
