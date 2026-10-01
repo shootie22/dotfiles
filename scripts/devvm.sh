@@ -324,9 +324,10 @@ EOF_PROMPT
       table inet devvm {
         chain output {
           type filter hook output priority 0; policy accept;
+          ct state established,related accept
           ip daddr 10.0.2.3 udp dport 53 accept
           ip daddr 10.0.2.3 tcp dport 53 accept
-          ip daddr { 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16 } reject
+          ip daddr { 10.0.0.0/8, 100.64.0.0/10, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16 } reject
         }
       }
 EOF_FIREWALL
