@@ -3,26 +3,26 @@ set -euo pipefail
 
 DEBIAN_URL="https://cloud.debian.org/images/cloud/trixie/latest/debian-13-generic-amd64.qcow2"
 DEBIAN_SUMS_URL="https://cloud.debian.org/images/cloud/trixie/latest/SHA512SUMS"
-BASE_VERSION="1"
+BASE_VERSION="2"
 VM_RAM_MB="${DEVVM_RAM_MB:-6144}"
 VM_CPUS="${DEVVM_CPUS:-4}"
 
 usage() {
   cat <<'USAGE'
-usage: devvm [--refresh] [--help] [command ...]
+usage: dev [--refresh] [--help] [command ...]
 
 Run a disposable Debian development VM for the current git repository.
-The current repo is mounted at /work; Claude/Codex state persists separately.
+The current repo is mounted at /work; Claude/Codex credentials persist separately.
 
-  devvm            enter an interactive shell
-  devvm claude     start Claude directly
-  devvm codex      start Codex directly
-  devvm --refresh  rebuild the cached base VM (keeps agent auth/state)
+  dev            enter an interactive shell
+  dev claude     start Claude directly
+  dev codex      start Codex directly
+  dev --refresh  rebuild the cached base VM (keeps agent auth)
 USAGE
 }
 
-log() { printf '\033[1;35m◆ devvm\033[0m %s\n' "$*"; }
-die() { printf 'devvm: %s\n' "$*" >&2; exit 1; }
+log() { printf '\033[1;35m◆ dev\033[0m %s\n' "$*"; }
+die() { printf 'dev: %s\n' "$*" >&2; exit 1; }
 
 for arg in "$@"; do
   case "$arg" in
@@ -43,7 +43,7 @@ if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then
   die "/dev/kvm is not accessible; log out/in after joining the kvm group"
 fi
 
-repo="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)" || die "run devvm from inside a git repository"
+repo="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)" || die "run dev from inside a git repository"
 repo="$(realpath "$repo")"
 current="$(realpath "$PWD")"
 repo_name="$(basename "$repo")"
@@ -74,7 +74,7 @@ chmod 700 "$data_root" "$ssh_dir" "$claude_state" "$codex_state"
 
 if [ "$refresh" -eq 1 ]; then
   log "refreshing disposable VM base"
-  rm -f "$golden" "$seed_image" "$data_root/known_hosts"
+  rm -f "$golden" "$seed_image"
 fi
 
 seed_existing_auth() {
@@ -117,8 +117,8 @@ ensure_debian_image() {
 
 choose_port() {
   local port
-  local i
-  for i in $(seq 1 100); do
+  local _attempt
+  for _attempt in $(seq 1 100); do
     port=$((20000 + RANDOM % 30000))
     if ! ss -ltnH | awk '{print $4}' | grep -qE "(^|:)${port}$"; then
       printf '%s\n' "$port"
@@ -235,7 +235,7 @@ write_cloud_init() {
   pubkey="$(cat "$ssh_key.pub")"
 
   cat >"$meta_data" <<EOF_META
-instance-id: devvm-base-v${BASE_VERSION}
+instance-id: dev-base-v${BASE_VERSION}
 local-hostname: devvm
 EOF_META
 
@@ -287,7 +287,7 @@ packages:
   - libffi-dev
   - libsqlite3-dev
 write_files:
-  - path: /etc/profile.d/devvm.sh
+  - path: /etc/profile.d/dev.sh
     permissions: '0644'
     content: |
 EOF_HEAD
@@ -296,7 +296,7 @@ EOF_HEAD
       export PATH="$HOME/.local/npm/bin:$HOME/.local/bin:$PATH"
       export DEVVM=1
       if [[ $- == *i* ]]; then
-        devvm_prompt() {
+        dev_prompt() {
           local rc="$?"
           local repo="${DEVVM_REPO:-work}"
           local branch=""
@@ -307,13 +307,13 @@ EOF_HEAD
             branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || true)"
           fi
           [ "$rc" -eq 0 ] || arrow_color="31"
-          PS1="\[\e[1;35m\]◆ devvm\[\e[0m\] · \[\e[1;36m\]${repo}\[\e[0m\]"
+          PS1="\[\e[1;35m\]◆ dev\[\e[0m\] · \[\e[1;36m\]${repo}\[\e[0m\]"
           [ -z "$branch" ] || PS1+=" · \[\e[1;33m\]${branch}\[\e[0m\]"
           [ "$place" = "/" ] || PS1+=" · \[\e[2m\]${place}\[\e[0m\]"
           PS1+=" \[\e[1;${arrow_color}m\]❯\[\e[0m\] "
-          printf '\033]0;DEVVM — %s\007' "$repo"
+          printf '\033]0;DEV — %s\007' "$repo"
         }
-        PROMPT_COMMAND=devvm_prompt
+        PROMPT_COMMAND=dev_prompt
       fi
 EOF_PROMPT
 
@@ -334,12 +334,12 @@ EOF_FIREWALL
 
   cat >>"$user_data" <<'EOF_TAIL'
 runcmd:
-  - [ bash, -lc, 'mkdir -p /work /home/dev/.claude /home/dev/.codex /home/dev/.local/npm' ]
+  - [ bash, -lc, 'mkdir -p /work /mnt/devstate/claude /mnt/devstate/codex /home/dev/.claude /home/dev/.codex /home/dev/.local/npm' ]
   - [ bash, -lc, 'mount -t virtiofs repo /work' ]
-  - [ bash, -lc, 'mount -t virtiofs claude /home/dev/.claude' ]
-  - [ bash, -lc, 'mount -t virtiofs codex /home/dev/.codex' ]
-  - [ bash, -lc, 'printf "repo /work virtiofs rw,nofail 0 0\nclaude /home/dev/.claude virtiofs rw,nofail 0 0\ncodex /home/dev/.codex virtiofs rw,nofail 0 0\n" >> /etc/fstab' ]
-  - [ bash, -lc, 'chown -R dev:dev /home/dev/.local' ]
+  - [ bash, -lc, 'mount -t virtiofs claude /mnt/devstate/claude' ]
+  - [ bash, -lc, 'mount -t virtiofs codex /mnt/devstate/codex' ]
+  - [ bash, -lc, 'printf "repo /work virtiofs rw,nofail 0 0\nclaude /mnt/devstate/claude virtiofs rw,nofail 0 0\ncodex /mnt/devstate/codex virtiofs rw,nofail 0 0\n" >> /etc/fstab' ]
+  - [ bash, -lc, 'chown -R dev:dev /home/dev/.local /home/dev/.claude /home/dev/.codex' ]
   - [ bash, -lc, 'sudo -u dev -H npm config set prefix /home/dev/.local/npm' ]
   - [ bash, -lc, 'sudo -u dev -H npm install -g @anthropic-ai/claude-code@latest @openai/codex@latest' ]
   - [ bash, -lc, 'ln -sf /usr/bin/fdfind /usr/local/bin/fd' ]
@@ -420,6 +420,10 @@ if ! wait_for_ssh "$port"; then
   die "VM did not become reachable"
 fi
 
+# Agent runtime state stays on the VM's native filesystem. Only credential
+# files are copied to/from the persistent host-backed shares.
+ssh "${ssh_base_args[@]}" dev@127.0.0.1 'mkdir -p "$HOME/.claude" "$HOME/.codex"; [ ! -f /mnt/devstate/claude/.credentials.json ] || cp /mnt/devstate/claude/.credentials.json "$HOME/.claude/.credentials.json"; [ ! -f /mnt/devstate/codex/auth.json ] || cp /mnt/devstate/codex/auth.json "$HOME/.codex/auth.json"; chmod 600 "$HOME/.claude/.credentials.json" "$HOME/.codex/auth.json" 2>/dev/null || true'
+
 log "$repo_name → $guest_dir"
 quoted_dir="$(printf '%q' "$guest_dir")"
 quoted_repo="$(printf '%q' "$repo_name")"
@@ -427,7 +431,7 @@ if [ "${#command_args[@]}" -eq 0 ]; then
   remote="cd $quoted_dir && export DEVVM_REPO=$quoted_repo && exec bash -l"
 else
   printf -v quoted_cmd '%q ' "${command_args[@]}"
-  remote="cd $quoted_dir && export DEVVM_REPO=$quoted_repo && exec $quoted_cmd"
+  remote="cd $quoted_dir && export DEVVM_REPO=$quoted_repo && export PATH=\$HOME/.local/npm/bin:\$HOME/.local/bin:\$PATH && exec $quoted_cmd"
 fi
 
 set +e
@@ -435,5 +439,6 @@ ssh -tt "${ssh_base_args[@]}" dev@127.0.0.1 "$remote"
 rc=$?
 set -e
 
+ssh "${ssh_base_args[@]}" dev@127.0.0.1 'mkdir -p /mnt/devstate/claude /mnt/devstate/codex; [ ! -f "$HOME/.claude/.credentials.json" ] || cp "$HOME/.claude/.credentials.json" /mnt/devstate/claude/.credentials.json; [ ! -f "$HOME/.codex/auth.json" ] || cp "$HOME/.codex/auth.json" /mnt/devstate/codex/auth.json' >/dev/null 2>&1 || true
 ssh "${ssh_base_args[@]}" dev@127.0.0.1 'sudo poweroff' >/dev/null 2>&1 || true
 exit "$rc"
