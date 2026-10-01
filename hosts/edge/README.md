@@ -8,11 +8,9 @@ It has to be replaceable in minutes, so the only thing that isn't rebuilt from t
 
 Follow the runbook in the infrastructure repo: [replace-edge.md](https://github.com/shootie22/infrastructure/blob/main/docs/ha/runbooks/replace-edge.md). In short: a Headscale pre-auth key into `secrets/edge.yaml`, then `hosts/edge/install <user>@<ip>` from a clean checkout. `hosts/edge/install --vm-test` does the whole install in a local VM, which is worth running after changes to `disko.nix` or the boot setup.
 
-## Rebuild after changes
+## Changes
 
-```sh
-nixos-rebuild switch --flake .#edge --target-host edge@<ip> --use-remote-sudo
-```
+Commit and push to `main`. comin on the edge picks it up within a minute or two and switches to it (`sudo comin status` shows what it runs). Kernel updates take effect at the next nightly reboot check, 04:00 Romanian time, and only if the kernel actually changed.
 
 ## Notes
 
