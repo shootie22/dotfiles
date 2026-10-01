@@ -7,6 +7,7 @@
     ../../modules/nixos/k3s-tailnet-guard.nix
     ../../modules/nixos/k3s-dns.nix
     ../../modules/nixos/failover-checker
+    ../../modules/nixos/server-housekeeping.nix
   ];
 
   # Apple Silicon ------------------------------------------------------------
@@ -19,6 +20,8 @@
   hardware.asahi.peripheralFirmwareDirectory = /boot/vendorfw;
 
   boot.loader.systemd-boot.enable = true;
+  # /boot is only 476 MB here, and each Asahi kernel + initrd takes a lot of it.
+  boot.loader.systemd-boot.configurationLimit = 5;
   # The Asahi boot flow manages the EFI variables outside NixOS.
   boot.loader.efi.canTouchEfiVariables = false;
 
