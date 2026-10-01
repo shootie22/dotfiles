@@ -173,18 +173,36 @@ def dry_run(state, msg):
         state["dry_last"] = msg
 
 
+def notify(title, message, emergency=False):
+    """Tell the alert relay on the edge. Never let a failed notification stop a switch."""
+    try:
+        body = json.dumps({"title": title, "message": message, "emergency": emergency}).encode()
+        urllib.request.urlopen(urllib.request.Request(
+            CFG["relay_url"], data=body, method="POST",
+            headers={"Content-Type": "application/json"}), timeout=10)
+    except Exception as e:
+        log(f"notify failed: {e}")
+
+
 def switch(to_edge, state):
     target = CFG["edge_name"] if to_edge else CFG["ro_dynamic_name"]
     apex_ip = CFG["edge_ip"] if to_edge else resolve_a(CFG["ro_dynamic_name"])
     what = "failover to the edge" if to_edge else "fail back to RO"
     if CFG["dry_run"]:
-        dry_run(state, f"{what}: ro -> {target}, deSEC apexes -> {apex_ip}")
+        msg = f"{what}: ro -> {target}, deSEC apexes -> {apex_ip}"
+        if state.get("dry_last") != msg:
+            notify("Failover (dry run)", "Would " + msg + ". Nothing was changed.")
+        dry_run(state, msg)
         return
     log(f"{what}: ro -> {target}, deSEC apexes -> {apex_ip}")
     set_cloudflare(target)
     set_desec(target, apex_ip)
     state.update(last_switch=time.time(), desec_apex_ip=apex_ip)
     save_state(state)
+    if to_edge:
+        notify("RO is down", "Traffic now goes through the edge to DK. RO-only services are down until RO is back.", emergency=True)
+    else:
+        notify("RO is back", "Traffic goes to RO again.")
 
 
 def decide(state):
@@ -197,8 +215,16 @@ def decide(state):
     current = current_target()
     summary = ", ".join(f"{v['name']}={v.get('ro_ok')}" for v in voters) or "none"
 
+    # RO looks down from here, but the votes can't make it happen: say so, once.
+    stuck = own["ro_ok"] is False and now - own["since"] >= 2 * CFG["fail_after"] and current != CFG["edge_name"]
     if len(valid) < len(CFG["voters"]):
-        return f"waiting: only {len(valid)} of {len(CFG['voters'])} voters usable ({summary})"
+        reason = f"only {len(valid)} of {len(CFG['voters'])} voters usable ({summary})"
+        if stuck and not state.get("stuck_reported"):
+            notify("Failover can't act", f"RO looks down from {CFG['name']}, but {reason}.", emergency=True)
+            state["stuck_reported"] = True
+        return "waiting: " + reason
+    if own["ro_ok"]:
+        state["stuck_reported"] = False
     if current is None:
         return "waiting: can't read ro from Cloudflare"
 

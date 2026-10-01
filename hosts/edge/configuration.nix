@@ -13,6 +13,7 @@
     ./haproxy.nix
     ../../modules/nixos/failover-checker
     ../../modules/nixos/game-relay.nix
+    ../../modules/nixos/alert-relay
   ];
 
   networking.hostName = "edge";
@@ -91,6 +92,10 @@
     # Keep the edge's own DNS independent from the tailnet control plane.
     extraSetFlags = [ "--accept-dns=false" ];
   };
+
+  # Sends alerts to the phone: Pushover, then ntfy (infrastructure repo,
+  # docs/ha/alerting.md).
+  dotfiles.alertRelay.enable = true;
 
   # Game ports, relayed to the thinkcentre, for when games.radunenu.com points
   # here during a failover.
