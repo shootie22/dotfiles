@@ -2,7 +2,10 @@
 { config, lib, pkgs, ... }:
 
 {
-  imports = [ ./hardware-configuration.nix ];
+  imports = [
+    ./hardware-configuration.nix
+    ../../modules/nixos/initrd-dhcp-handover.nix
+  ];
 
   # Boot ----------------------------------------------------------------------
   boot.loader.systemd-boot.enable = true;
@@ -66,6 +69,15 @@
     };
   };
   networking.firewall.interfaces.eno1.allowedTCPPorts = [ 22 ];
+
+  # On the tailnet like the other machines, so it's reachable as
+  # nixa@workstation.tail.radunenu.com from anywhere. SSH only there and on
+  # the LAN. First login: sudo tailscale up --login-server=https://hs.radunenu.com
+  services.tailscale.enable = true;
+  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 22 ];
+
+  # Hand eno1 over cleanly from the initrd to NetworkManager.
+  dotfiles.lanInterface = "eno1";
 
   # Early boot has its own network stack; NetworkManager starts after unlock.
   boot.initrd.availableKernelModules = [ "e1000e" ];
@@ -187,11 +199,14 @@
     isNormalUser = true;
     description = "nixa";
     extraGroups = [ "networkmanager" "wheel" "libvirtd" ];
-    # Machine-local public keys, outside this public repository. Rebuild with
-    # --impure to read this file. Only public keys may go here: Nix stores them.
-    openssh.authorizedKeys.keys = lib.filter
-      (line: line != "" && !(lib.hasPrefix "#" line))
-      (lib.splitString "\n" (builtins.readFile "/etc/secrets/ssh/authorized_keys"));
+    # The admin devices, like every other machine, plus machine-local public
+    # keys outside this public repository. Rebuild with --impure to read that
+    # file. Only public keys may go there: Nix stores them.
+    openssh.authorizedKeys.keys =
+      builtins.attrValues (import ../../lib/admin-ssh-keys.nix)
+      ++ lib.filter
+        (line: line != "" && !(lib.hasPrefix "#" line))
+        (lib.splitString "\n" (builtins.readFile "/etc/secrets/ssh/authorized_keys"));
   };
 
   # Managed by `nix-addpkg --system`; see system-packages.txt.
