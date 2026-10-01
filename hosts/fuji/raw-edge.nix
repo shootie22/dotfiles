@@ -1,72 +1,13 @@
-# Public raw TCP/UDP edge for services hosted on ThinkCentre.
-# Router forwards these ports to Fuji; Fuji relays them over Tailscale.
+# Public raw TCP/UDP edge for services hosted on the thinkcentre. The router
+# forwards these ports to fuji; fuji relays them over the tailnet. The port
+# list is shared with the edge VPS in modules/nixos/game-relay.nix.
 { ... }:
 
 {
-  networking.firewall.interfaces.eno1 = {
-    allowedTCPPorts = [
-      6767   # Minecraft HC
-      51751  # Minecraft HC SFTP
-      25565  # Minecraft Skyblock
-    ];
+  imports = [ ../../modules/nixos/game-relay.nix ];
 
-    allowedUDPPorts = [
-      19132  # Minecraft Bedrock
-      24545  # MegaBopl3D
-      5520   # Hytale
-      7777   # Crosty
-    ];
-  };
-
-  services.nginx = {
+  dotfiles.gameRelay = {
     enable = true;
-    virtualHosts = {};
-
-    streamConfig = ''
-      server {
-        listen 6767;
-        proxy_pass 100.64.0.4:6767;
-        proxy_connect_timeout 5s;
-        proxy_timeout 1h;
-      }
-
-      server {
-        listen 51751;
-        proxy_pass 100.64.0.4:51751;
-        proxy_connect_timeout 5s;
-        proxy_timeout 1h;
-      }
-
-      server {
-        listen 25565;
-        proxy_pass 100.64.0.4:25565;
-        proxy_connect_timeout 5s;
-        proxy_timeout 1h;
-      }
-
-      server {
-        listen 19132 udp reuseport;
-        proxy_pass 100.64.0.4:19132;
-        proxy_timeout 2m;
-      }
-
-      server {
-        listen 24545 udp reuseport;
-        proxy_pass 100.64.0.4:24545;
-        proxy_timeout 2m;
-      }
-
-      server {
-        listen 5520 udp reuseport;
-        proxy_pass 100.64.0.4:5520;
-        proxy_timeout 2m;
-      }
-
-      server {
-        listen 7777 udp reuseport;
-        proxy_pass 100.64.0.4:7777;
-        proxy_timeout 2m;
-      }
-    '';
+    interface = "eno1";
   };
 }
