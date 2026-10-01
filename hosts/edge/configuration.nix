@@ -12,6 +12,7 @@
     ../../modules/nixos/comin.nix
     ./haproxy.nix
     ../../modules/nixos/failover-checker
+    ../../modules/nixos/game-relay.nix
   ];
 
   networking.hostName = "edge";
@@ -90,6 +91,10 @@
     # Keep the edge's own DNS independent from the tailnet control plane.
     extraSetFlags = [ "--accept-dns=false" ];
   };
+
+  # Game ports, relayed to the thinkcentre, for when games.radunenu.com points
+  # here during a failover.
+  dotfiles.gameRelay.enable = true;
 
   # The edge's vote for failover (infrastructure repo, docs/ha/failover.md).
   # Dry run: it only logs what it would do.
