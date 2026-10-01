@@ -28,6 +28,7 @@ let
       "devvm: "
       "run devvm from inside"
       "DEVVM —"
+      ''remote="cd $quoted_dir && export DEVVM_REPO=$quoted_repo && exec $quoted_cmd"''
     ]
     [
       "usage: dev "
@@ -39,6 +40,7 @@ let
       "dev: "
       "run dev from inside"
       "DEV —"
+      ''remote="cd $quoted_dir && export DEVVM_REPO=$quoted_repo && export PATH=\$HOME/.local/npm/bin:\$HOME/.local/bin:\$PATH && exec $quoted_cmd"''
     ]
     (builtins.readFile ../../scripts/devvm.sh);
   dev = pkgs.writeShellScriptBin "dev" ''
