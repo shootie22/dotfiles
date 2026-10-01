@@ -6,19 +6,7 @@ It has to be replaceable in minutes, so the only thing that isn't rebuilt from t
 
 ## Install or replace
 
-Needs the personal age key (`~/.config/sops/age/keys.txt`, copy in Bitwarden).
-
-1. Put a Headscale pre-auth key into `secrets/edge.yaml` (`tailscale_authkey`). On fuji:
-   ```sh
-   sudo kubectl -n headscale exec deploy/headscale -- headscale preauthkeys create --user <user> --expiration 1h
-   ```
-2. Install. This wipes the target's disk and asks you to type the address again first:
-   ```sh
-   hosts/edge/install root@<ip>
-   ```
-3. If it replaced an older edge: remove the old node in Headscale, point the edge DNS record at the new IP in the infrastructure repo (OpenTofu), and cancel the old VPS.
-
-`hosts/edge/install --vm-test` does the whole install in a local VM, which is worth running after changes to `disko.nix` or the boot setup.
+Follow the runbook in the infrastructure repo: [replace-edge.md](https://github.com/shootie22/infrastructure/blob/main/docs/ha/runbooks/replace-edge.md). In short: a Headscale pre-auth key into `secrets/edge.yaml`, then `hosts/edge/install <user>@<ip>` from a clean checkout. `hosts/edge/install --vm-test` does the whole install in a local VM, which is worth running after changes to `disko.nix` or the boot setup.
 
 ## Rebuild after changes
 
