@@ -134,6 +134,8 @@
   networking.firewall.interfaces.tailscale0.allowedUDPPorts = [ 51820 ];
 
   # For not having to add ports to *.infra URLs
+  # The edge is the exception: it passes public traffic through to Traefik
+  # here, so its 443 must reach Traefik, not the private proxy.
   systemd.services.tailnet-https = {
     description = "Forward tailnet HTTPS to the private proxy";
     wantedBy = [ "multi-user.target" ];
@@ -153,7 +155,7 @@
       table ip tailnet_https {
         chain prerouting {
           type nat hook prerouting priority -110; policy accept;
-          iifname "tailscale0" ip daddr 100.64.0.1 tcp dport 443 counter dnat to 100.64.0.1:8443
+          iifname "tailscale0" ip saddr != 100.64.0.9 ip daddr 100.64.0.1 tcp dport 443 counter dnat to 100.64.0.1:8443
         }
       }
       EOF
