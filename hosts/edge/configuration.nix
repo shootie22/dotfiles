@@ -11,6 +11,7 @@
     (import ./disko.nix { device = "/dev/sda"; })
     ../../modules/nixos/comin.nix
     ./haproxy.nix
+    ../../modules/nixos/failover-checker
   ];
 
   networking.hostName = "edge";
@@ -88,6 +89,13 @@
     ];
     # Keep the edge's own DNS independent from the tailnet control plane.
     extraSetFlags = [ "--accept-dns=false" ];
+  };
+
+  # The edge's vote for failover (infrastructure repo, docs/ha/failover.md).
+  # Dry run: it only logs what it would do.
+  dotfiles.failoverChecker = {
+    enable = true;
+    peers = [ "http://100.64.0.2:9180/" ];
   };
 
   # Housekeeping ----------------------------------------------------------
