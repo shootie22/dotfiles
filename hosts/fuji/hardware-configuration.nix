@@ -38,9 +38,11 @@
       options = [ "fmask=0077" "dmask=0077" ];
     };
 
-  swapDevices =
-    [ { device = "/dev/mapper/luks-b015eb32-fabc-4ed5-83a0-6abb1d93045d"; }
-    ];
+  # No swap. The installer set up an encrypted swap partition (nvme0n1p3,
+  # luks-b015eb32-...) but it was never unlocked at boot, so fuji has always
+  # run without it and systemd waited forever for the device on every boot
+  # and rebuild. Kubernetes prefers no swap anyway.
+  swapDevices = [ ];
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
