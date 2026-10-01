@@ -10,6 +10,7 @@
     (modulesPath + "/profiles/qemu-guest.nix")
     (import ./disko.nix { device = "/dev/sda"; })
     ../../modules/nixos/comin.nix
+    ./haproxy.nix
   ];
 
   networking.hostName = "edge";
