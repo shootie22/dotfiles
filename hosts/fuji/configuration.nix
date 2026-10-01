@@ -8,6 +8,7 @@
     ../../modules/nixos/k3s-tailnet-guard.nix
     ../../modules/nixos/k3s-dns.nix
     ../../modules/nixos/initrd-dhcp-handover.nix
+    ../../modules/nixos/server-housekeeping.nix
   ];
 
   # Boot ----------------------------------------------------------------------
