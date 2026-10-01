@@ -20,243 +20,238 @@ let
 
   agentPackages = inputs.llm-agents.packages.${system};
 
-  mkGuest = slot:
-    inputs.nixpkgs.lib.nixosSystem {
-      inherit system;
-      modules = [
-        microvmModule
-        ({ pkgs, ... }: {
-          networking = {
-            hostName = "dev-${toString slot}";
-            useDHCP = true;
-            enableIPv6 = false;
-            firewall = {
-              enable = true;
-              logRefusedConnections = false;
-            };
-          };
-
-          users.users.dev = {
-            isNormalUser = true;
-            uid = 1000;
-            home = "/home/dev";
-            createHome = true;
-            shell = pkgs.bashInteractive;
-            extraGroups = [ "wheel" ];
-          };
-          security.sudo.wheelNeedsPassword = false;
-
-          services.openssh = {
+  guest = inputs.nixpkgs.lib.nixosSystem {
+    inherit system;
+    modules = [
+      microvmModule
+      ({ pkgs, ... }: {
+        networking = {
+          hostName = "dev";
+          useDHCP = true;
+          enableIPv6 = false;
+          firewall = {
             enable = true;
-            openFirewall = false;
-            settings = {
-              PasswordAuthentication = false;
-              KbdInteractiveAuthentication = false;
-              PermitRootLogin = "no";
-              AllowUsers = [ "dev" ];
-              AuthorizedKeysFile = "/run/dev-host/authorized_keys";
-              # The authorized_keys file is a read-only 9p share containing
-              # only a public key. Its host ownership is intentionally ignored.
-              StrictModes = false;
-            };
+            logRefusedConnections = false;
+            # QEMU user networking has no inbound path unless the launcher
+            # explicitly creates a hostfwd. The only one is random localhost
+            # -> guest:22, so opening guest SSH here does not expose it to LAN.
+            allowedTCPPorts = [ 22 ];
           };
+        };
 
-          nix.settings = {
-            experimental-features = [ "nix-command" "flakes" ];
-            trusted-users = [ "root" "dev" ];
+        users.users.dev = {
+          isNormalUser = true;
+          uid = 1000;
+          home = "/home/dev";
+          createHome = true;
+          shell = pkgs.bashInteractive;
+          extraGroups = [ "wheel" ];
+        };
+        security.sudo.wheelNeedsPassword = false;
+
+        services.openssh = {
+          enable = true;
+          openFirewall = false;
+          settings = {
+            PasswordAuthentication = false;
+            KbdInteractiveAuthentication = false;
+            PermitRootLogin = "no";
+            AllowUsers = [ "dev" ];
+            AuthorizedKeysFile = "/run/dev-host/authorized_keys";
+            # This is a read-only 9p share containing only a public key.
+            StrictModes = false;
           };
-          nixpkgs.config.allowUnfree = true;
+        };
 
-          programs.nix-ld.enable = true;
-          programs.bash.completion.enable = true;
+        nix.settings = {
+          experimental-features = [ "nix-command" "flakes" ];
+          trusted-users = [ "root" "dev" ];
+        };
+        nixpkgs.config.allowUnfree = true;
 
-          environment.systemPackages = (with pkgs; [
-            bashInteractive
-            coreutils
-            curl
-            wget
-            git
-            gnumake
-            gcc
-            clang
-            cmake
-            pkg-config
-            python3
-            nodejs
-            rustc
-            cargo
-            ripgrep
-            fd
-            jq
-            unzip
-            zip
-            less
-            tmux
-            shellcheck
-            sqlite
-            openssl
-            which
-            file
-            gnused
-            gawk
-            gnugrep
-            findutils
-            iproute2
-            procps
-            lsof
-            strace
-            tree
-            nftables
-          ]) ++ [
-            agentPackages.claude-code
-            agentPackages.codex
-          ];
+        programs.nix-ld.enable = true;
+        programs.bash.completion.enable = true;
 
-          environment.etc."profile.d/dev.sh".text = ''
-            export DEV=1
-            if [[ $- == *i* ]]; then
-              dev_prompt() {
-                local rc="$?"
-                local repo="''${DEV_REPO:-work}"
-                local branch=""
-                local place="''${PWD#/work}"
-                local arrow_color="32"
-                [ -n "$place" ] || place="/"
-                if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-                  branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || true)"
-                fi
-                [ "$rc" -eq 0 ] || arrow_color="31"
-                PS1="\[\e[1;35m\]◆ dev\[\e[0m\] · \[\e[1;36m\]''${repo}\[\e[0m\]"
-                [ -z "$branch" ] || PS1+=" · \[\e[1;33m\]''${branch}\[\e[0m\]"
-                [ "$place" = "/" ] || PS1+=" · \[\e[2m\]''${place}\[\e[0m\]"
-                PS1+=" \[\e[1;''${arrow_color}m\]❯\[\e[0m\] "
-                printf '\033]0;DEV — %s\007' "$repo"
+        environment.systemPackages = (with pkgs; [
+          bashInteractive
+          coreutils
+          curl
+          wget
+          git
+          gnumake
+          gcc
+          clang
+          cmake
+          pkg-config
+          python3
+          nodejs
+          rustc
+          cargo
+          ripgrep
+          fd
+          jq
+          unzip
+          zip
+          less
+          tmux
+          shellcheck
+          sqlite
+          openssl
+          which
+          file
+          gnused
+          gawk
+          gnugrep
+          findutils
+          iproute2
+          procps
+          lsof
+          strace
+          tree
+          nftables
+        ]) ++ [
+          agentPackages.claude-code
+          agentPackages.codex
+        ];
+
+        environment.etc."profile.d/dev.sh".text = ''
+          export DEV=1
+          if [[ $- == *i* ]]; then
+            dev_prompt() {
+              local rc="$?"
+              local repo="''${DEV_REPO:-work}"
+              local branch=""
+              local place="''${PWD#/work}"
+              local arrow_color="32"
+              [ -n "$place" ] || place="/"
+              if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+                branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || true)"
+              fi
+              [ "$rc" -eq 0 ] || arrow_color="31"
+              PS1="\[\e[1;35m\]◆ dev\[\e[0m\] · \[\e[1;36m\]''${repo}\[\e[0m\]"
+              [ -z "$branch" ] || PS1+=" · \[\e[1;33m\]''${branch}\[\e[0m\]"
+              [ "$place" = "/" ] || PS1+=" · \[\e[2m\]''${place}\[\e[0m\]"
+              PS1+=" \[\e[1;''${arrow_color}m\]❯\[\e[0m\] "
+              printf '\033]0;DEV — %s\007' "$repo"
+            }
+            PROMPT_COMMAND=dev_prompt
+          fi
+        '';
+
+        systemd.tmpfiles.rules = [
+          "d /persist/claude 0700 dev users -"
+          "d /persist/codex 0700 dev users -"
+          "L+ /home/dev/.claude - - - - /persist/claude"
+          "L+ /home/dev/.codex - - - - /persist/codex"
+        ];
+
+        # Public internet is allowed, but guest-initiated access to the host,
+        # LAN, link-local networks, and Tailscale/CGNAT ranges is rejected.
+        # QEMU's DNS/DHCP endpoints are the only private-address exceptions.
+        systemd.services.dev-egress-firewall = {
+          description = "Restrict development MicroVM egress to public networks";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "network.target" ];
+          before = [ "dev-ready.service" ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+          };
+          script = ''
+            ${pkgs.nftables}/bin/nft delete table inet dev_egress 2>/dev/null || true
+            ${pkgs.nftables}/bin/nft -f - <<'NFT'
+            table inet dev_egress {
+              chain output {
+                type filter hook output priority 0; policy accept;
+                ct state established,related accept
+                oifname "lo" accept
+                ip daddr 10.0.2.3 udp dport 53 accept
+                ip daddr 10.0.2.3 tcp dport 53 accept
+                ip daddr 10.0.2.2 udp dport 67 accept
+                ip daddr { 10.0.0.0/8, 100.64.0.0/10, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16 } reject
               }
-              PROMPT_COMMAND=dev_prompt
+            }
+            NFT
+          '';
+        };
+
+        systemd.services.dev-ready = {
+          description = "Signal that the development MicroVM is ready";
+          wantedBy = [ "multi-user.target" ];
+          requires = [ "dev-egress-firewall.service" ];
+          after = [
+            "dev-egress-firewall.service"
+            "systemd-tmpfiles-setup.service"
+          ];
+          serviceConfig.Type = "oneshot";
+          script = ''
+            ${pkgs.coreutils}/bin/touch /run/dev-ready
+          '';
+        };
+
+        microvm = {
+          hypervisor = "qemu";
+          vcpu = cfg.cpus;
+          mem = cfg.memoryMB;
+          socket = "control.sock";
+          optimize.enable = true;
+          qemu.serialConsole = false;
+
+          # The launcher supplies a random localhost SSH host-forward at runtime.
+          # Keeping networking out of the static runner means one runner can be
+          # launched concurrently from many per-project working directories.
+          interfaces = [ ];
+          extraArgsScript = pkgs.writeShellScript "dev-qemu-runtime-args" ''
+            if ! [[ "''${DEV_SSH_PORT:-}" =~ ^[0-9]+$ ]]; then
+              echo "DEV_SSH_PORT is missing or invalid" >&2
+              exit 1
             fi
+            printf '%s\n' "-netdev user,id=net0,hostfwd=tcp:127.0.0.1:''${DEV_SSH_PORT}-:22 -device virtio-net-pci,netdev=net0,mac=02:00:00:00:10:00,romfile="
           '';
 
-          systemd.tmpfiles.rules = [
-            "d /persist/claude 0700 dev users -"
-            "d /persist/codex 0700 dev users -"
-            "L+ /home/dev/.claude - - - - /persist/claude"
-            "L+ /home/dev/.codex - - - - /persist/codex"
+          # Relative paths resolve from the launcher's per-project state dir.
+          # The launcher starts rootless virtiofsd for the repo socket itself.
+          shares = [
+            {
+              tag = "repo";
+              source = "repo";
+              mountPoint = "/work";
+              proto = "virtiofs";
+              readOnly = false;
+            }
+            {
+              tag = "hostkey";
+              source = "ssh";
+              mountPoint = "/run/dev-host";
+              proto = "9p";
+              securityModel = "none";
+              readOnly = true;
+            }
           ];
 
-          # Public internet is allowed, but guest-initiated access to the host,
-          # LAN, link-local networks, and Tailscale/CGNAT ranges is rejected.
-          # QEMU's built-in DNS and DHCP endpoints are the only private-address
-          # exceptions. Host-to-guest control/port forwarding uses VSOCK.
-          systemd.services.dev-egress-firewall = {
-            description = "Restrict development MicroVM egress to public networks";
-            wantedBy = [ "multi-user.target" ];
-            after = [ "network.target" ];
-            before = [ "dev-ready.service" ];
-            serviceConfig = {
-              Type = "oneshot";
-              RemainAfterExit = true;
-            };
-            script = ''
-              ${pkgs.nftables}/bin/nft delete table inet dev_egress 2>/dev/null || true
-              ${pkgs.nftables}/bin/nft -f - <<'NFT'
-              table inet dev_egress {
-                chain output {
-                  type filter hook output priority 0; policy accept;
-                  ct state established,related accept
-                  oifname "lo" accept
-                  ip daddr 10.0.2.3 udp dport 53 accept
-                  ip daddr 10.0.2.3 tcp dport 53 accept
-                  ip daddr 10.0.2.2 udp dport 67 accept
-                  ip daddr { 10.0.0.0/8, 100.64.0.0/10, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16 } reject
-                }
-              }
-              NFT
-            '';
-          };
+          volumes = [
+            {
+              image = "agent-state.img";
+              mountPoint = "/persist";
+              size = cfg.stateSizeMB;
+              fsType = "ext4";
+            }
+            {
+              image = "nix-rw.img";
+              mountPoint = "/nix/.rw-store";
+              size = cfg.storeOverlaySizeMB;
+              fsType = "ext4";
+            }
+          ];
+          writableStoreOverlay = "/nix/.rw-store";
+        };
 
-          systemd.services.dev-ready = {
-            description = "Signal that the development MicroVM is ready";
-            wantedBy = [ "multi-user.target" ];
-            requires = [ "dev-egress-firewall.service" ];
-            after = [
-              "dev-egress-firewall.service"
-              "systemd-tmpfiles-setup.service"
-            ];
-            serviceConfig.Type = "oneshot";
-            script = ''
-              ${pkgs.coreutils}/bin/touch /run/dev-ready
-            '';
-          };
+        system.stateVersion = "26.05";
+      })
+    ];
+  };
 
-          microvm = {
-            hypervisor = "qemu";
-            vcpu = cfg.cpus;
-            mem = cfg.memoryMB;
-            socket = "control.sock";
-            optimize.enable = true;
-            qemu.serialConsole = false;
-
-            interfaces = [
-              {
-                type = "user";
-                id = "net0";
-                mac = "02:00:00:00:10:0${toString slot}";
-              }
-            ];
-
-            # Relative sources are resolved from the launcher's per-project
-            # state directory. The launcher starts rootless virtiofsd itself;
-            # the default socket name below is therefore intentional.
-            shares = [
-              {
-                tag = "repo";
-                source = "repo";
-                mountPoint = "/work";
-                proto = "virtiofs";
-                readOnly = false;
-              }
-              {
-                tag = "hostkey";
-                source = "ssh";
-                mountPoint = "/run/dev-host";
-                proto = "9p";
-                securityModel = "none";
-                readOnly = true;
-              }
-            ];
-
-            volumes = [
-              {
-                image = "agent-state.img";
-                mountPoint = "/persist";
-                size = cfg.stateSizeMB;
-                fsType = "ext4";
-              }
-              {
-                image = "nix-rw.img";
-                mountPoint = "/nix/.rw-store";
-                size = cfg.storeOverlaySizeMB;
-                fsType = "ext4";
-              }
-            ];
-            writableStoreOverlay = "/nix/.rw-store";
-
-            vsock = {
-              cid = 100 + slot;
-              ssh.enable = true;
-            };
-          };
-
-          system.stateVersion = "26.05";
-        })
-      ];
-    };
-
-  slots = lib.range 0 (cfg.slots - 1);
-  guests = map mkGuest slots;
-  runners = map (guest: guest.config.microvm.declaredRunner) guests;
-  runnerList = lib.concatStringsSep ":" (map toString runners);
-  cidList = lib.concatStringsSep ":" (map (slot: toString (100 + slot)) slots);
+  runner = guest.config.microvm.declaredRunner;
 
   runtimeInputs = with pkgs; [
     coreutils
@@ -271,8 +266,7 @@ let
 
   dev = pkgs.writeShellScriptBin "dev" ''
     export PATH=${lib.makeBinPath runtimeInputs}:$PATH
-    export DEV_RUNNERS=${lib.escapeShellArg runnerList}
-    export DEV_CIDS=${lib.escapeShellArg cidList}
+    export DEV_RUNNER=${lib.escapeShellArg (toString runner)}
     exec ${pkgs.bash}/bin/bash ${../../scripts/dev.sh} "$@"
   '';
 in
@@ -283,12 +277,6 @@ in
     user = lib.mkOption {
       type = lib.types.str;
       description = "Host user allowed to launch development MicroVMs.";
-    };
-
-    slots = lib.mkOption {
-      type = lib.types.ints.between 1 10;
-      default = 4;
-      description = "Maximum number of concurrent development MicroVMs.";
     };
 
     cpus = lib.mkOption {
@@ -306,7 +294,7 @@ in
     stateSizeMB = lib.mkOption {
       type = lib.types.ints.positive;
       default = 4096;
-      description = "Persistent Claude/Codex state volume size in MiB.";
+      description = "Persistent Claude/Codex state volume size in MiB per repo.";
     };
 
     storeOverlaySizeMB = lib.mkOption {
@@ -323,11 +311,6 @@ in
         message = "modules.dev.user must name an existing NixOS user";
       }
     ];
-
-    boot.kernelModules = [ "vhost_vsock" ];
-    services.udev.extraRules = ''
-      KERNEL=="vhost-vsock", GROUP="kvm", MODE="0660"
-    '';
 
     environment.systemPackages = [ dev ];
     users.users.${cfg.user}.extraGroups = [ "kvm" ];
