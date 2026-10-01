@@ -70,6 +70,20 @@
   # lease expires the LAN address disappears and the router's port forwards
   # go nowhere. Drop the initrd's IPv4 before NetworkManager starts, so it
   # manages eno1 from scratch. (Outage on 2026-10-01, after 3 days uptime.)
+  # The LAN profile, declared so NetworkManager always has a DHCP profile for
+  # eno1 instead of an empty "external" one.
+  networking.networkmanager.ensureProfiles.profiles.lan = {
+    connection = {
+      id = "lan";
+      type = "ethernet";
+      interface-name = "eno1";
+      autoconnect-priority = 10;
+    };
+    ethernet = { };
+    ipv4.method = "auto";
+    ipv6.method = "auto";
+  };
+
   systemd.services.flush-initrd-ipv4 = {
     description = "Drop the IPv4 address left over from the initrd";
     wantedBy = [ "NetworkManager.service" ];
