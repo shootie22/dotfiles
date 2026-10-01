@@ -117,7 +117,7 @@
 
   # Secret Service for Electron/Chromium apps (Element, etc.).
   services.gnome.gnome-keyring.enable = true;
-  services.dbus.packages = [ pkgs.gcr ];   # unlock/create-keyring prompt
+  services.dbus.packages = [ pkgs.gcr_3 ];   # unlock/create-keyring prompt
   security.pam.services.greetd.enableGnomeKeyring = true;
   security.pam.services.login.enableGnomeKeyring = true;
 
