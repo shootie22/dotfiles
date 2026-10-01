@@ -64,6 +64,22 @@
       };
     };
   };
+  # The initrd gets an IPv4 lease for remote unlock, and the address survives
+  # into stage 2 with that lease's lifetime. NetworkManager then sees eno1 as
+  # "connected (externally)" and never runs DHCP itself, so when the initrd
+  # lease expires the LAN address disappears and the router's port forwards
+  # go nowhere. Drop the initrd's IPv4 before NetworkManager starts, so it
+  # manages eno1 from scratch. (Outage on 2026-10-01, after 3 days uptime.)
+  systemd.services.flush-initrd-ipv4 = {
+    description = "Drop the IPv4 address left over from the initrd";
+    wantedBy = [ "NetworkManager.service" ];
+    before = [ "NetworkManager.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.iproute2}/bin/ip -4 addr flush dev eno1";
+    };
+  };
+
   boot.initrd.network.ssh = {
     enable = true;
     port = 2222; # Separate port avoids conflicts with the normal SSH host key.
