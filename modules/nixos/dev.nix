@@ -209,13 +209,13 @@ let
           # Keeping networking out of the static runner means one runner can be
           # launched concurrently from many per-project working directories.
           interfaces = [ ];
-          extraArgsScript = pkgs.writeShellScript "dev-qemu-runtime-args" ''
+          extraArgsScript = toString (pkgs.writeShellScript "dev-qemu-runtime-args" ''
             if ! [[ "''${DEV_SSH_PORT:-}" =~ ^[0-9]+$ ]]; then
               echo "DEV_SSH_PORT is missing or invalid" >&2
               exit 1
             fi
             printf '%s\n' "-netdev user,id=net0,hostfwd=tcp:127.0.0.1:''${DEV_SSH_PORT}-:22 -device virtio-net-pci,netdev=net0,mac=02:00:00:00:10:00,romfile="
-          '';
+          '');
 
           # Relative paths resolve from the launcher's per-project state dir.
           # The launcher starts rootless virtiofsd for the repo socket itself.
