@@ -4,6 +4,19 @@
 
 let
   cfg = config.modules.devvm;
+  runtimeInputs = with pkgs; [
+    cloud-utils
+    coreutils
+    curl
+    gawk
+    git
+    gnugrep
+    iproute2
+    openssh
+    qemu_kvm
+    util-linux
+    virtiofsd
+  ];
   devScript = builtins.replaceStrings
     [
       "usage: devvm "
@@ -28,23 +41,10 @@ let
       "DEV —"
     ]
     (builtins.readFile ../../scripts/devvm.sh);
-  dev = pkgs.writeShellApplication {
-    name = "dev";
-    runtimeInputs = with pkgs; [
-      cloud-utils
-      coreutils
-      curl
-      gawk
-      git
-      gnugrep
-      iproute2
-      openssh
-      qemu_kvm
-      util-linux
-      virtiofsd
-    ];
-    text = devScript;
-  };
+  dev = pkgs.writeShellScriptBin "dev" ''
+    export PATH=${lib.makeBinPath runtimeInputs}:$PATH
+    ${devScript}
+  '';
 in
 {
   options.modules.devvm = {
