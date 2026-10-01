@@ -36,7 +36,7 @@ printf 'This wipes the disk on %s. Type the address again to continue: ' "$targe
 read -r confirm
 [[ $confirm == "$target" ]] || { printf 'Aborted.\n' >&2; exit 1; }
 
-run nixos-anywhere --flake .#edge --extra-files "$extra" --target-host "$target" "${2}"
+run nixos-anywhere --flake .#edge --extra-files "$extra" --target-host "$target" "${@:2}"
 
 printf '\nDone. Add this to known_hosts if it is a new address:\n%s %s\n' \
   "${target#*@}" "$(cat hosts/edge/ssh_host_ed25519_key.pub)"
