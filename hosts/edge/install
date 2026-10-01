@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Installs NixOS on a VPS as the edge host, wiping its disk.
-#   hosts/edge/install <user>@<ip>     user must be root or have passwordless sudo
+#   hosts/edge/install <user>@<ip> [nixos-anywhere options, e.g. -i <ssh key>]
+#                                      user must be root or have passwordless sudo
 #   hosts/edge/install --vm-test       install into a local VM instead
 # The SSH host key comes from secrets/edge-bootstrap.yaml (needs the personal
 # age key), so a reinstall keeps the same identity: same known_hosts entry,
@@ -35,7 +36,7 @@ printf 'This wipes the disk on %s. Type the address again to continue: ' "$targe
 read -r confirm
 [[ $confirm == "$target" ]] || { printf 'Aborted.\n' >&2; exit 1; }
 
-run nixos-anywhere --flake .#edge --extra-files "$extra" --target-host "$target"
+run nixos-anywhere --flake .#edge --extra-files "$extra" --target-host "$target" "${2}"
 
 printf '\nDone. Add this to known_hosts if it is a new address:\n%s %s\n' \
   "${target#*@}" "$(cat hosts/edge/ssh_host_ed25519_key.pub)"
