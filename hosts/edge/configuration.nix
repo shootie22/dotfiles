@@ -9,6 +9,7 @@
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
     (import ./disko.nix { device = "/dev/sda"; })
+    ../../modules/nixos/comin.nix
   ];
 
   networking.hostName = "edge";

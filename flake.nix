@@ -71,6 +71,13 @@
     # Secrets for the server hosts.
     sops-nix.url = "github:Mic92/sops-nix";
 
+    # GitOps for the servers: each one pulls this repo and switches to its own
+    # config (infrastructure repo, docs/ha/decisions.md).
+    comin = {
+      url = "github:nlewo/comin";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Declarative disk layouts, used by nixos-anywhere to install the edge.
     disko = {
       url = "github:nix-community/disko";
@@ -92,6 +99,7 @@
     noctalia-nixpad,
     sops-nix,
     disko,
+    comin,
     ...
   }@inputs: rec {
     darwinConfigurations.minima = nix-darwin.lib.darwinSystem {
@@ -179,6 +187,7 @@
       system = "x86_64-linux";
       modules = [
         disko.nixosModules.disko
+        comin.nixosModules.comin
         sops-nix.nixosModules.sops
         ./hosts/edge/configuration.nix
       ];
