@@ -7,8 +7,9 @@ let
   cfg = config.modules.dev;
   system = pkgs.stdenv.hostPlatform.system;
 
-  # Pin microvm.nix independently of the host flake lock. This keeps the
-  # integration reproducible without coupling its nixpkgs input to the host.
+  # This microvm.nix revision uses the pre-26.11 nixpkgs platform API, so keep
+  # the guest on the repo's existing NixOS 26.05 input. This also makes the
+  # guest independent of host unstable churn.
   microvmSrc = builtins.fetchTree {
     type = "github";
     owner = "microvm-nix";
@@ -20,7 +21,7 @@ let
 
   agentPackages = inputs.llm-agents.packages.${system};
 
-  guest = inputs.nixpkgs.lib.nixosSystem {
+  guest = inputs.nixpkgs-nixpad.lib.nixosSystem {
     inherit system;
     modules = [
       microvmModule
