@@ -54,6 +54,7 @@ esac
 command_args=("$@")
 
 uid="$(id -u)"
+gid="$(id -g)"
 data_root="${XDG_DATA_HOME:-$HOME/.local/share}/dev"
 runtime_root="${XDG_RUNTIME_DIR:-/tmp}/dev-$uid"
 repo_hash="$(printf '%s' "$repo" | sha256sum | awk '{print substr($1,1,16)}')"
@@ -95,10 +96,13 @@ done
 runner="${runners[$slot]}"
 cid="${cids[$slot]}"
 ssh_target="vsock/$cid"
+repo_socket="$state_dir/dev-${slot}-virtiofs-repo.sock"
+virtiofs_pid=""
 vm_pid=""
 watcher_pid=""
 ports_log="$state_dir/ports.log"
 vm_log="$state_dir/vm.log"
+virtiofs_log="$state_dir/virtiofs.log"
 
 ssh_opts=(
   -i "$ssh_key"
@@ -140,7 +144,11 @@ cleanup() {
     wait "$watcher_pid" 2>/dev/null || true
   fi
   stop_vm
-  rm -f "$state_dir/nix-rw.img"
+  if [ -n "$virtiofs_pid" ]; then
+    kill "$virtiofs_pid" 2>/dev/null || true
+    wait "$virtiofs_pid" 2>/dev/null || true
+  fi
+  rm -f "$state_dir/nix-rw.img" "$repo_socket"
   find "$state_dir" -maxdepth 1 -type s -delete 2>/dev/null || true
   exit "$rc"
 }
@@ -148,9 +156,35 @@ trap cleanup EXIT INT TERM
 
 # The writable Nix store is intentionally disposable. Persistent state is only
 # the agent state volume and the repository itself.
-rm -f "$state_dir/nix-rw.img"
+rm -f "$state_dir/nix-rw.img" "$repo_socket"
 find "$state_dir" -maxdepth 1 -type s -delete 2>/dev/null || true
 : >"$vm_log"
+: >"$virtiofs_log"
+
+# Rootless virtiofsd maps guest UID/GID 1000 to the invoking host user. This
+# gives native-ish workspace performance without granting the daemon root or
+# changing ownership of files in the checkout.
+virtiofsd \
+  --socket-path="$repo_socket" \
+  --shared-dir="$repo" \
+  --sandbox=namespace \
+  --uid-map ":0:${uid}:1:" \
+  --gid-map ":0:${gid}:1:" \
+  --translate-uid "map:1000:0:1" \
+  --translate-gid "map:1000:0:1" \
+  --xattr \
+  >"$virtiofs_log" 2>&1 &
+virtiofs_pid=$!
+
+for _ in $(seq 1 100); do
+  [ -S "$repo_socket" ] && break
+  if ! kill -0 "$virtiofs_pid" 2>/dev/null; then
+    cat "$virtiofs_log" >&2 || true
+    die "virtiofsd failed to start"
+  fi
+  sleep 0.02
+done
+[ -S "$repo_socket" ] || die "timed out waiting for virtiofsd"
 
 (
   cd "$state_dir"
