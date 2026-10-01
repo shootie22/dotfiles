@@ -4,8 +4,32 @@
 
 let
   cfg = config.modules.devvm;
-  devvm = pkgs.writeShellApplication {
-    name = "devvm";
+  devScript = builtins.replaceStrings
+    [
+      "usage: devvm "
+      "  devvm            "
+      "  devvm claude"
+      "  devvm codex"
+      "  devvm --refresh"
+      "◆ devvm"
+      "devvm: "
+      "run devvm from inside"
+      "DEVVM —"
+    ]
+    [
+      "usage: dev "
+      "  dev              "
+      "  dev claude"
+      "  dev codex"
+      "  dev --refresh"
+      "◆ dev"
+      "dev: "
+      "run dev from inside"
+      "DEV —"
+    ]
+    (builtins.readFile ../../scripts/devvm.sh);
+  dev = pkgs.writeShellApplication {
+    name = "dev";
     runtimeInputs = with pkgs; [
       cloud-utils
       coreutils
@@ -19,7 +43,7 @@ let
       util-linux
       virtiofsd
     ];
-    text = builtins.readFile ../../scripts/devvm.sh;
+    text = devScript;
   };
 in
 {
@@ -27,12 +51,12 @@ in
     enable = lib.mkEnableOption "disposable agent development VM";
     user = lib.mkOption {
       type = lib.types.str;
-      description = "Host user allowed to use KVM for devvm.";
+      description = "Host user allowed to use KVM for the dev environment.";
     };
   };
 
   config = lib.mkIf cfg.enable {
-    environment.systemPackages = [ devvm ];
+    environment.systemPackages = [ dev ];
     users.users.${cfg.user}.extraGroups = [ "kvm" ];
   };
 }
