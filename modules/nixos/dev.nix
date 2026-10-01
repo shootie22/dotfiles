@@ -27,7 +27,7 @@ let
       ({ pkgs, ... }: {
         networking = {
           hostName = "dev";
-          useDHCP = true;
+          useDHCP = false;
           enableIPv6 = false;
           firewall = {
             enable = true;
@@ -36,6 +36,14 @@ let
             # explicitly creates a hostfwd. The only one is random localhost
             # -> guest:22, so opening guest SSH here does not expose it to LAN.
             allowedTCPPorts = [ 22 ];
+          };
+        };
+        systemd.network = {
+          enable = true;
+          networks."10-dev-uplink" = {
+            matchConfig.Name = "en* eth*";
+            networkConfig.DHCP = "ipv4";
+            linkConfig.RequiredForOnline = "no";
           };
         };
 
