@@ -138,6 +138,13 @@
       specialArgs = { inherit inputs; };
       modules = [
         ./hosts/workstation/configuration.nix
+        ./modules/nixos/devvm.nix
+        {
+          modules.devvm = {
+            enable = true;
+            user = "nixa";
+          };
+        }
         chaotic.nixosModules.default
         noctalia.nixosModules.default
 
@@ -193,6 +200,13 @@
         };
         modules = [
           ./hosts/nixpad/configuration.nix
+          ./modules/nixos/devvm.nix
+          {
+            modules.devvm = {
+              enable = true;
+              user = "bro";
+            };
+          }
           home-manager-nixpad.nixosModules.home-manager
           {
             # Preserve the existing Starship config and prior .hm-backup file
