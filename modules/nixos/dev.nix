@@ -218,9 +218,19 @@ let
             printf '%s\n' "-netdev user,id=net0,hostfwd=tcp:127.0.0.1:''${DEV_SSH_PORT}-:22 -device virtio-net-pci,netdev=net0,mac=02:00:00:00:10:00,romfile="
           '');
 
-          # Relative paths resolve from the launcher's per-project state dir.
-          # The launcher starts rootless virtiofsd for the repo socket itself.
+          # Follow microvm.nix's recommended store layout: use the host store
+          # read-only as the lower layer, with a disposable block-backed upper
+          # layer for packages/builds created inside the guest. This avoids
+          # packing a duplicate store image into every MicroVM build.
           shares = [
+            {
+              tag = "ro-store";
+              source = "/nix/store";
+              mountPoint = "/nix/.ro-store";
+              proto = "9p";
+              securityModel = "none";
+              readOnly = true;
+            }
             {
               tag = "repo";
               source = "repo";
@@ -308,7 +318,7 @@ in
 
     storeOverlaySizeMB = lib.mkOption {
       type = lib.types.ints.positive;
-      default = 16384;
+      default = 4096;
       description = "Disposable writable Nix store overlay size in MiB.";
     };
   };
