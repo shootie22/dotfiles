@@ -138,9 +138,9 @@
       specialArgs = { inherit inputs; };
       modules = [
         ./hosts/workstation/configuration.nix
-        ./modules/nixos/devvm.nix
+        ./modules/nixos/dev.nix
         {
-          modules.devvm = {
+          modules.dev = {
             enable = true;
             user = "nixa";
           };
@@ -195,14 +195,14 @@
       nixpkgs-nixpad.lib.nixosSystem {
         inherit system;
         specialArgs = {
-          inherit unstable;
+          inherit unstable inputs;
           noctalia = noctalia-nixpad.packages.${system}.default;
         };
         modules = [
           ./hosts/nixpad/configuration.nix
-          ./modules/nixos/devvm.nix
+          ./modules/nixos/dev.nix
           {
-            modules.devvm = {
+            modules.dev = {
               enable = true;
               user = "bro";
             };
