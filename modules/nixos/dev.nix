@@ -16,7 +16,7 @@ let
     rev = "0d49083ba2d7419b22908ac392777c16df9a032e";
     narHash = "sha256-ZHsxoYXXnfJtMVh1/yY+1Eh9hHcPBhE28Qvinauh+BQ=";
   };
-  microvmModule = microvmSrc.outPath + "/nixos-modules/microvm";
+  microvmModule = import "${microvmSrc.outPath}/nixos-modules/microvm";
 
   agentPackages = inputs.llm-agents.packages.${system};
 
@@ -205,7 +205,8 @@ let
             ];
 
             # Relative sources are resolved from the launcher's per-project
-            # state directory. Only the repo and a public SSH key enter the VM.
+            # state directory. The launcher starts rootless virtiofsd itself;
+            # the default socket name below is therefore intentional.
             shares = [
               {
                 tag = "repo";
@@ -265,6 +266,7 @@ let
     iproute2
     openssh
     util-linux
+    virtiofsd
   ];
 
   dev = pkgs.writeShellScriptBin "dev" ''
