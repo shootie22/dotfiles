@@ -256,6 +256,12 @@
     paths = [
       "/var/lib/rancher/k3s/backup-staging/storage"
       "/var/lib/rancher/k3s/backup-staging/state.db"
+      # hostPath data for Keycloak and Baikal, which isn't in a k3s volume.
+      # Keycloak's Postgres is copied live, so this is crash-consistent only;
+      # proper dumps come with CNPG (infrastructure #32).
+      "/home/fuji/services"
+      # Archives of retired machines (Komodo, the OVH VPS).
+      "/home/fuji/migration-safety"
     ];
 
     repo = "ssh://borgworker@100.64.0.3/Volumes/Expansion/borg_repos/fuji-k3s";
