@@ -39,6 +39,11 @@ in
       runtimeInputs = [ nix gnugrep gnused gawk coreutils git ];
       text = builtins.readFile ../../scripts/nix-addpkg.sh;
     })
+    (writeShellApplication {
+      name = "lid-toggle";
+      runtimeInputs = [ systemd libnotify procps util-linux gnugrep ];
+      text = builtins.readFile ./scripts/lid-toggle.sh;
+    })
   ]);
 
   home.pointerCursor = {
