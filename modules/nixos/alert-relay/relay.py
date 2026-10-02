@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Alert relay: one notification per event, through the first channel that
-takes it (Pushover, then ntfy). Design: docs/ha/alerting.md in the
+takes it (Pushover, then email). Design: docs/ha/alerting.md in the
 infrastructure repo.
 
 POST /alert          {"title", "message", "key"?, "emergency"?: bool}
@@ -14,6 +14,7 @@ nobody acknowledges within ack_timeout, the next channel gets it too.
 
 import json
 import os
+import smtplib
 import sys
 import threading
 import time
@@ -60,15 +61,28 @@ def pushover(title, message, emergency):
     return reply.get("receipt")
 
 
-def ntfy(title, message, emergency):
-    topic = credential("ntfy_topic")
-    headers = {"Title": title, "Priority": "5" if emergency else "3"}
-    status, _ = post(f"https://ntfy.sh/{topic}", message.encode(), headers)
-    if status != 200:
-        raise RuntimeError(f"ntfy returned {status}")
+def email(title, message, emergency):
+    """Deliver straight to Mailfence, like any mail server would. No login:
+    the edge is allowed to send for radunenu.com through its SPF record."""
+    from email.message import EmailMessage
+    msg = EmailMessage()
+    msg["From"] = f"Infra alerts <{CFG['email']}>"
+    msg["To"] = CFG["email"]
+    msg["Subject"] = ("[infra, urgent] " if emergency else "[infra] ") + title
+    msg.set_content(message)
+    last = None
+    for mx in CFG["mail_servers"]:
+        try:
+            with smtplib.SMTP(mx, 25, timeout=20) as s:
+                s.starttls()
+                s.send_message(msg)
+            return
+        except Exception as e:
+            last = e
+    raise RuntimeError(f"no mail server took it: {last}")
 
 
-CHANNELS = [("pushover", pushover), ("ntfy", ntfy)]
+CHANNELS = [("pushover", pushover), ("email", email)]
 
 
 def acknowledged(receipt):

@@ -1,6 +1,6 @@
 # Alert relay on the edge (infrastructure repo, docs/ha/alerting.md): takes
 # alerts over the tailnet and sends each one once, through Pushover or, if
-# that fails, ntfy.
+# that fails, email straight to Mailfence.
 { config, lib, pkgs, ... }:
 
 let
@@ -10,6 +10,8 @@ let
     ack_timeout = 900;   # escalate unacknowledged emergencies after 15 minutes
     dedup_window = 600;  # the same alert twice within 10 minutes is sent once
     max_per_hour = 20;   # non-emergency cap, against alert storms
+    email = "alerts@radunenu.com";
+    mail_servers = [ "smtp1.mailfence.com" "smtp2.mailfence.com" ];
   };
   secret = name: { sopsFile = ../../../secrets/edge.yaml; key = name; };
 in
@@ -22,11 +24,10 @@ in
   config = lib.mkIf cfg.enable {
     sops.secrets.relay_pushover_user_key = secret "pushover_user_key";
     sops.secrets.relay_pushover_app_token = secret "pushover_app_token";
-    sops.secrets.relay_ntfy_topic = secret "ntfy_topic";
     sops.secrets.relay_healthchecks_url = secret "healthchecks_relay_url";
 
     systemd.services.alert-relay = {
-      description = "Alert relay: Pushover, then ntfy";
+      description = "Alert relay: Pushover, then email";
       wantedBy = [ "multi-user.target" ];
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
@@ -38,7 +39,6 @@ in
         LoadCredential = [
           "pushover_user_key:${config.sops.secrets.relay_pushover_user_key.path}"
           "pushover_app_token:${config.sops.secrets.relay_pushover_app_token.path}"
-          "ntfy_topic:${config.sops.secrets.relay_ntfy_topic.path}"
           "healthchecks_url:${config.sops.secrets.relay_healthchecks_url.path}"
         ];
         NoNewPrivileges = true;
