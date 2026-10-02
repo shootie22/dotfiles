@@ -10,6 +10,11 @@
     "flakes"
   ];
 
+  # Prebuilt packages from llm-agents.nix (claude-code, codex). Without this,
+  # codex compiles from source for half an hour on every update.
+  nix.settings.extra-substituters = [ "https://cache.numtide.com" ];
+  nix.settings.extra-trusted-public-keys = [ "niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=" ];
+
   environment.systemPackages = with pkgs; [
     # System utils
     vim

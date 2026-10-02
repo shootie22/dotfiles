@@ -43,9 +43,12 @@
   nix.settings = {
     experimental-features = [ "nix-command" "flakes" ];
     auto-optimise-store = true;
-    extra-substituters = [ "https://noctalia.cachix.org" ];
+    # noctalia, and llm-agents.nix (claude-code, codex), which would otherwise
+    # compile codex from source on every update.
+    extra-substituters = [ "https://noctalia.cachix.org" "https://cache.numtide.com" ];
     extra-trusted-public-keys = [
       "noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
+      "niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g="
     ];
   };
   nix.gc = {
