@@ -68,6 +68,13 @@
 
     llm-agents.url = "github:numtide/llm-agents.nix";
 
+    # Hypervisor plumbing for the `dev` MicroVMs (modules/nixos/dev). The
+    # guest runs on nixpkgs-nixpad, so microvm.nix follows it.
+    microvm = {
+      url = "github:microvm-nix/microvm.nix/0d49083ba2d7419b22908ac392777c16df9a032e";
+      inputs.nixpkgs.follows = "nixpkgs-nixpad";
+    };
+
     # Secrets for the server hosts.
     sops-nix.url = "github:Mic92/sops-nix";
 
@@ -146,7 +153,7 @@
       specialArgs = { inherit inputs; };
       modules = [
         ./hosts/workstation/configuration.nix
-        ./modules/nixos/dev.nix
+        ./modules/nixos/dev
         {
           modules.dev = {
             enable = true;
@@ -209,7 +216,7 @@
         };
         modules = [
           ./hosts/nixpad/configuration.nix
-          ./modules/nixos/dev.nix
+          ./modules/nixos/dev
           {
             modules.dev = {
               enable = true;
