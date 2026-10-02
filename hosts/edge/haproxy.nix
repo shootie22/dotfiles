@@ -61,6 +61,8 @@ in
         stats enable
         stats uri /
         stats refresh 10s
+        # Prometheus on fuji scrapes this (edge proxy health per site).
+        http-request use-service prometheus-exporter if { path /metrics }
     '';
   };
 
