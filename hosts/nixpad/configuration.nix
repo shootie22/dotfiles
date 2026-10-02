@@ -66,6 +66,7 @@ in
     [
       # Include the results of the hardware scan.
       ./hardware-configuration.nix
+      ../../modules/nixos/dotfiles-sync.nix
 
       # Shared modules (see ../../modules/nixos/)
       ../../modules/nixos/common.nix
@@ -191,6 +192,9 @@ in
   };
 
   services.tailscale.enable = true;
+
+  # Keep the dotfiles checkout in step with GitHub (fetch, fast-forward when clean).
+  dotfiles.sync = { enable = true; user = "bro"; path = "/home/bro/gitrepos/github/dotfiles"; };
 
   environment.etc."xmm7360.example".text = ''
     # Copy this to /etc/xmm7360 and set your carrier APN before starting

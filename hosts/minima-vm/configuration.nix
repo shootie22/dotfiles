@@ -5,9 +5,12 @@
     (modulesPath + "/profiles/qemu-guest.nix")
     ../../modules/nixos/k3s-tailnet-guard.nix
     ../../modules/nixos/k3s-dns.nix
+    ../../modules/nixos/comin.nix
   ];
 
   networking.hostName = "minima";
+  # The flake output is minima-vm, not the hostname.
+  services.comin.hostname = "minima-vm";
 
   # Lima creates/manages the login user at boot.
   users.mutableUsers = true;

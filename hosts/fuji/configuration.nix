@@ -9,6 +9,7 @@
     ../../modules/nixos/k3s-dns.nix
     ../../modules/nixos/initrd-dhcp-handover.nix
     ../../modules/nixos/server-housekeeping.nix
+    ../../modules/nixos/comin.nix
   ];
 
   # Boot ----------------------------------------------------------------------
@@ -66,6 +67,10 @@
       };
     };
   };
+  # Deployed by comin from this repo. No automatic kernel reboots: the disk
+  # has to be unlocked by hand after a reboot.
+  dotfiles.comin.rebootAt = null;
+
   # Hand eno1 over cleanly from the initrd to NetworkManager.
   dotfiles.lanInterface = "eno1";
 

@@ -5,7 +5,11 @@
   imports = [
     ./hardware-configuration.nix
     ../../modules/nixos/initrd-dhcp-handover.nix
+    ../../modules/nixos/dotfiles-sync.nix
   ];
+
+  # Keep ~/git/dotfiles in step with GitHub (fetch, fast-forward when clean).
+  dotfiles.sync = { enable = true; user = "nixa"; path = "/home/nixa/git/dotfiles"; };
 
   # Boot ----------------------------------------------------------------------
   boot.loader.systemd-boot.enable = true;

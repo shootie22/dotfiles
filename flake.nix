@@ -120,6 +120,7 @@
       modules = [
         nixos-lima.nixosModules.lima
         sops-nix.nixosModules.sops
+        comin.nixosModules.comin
         ./hosts/minima-vm/configuration.nix
       ];
     };
@@ -180,6 +181,7 @@
       modules = [
         ./hosts/fuji/configuration.nix
         sops-nix.nixosModules.sops
+        comin.nixosModules.comin
 
         home-manager.nixosModules.home-manager
         {
