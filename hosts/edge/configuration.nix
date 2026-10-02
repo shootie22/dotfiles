@@ -14,6 +14,7 @@
     ../../modules/nixos/failover-checker
     ../../modules/nixos/game-relay.nix
     ../../modules/nixos/alert-relay
+    ../../modules/nixos/dnssec-check
   ];
 
   networking.hostName = "edge";
@@ -96,6 +97,9 @@
   # Sends alerts to the phone: Pushover, then ntfy (infrastructure repo,
   # docs/ha/alerting.md).
   dotfiles.alertRelay.enable = true;
+
+  # Hourly DNSSEC check of the multi-signer zones, through the relay.
+  dotfiles.dnssecCheck.enable = true;
 
   # Game ports, relayed to the thinkcentre, for when games.radunenu.com points
   # here during a failover.
