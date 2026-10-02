@@ -59,7 +59,7 @@ in
         bind :8404
         mode http
         stats enable
-        stats uri /
+        stats uri /stats
         stats refresh 10s
         # Prometheus on fuji scrapes this (edge proxy health per site).
         http-request use-service prometheus-exporter if { path /metrics }
