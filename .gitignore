@@ -3,3 +3,4 @@ result-*
 
 # editor/script backups (e.g. configuration.nix.bak-20260822-165459)
 *.bak-*
+__pycache__/
