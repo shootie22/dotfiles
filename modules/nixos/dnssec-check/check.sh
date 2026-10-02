@@ -7,6 +7,7 @@
 #     (this is what breaks if Cloudflare rotates its keys and deSEC still
 #     publishes the old one)
 # Problems go to the alert relay on the edge, once per distinct problem set.
+# IPv4 only (-4): the edge has no IPv6, and delv would otherwise try it first.
 set -uo pipefail
 
 zones=(byradu.com cubi.tube cubtube.lol kronorite.com radunenu.com yeetus.net)
@@ -44,7 +45,7 @@ for z in "${zones[@]}"; do
     awk '{ printf "  \"%s\" static-key %s %s %s \"%s\";\n", $1, $5, $6, $7, $8 }' "$work/$z.keys"
     echo '};'; } > "$work/$z.anchors"
   for ns in "$cloudflare_ns" "$desec_ns"; do
-    if ! delv -a "$work/$z.anchors" +root="$z" "@$ns" "$z" SOA 2>&1 | head -1 | grep -q 'fully validated'; then
+    if ! delv -4 -a "$work/$z.anchors" +root="$z" "@$ns" "$z" SOA 2>&1 | grep -q "^; fully validated"; then
       problems+=("$z doesn't validate at $ns")
     fi
   done
