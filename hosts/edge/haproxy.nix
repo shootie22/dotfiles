@@ -6,7 +6,7 @@
 # get Traefik's 404 no matter which services are up. Over HTTPS the check
 # uses that name as SNI too, which also catches fuji's tailnet port 443
 # being sent to the private tools proxy instead of Traefik.
-{ ... }:
+{ config, ... }:
 
 let
   servers = ''
@@ -65,6 +65,10 @@ in
         http-request use-service prometheus-exporter if { path /metrics }
     '';
   };
+
+  # The NixOS module writes /etc/haproxy.cfg but doesn't reload HAProxy when
+  # it changes, so config changes only took effect after a reboot.
+  systemd.services.haproxy.reloadTriggers = [ config.environment.etc."haproxy.cfg".source ];
 
   networking.firewall.allowedTCPPorts = [ 80 443 ];
   # The stats page only on the tailnet.
