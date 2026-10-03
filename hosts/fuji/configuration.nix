@@ -10,6 +10,7 @@
     ../../modules/nixos/initrd-dhcp-handover.nix
     ../../modules/nixos/server-housekeeping.nix
     ../../modules/nixos/comin.nix
+    ../../modules/nixos/weekly-update
   ];
 
   # Boot ----------------------------------------------------------------------
@@ -70,6 +71,10 @@
   # Deployed by comin from this repo. No automatic kernel reboots: the disk
   # has to be unlocked by hand after a reboot.
   dotfiles.comin.rebootAt = null;
+
+  # Every Saturday night: propose a flake.lock update as a pull request
+  # (infrastructure #84).
+  dotfiles.weeklyUpdate.enable = true;
 
   # Hand eno1 over cleanly from the initrd to NetworkManager.
   dotfiles.lanInterface = "eno1";
