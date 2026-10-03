@@ -10,6 +10,7 @@
     ../../modules/nixos/server-housekeeping.nix
     ../../modules/nixos/comin.nix
     ../../modules/nixos/edge-tunnel.nix
+    ../../modules/nixos/initrd-dhcp-handover.nix
   ];
 
   # Deployed by comin from this repo. No automatic kernel reboots: the disk
@@ -65,6 +66,9 @@
         networks."10-ethernet" = {
           matchConfig.Name = "end0";
           networkConfig.DHCP = "ipv4";
+          # Same client ID as NetworkManager, so the initrd gets the same
+          # address (the one mixi-unlock goes to).
+          dhcpV4Config.ClientIdentifier = "mac";
         };
       };
     };
@@ -79,6 +83,9 @@
 
   # A way in through the edge that doesn't need the tailnet (infrastructure
   # #103). Replaces the old tunnels to RO, which died with RO's port 22.
+  # Hand end0 over cleanly from the initrd to NetworkManager (#81).
+  dotfiles.lanInterface = "end0";
+
   dotfiles.edgeTunnel = {
     enable = true;
     initrd = true;
