@@ -55,15 +55,15 @@ host configuration. Its `/etc/nixos` link points to the host files, not to a
 flake root.
 
 mixi uses the pinned `nixos-apple-silicon` input for its Asahi kernel and boot
-support. Its device-specific firmware remains in `/boot/vendorfw`: the Asahi
-project marks that firmware non-redistributable, so it must not be committed to
-this public repository. This is the one local input to an otherwise locked
-configuration, and requires `--impure` so Nix may copy it into the store:
+support. Its device-specific firmware stays in `/boot/vendorfw`: the Asahi
+project marks it non-redistributable, so it must not be committed to this
+public repository. The config only pins its checksum; the file is added to
+mixi's Nix store once, and after that mixi rebuilds like any other host:
 
 ```bash
+nix-store --add-fixed sha256 /boot/vendorfw/firmware.cpio   # once, or after re-running the Asahi installer
 cd ~/git/dotfiles
-sudo nixos-rebuild switch --flake .#mixi --impure \
-  --option experimental-features "nix-command flakes"
+sudo nixos-rebuild switch --flake .#mixi
 ```
 
 the explicit feature option is only needed for the first switch from mixi's
@@ -140,7 +140,8 @@ sudo nixos-rebuild switch --flake .#nixpad
 fuji, the edge and minima deploy themselves from this repo with comin. Every
 server and the workstation trust the admin devices in
 `lib/admin-ssh-keys.nix`; nothing reads keys from outside the repo, so no
-rebuild needs `--impure` except mixi's (Apple firmware in /boot).
+rebuild needs `--impure`. mixi's Apple firmware is pinned by checksum (see its
+configuration.nix).
 
 </details>
 

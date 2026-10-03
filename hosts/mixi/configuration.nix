@@ -14,10 +14,26 @@
   hardware.asahi.enable = true;
 
   # The Asahi installer puts model-specific, non-redistributable firmware on
-  # the EFI system partition. It cannot be committed to this public repo, so
-  # mixi evaluates this one host with --impure and imports the pinned local
-  # archive into the Nix store during each rebuild.
-  hardware.asahi.peripheralFirmwareDirectory = /boot/vendorfw;
+  # the EFI partition (/boot/vendorfw). It can't go in this public repo, so
+  # the config only pins its checksum, and Nix finds the file in mixi's own
+  # store, where it was added once with
+  #   nix-store --add-fixed sha256 /boot/vendorfw/firmware.cpio
+  # That keeps the config pure, so mixi rebuilds without --impure and comin
+  # can deploy it. If the Asahi installer is ever run again (it rewrites the
+  # firmware), the rebuild fails with the message below: add the new file the
+  # same way and update the hash.
+  hardware.asahi.peripheralFirmwareDirectory = "${pkgs.runCommand "asahi-vendorfw" { } ''
+    mkdir $out
+    ln -s ${pkgs.requireFile {
+      name = "firmware.cpio";
+      sha256 = "1dvrkvj2qixafvw90jmx0id689ga78whyb4s6x3dg5jz7zk8ixa3";
+      message = ''
+        mixi's Asahi firmware isn't in the Nix store (or it changed). On mixi:
+          nix-store --add-fixed sha256 /boot/vendorfw/firmware.cpio
+        and if the hash differs, put the new one in hosts/mixi/configuration.nix.
+      '';
+    }} $out/firmware.cpio
+  ''}";
 
   boot.loader.systemd-boot.enable = true;
   # /boot is only 476 MB here, and each Asahi kernel + initrd takes a lot of it.
