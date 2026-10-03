@@ -16,6 +16,10 @@ in
       sopsFile = ../../../secrets/weekly-update.yaml;
       key = "deploy_key";
     };
+    sops.secrets.weekly_update_ping_url = {
+      sopsFile = ../../../secrets/weekly-update.yaml;
+      key = "healthchecks_ping_url";
+    };
 
     # Builds run inside the nix-daemon, not this service, so limits go on the
     # daemon: lowest CPU and IO priority, and at most 2 cores. fuji runs the
@@ -51,7 +55,10 @@ in
         ExecStart = "${pkgs.bash}/bin/bash ${./update.sh}";
         DynamicUser = true;
         StateDirectory = "weekly-update";
-        LoadCredential = [ "deploy_key:${config.sops.secrets.weekly_update_deploy_key.path}" ];
+        LoadCredential = [
+          "deploy_key:${config.sops.secrets.weekly_update_deploy_key.path}"
+          "ping_url:${config.sops.secrets.weekly_update_ping_url.path}"
+        ];
         Nice = 10;
         TimeoutStartSec = "6h";
       };
