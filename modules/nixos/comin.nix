@@ -27,7 +27,15 @@ in
         url = "https://github.com/shootie22/dotfiles.git";
         branches.main.name = "main";
       }];
+      # Prometheus on fuji scrapes this over the tailnet (infrastructure
+      # #49): alerts when a deployment, build or evaluation fails.
+      exporter.port = 4243;
     };
+
+    # tailscale0 for the other hosts; cni0 for fuji, where Prometheus runs in
+    # a pod on the same machine.
+    networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 4243 ];
+    networking.firewall.interfaces.cni0.allowedTCPPorts = [ 4243 ];
 
     systemd.services.reboot-for-kernel = lib.mkIf (cfg.rebootAt != null) {
       description = "Reboot if the deployed kernel is newer than the running one";
