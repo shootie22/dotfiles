@@ -23,7 +23,9 @@
   fileSystems."/boot" = {
     device = "/dev/disk/by-uuid/FD90-1A14";
     fsType = "vfat";
-    options = [ "fmask=0022" "dmask=0022" ];
+    # Root only: the initrd files here have the unlock host key and the edge
+    # tunnel key appended (fuji and the desktops had this already).
+    options = [ "fmask=0077" "dmask=0077" ];
   };
 
   swapDevices = [ { device = "/dev/mapper/vg-swap"; } ];
