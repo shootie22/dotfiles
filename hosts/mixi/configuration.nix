@@ -9,6 +9,7 @@
     ../../modules/nixos/failover-checker
     ../../modules/nixos/server-housekeeping.nix
     ../../modules/nixos/comin.nix
+    ../../modules/nixos/edge-tunnel.nix
   ];
 
   # Deployed by comin from this repo. No automatic kernel reboots: the disk
@@ -53,39 +54,11 @@
   };
 
   # Unlock over Ethernet: ssh -t -p 2222 root@<LAN-IP> systemctl default
+  # (or `mixi-unlock` / `unlock-via-edge mixi` from an admin device).
   boot.initrd = {
     availableKernelModules = [ "tg3" ];
     systemd = {
       enable = true;
-      storePaths = [ "${pkgs.openssh}/bin/ssh" ];
-      services.ssh-unlock-tunnel = {
-        description = "Reverse SSH tunnel for remote disk unlock";
-        wantedBy = [ "initrd.target" ];
-        after = [ "network.target" "sshd.service" "initrd-nixos-copy-secrets.service" ];
-        before = [ "shutdown.target" ];
-        conflicts = [ "shutdown.target" ];
-        unitConfig = {
-          # Start before the encrypted root is mounted; retry if DHCP/DNS
-          # or the relay is not ready yet, without blocking local unlock.
-          DefaultDependencies = false;
-          StartLimitIntervalSec = 0;
-        };
-        preStart = ''
-          /bin/chmod 0600 /etc/ssh/initrd-tunnel/id_ed25519
-        '';
-        serviceConfig = {
-          ExecStart = "${pkgs.openssh}/bin/ssh -F /etc/ssh/initrd-tunnel/config -NT"
-            + " -i /etc/ssh/initrd-tunnel/id_ed25519"
-            + " -o UserKnownHostsFile=/etc/ssh/initrd-tunnel/known_hosts"
-            + " -o GlobalKnownHostsFile=/dev/null -o StrictHostKeyChecking=yes"
-            + " -o BatchMode=yes -o IdentitiesOnly=yes -o IdentityAgent=none"
-            + " -o ExitOnForwardFailure=yes -o ConnectTimeout=15"
-            + " -o ServerAliveInterval=30 -o ServerAliveCountMax=3"
-            + " tunnel";
-          Restart = "always";
-          RestartSec = "10s";
-        };
-      };
       network = {
         enable = true;
         networks."10-ethernet" = {
@@ -101,15 +74,11 @@
       hostKeys = [ "/etc/secrets/initrd/ssh_host_ed25519_key" ];
       authorizedKeys = config.users.users.mixa.openssh.authorizedKeys.keys;
     };
-    # Appended at bootloader installation time, outside the Nix store.
-    # Keep connection details machine-local. The dedicated client key resides
-    # on the unencrypted boot disk and must have restricted relay authorization.
-    secrets = {
-      "/etc/ssh/initrd-tunnel/id_ed25519" = "/etc/secrets/initrd/tunnel_ed25519";
-      "/etc/ssh/initrd-tunnel/config" = "/etc/secrets/initrd/tunnel_config";
-      "/etc/ssh/initrd-tunnel/known_hosts" = "/etc/ssh/mixi-tunnel/known_hosts";
-    };
   };
+
+  # A way in through the edge that doesn't need the tailnet (infrastructure
+  # #103). Replaces the old tunnels to RO, which died with RO's port 22.
+  dotfiles.edgeTunnel.enable = true;
 
   # Nix ----------------------------------------------------------------------
   nix.settings = {
@@ -162,45 +131,6 @@
   };
 
   virtualisation.docker.enable = true;
-
-  systemd.services.ssh-tunnel = {
-    wantedBy = [ "multi-user.target" ];
-    wants = [ "network-online.target" ];
-    after = [ "network-online.target" "sshd.service" ];
-    unitConfig = {
-      ConditionPathExists = [
-        "/etc/ssh/mixi-tunnel/id_ed25519"
-        "/etc/ssh/mixi-tunnel/known_hosts"
-        "/etc/ssh/mixi-tunnel/config"
-      ];
-      StartLimitIntervalSec = 0;
-    };
-    serviceConfig = {
-      DynamicUser = true;
-      LoadCredential = [
-        "identity:/etc/ssh/mixi-tunnel/id_ed25519"
-        "known_hosts:/etc/ssh/mixi-tunnel/known_hosts"
-        "config:/etc/ssh/mixi-tunnel/config"
-      ];
-      ExecStart = "${pkgs.openssh}/bin/ssh -F %d/config -NT"
-        + " -i %d/identity"
-        + " -o UserKnownHostsFile=%d/known_hosts"
-        + " -o StrictHostKeyChecking=yes"
-        + " -o BatchMode=yes -o IdentitiesOnly=yes"
-        + " -o ExitOnForwardFailure=yes -o ConnectTimeout=15"
-        + " -o ServerAliveInterval=30 -o ServerAliveCountMax=3"
-        + " tunnel";
-      Restart = "always";
-      RestartSec = "10s";
-      NoNewPrivileges = true;
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      PrivateTmp = true;
-    };
-  };
-
-
-
 
   # tailscale ----------------------------------------------------------------
   services.tailscale = {

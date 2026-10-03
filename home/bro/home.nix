@@ -21,7 +21,8 @@ in
   home.packages = (import ../../lib/read-packages.nix {
     inherit lib pkgs unstable;
     file = ./packages.txt;
-  }) ++ (import ../../lib/workstation-remote.nix { inherit pkgs; }) ++ (with pkgs; [
+  }) ++ (import ../../lib/workstation-remote.nix { inherit pkgs; })
+    ++ (import ../../lib/edge-tunnel-remote.nix { inherit pkgs; }) ++ (with pkgs; [
 
     (writeShellScriptBin "record-region" ''
       exec "${screengrabScripts}/record-region" "$@"

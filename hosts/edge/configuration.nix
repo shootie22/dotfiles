@@ -15,6 +15,7 @@
     ../../modules/nixos/game-relay.nix
     ../../modules/nixos/alert-relay
     ../../modules/nixos/dnssec-check
+    ./tunnels.nix
   ];
 
   networking.hostName = "edge";
