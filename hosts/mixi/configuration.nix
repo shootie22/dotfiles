@@ -14,6 +14,7 @@
   # Deployed by comin from this repo. No automatic kernel reboots: the disk
   # has to be unlocked by hand after a reboot (infrastructure #136).
   dotfiles.comin.rebootAt = null;
+  users.motd = "mixi: deployed by comin from github.com/shootie22/dotfiles. Change it there, not here.\n";
 
   # Apple Silicon ------------------------------------------------------------
   hardware.asahi.enable = true;
