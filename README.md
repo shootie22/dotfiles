@@ -134,7 +134,7 @@ cd /home/bro/gitrepos/github/dotfiles
 sudo nixos-rebuild switch --flake .#nixpad
 ```
 
-fuji, the edge and minima deploy themselves from this repo with comin. Every
+fuji, mixi, the edge and minima deploy themselves from this repo with comin. Every
 server and the workstation trust the admin devices in
 `lib/admin-ssh-keys.nix`; nothing reads keys from outside the repo, so no
 rebuild needs `--impure`. mixi's Apple firmware is pinned by checksum (see its
