@@ -8,7 +8,12 @@
     ../../modules/nixos/k3s-dns.nix
     ../../modules/nixos/failover-checker
     ../../modules/nixos/server-housekeeping.nix
+    ../../modules/nixos/comin.nix
   ];
+
+  # Deployed by comin from this repo. No automatic kernel reboots: the disk
+  # has to be unlocked by hand after a reboot (infrastructure #136).
+  dotfiles.comin.rebootAt = null;
 
   # Apple Silicon ------------------------------------------------------------
   hardware.asahi.enable = true;
