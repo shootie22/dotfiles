@@ -43,8 +43,9 @@
   ''}";
 
   boot.loader.systemd-boot.enable = true;
-  # /boot is only 476 MB here, and each Asahi kernel + initrd takes a lot of it.
-  boot.loader.systemd-boot.configurationLimit = 5;
+  # /boot is only 476 MB here, and each generation's kernel + initrd takes ~75 MB
+  # of it. 5 entries reached 84% on 2026-10-03.
+  boot.loader.systemd-boot.configurationLimit = 3;
   # The Asahi boot flow manages the EFI variables outside NixOS.
   boot.loader.efi.canTouchEfiVariables = false;
 
