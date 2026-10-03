@@ -2,7 +2,8 @@
 # in the infrastructure repo):
 #
 #   via-edge <host>         SSH to fuji or mixi through its reverse tunnel on the edge
-#   unlock-via-edge <host>  same, into the initrd, to unlock the disk after a reboot
+#   unlock-via-edge <host>  same, into the initrd: asks for the disk passphrase
+#                           and continues the boot (systemctl default)
 #   mixi-unlock             unlock mixi from inside the DK LAN, jumping through
 #                           the thinkcentre (needs the tailnet, not the edge)
 #
@@ -35,9 +36,11 @@ in
   # The initrd has its own host key, so it gets its own known_hosts alias.
   (pkgs.writeShellScriptBin "unlock-via-edge" ''
     ${pickHost "-initrd"}
-    exec ssh ${viaEdge} -p "$port" -o HostKeyAlias="$host-initrd" root@127.0.0.1 "$@"
+    [ $# -gt 0 ] || set -- systemctl default
+    exec ssh -t ${viaEdge} -p "$port" -o HostKeyAlias="$host-initrd" root@127.0.0.1 "$@"
   '')
   (pkgs.writeShellScriptBin "mixi-unlock" ''
-    exec ssh -J main@100.64.0.4 -p 2222 -o HostKeyAlias=mixi-initrd root@192.168.88.173 "$@"
+    [ $# -gt 0 ] || set -- systemctl default
+    exec ssh -t -J main@100.64.0.4 -p 2222 -o HostKeyAlias=mixi-initrd root@192.168.88.173 "$@"
   '')
 ]
