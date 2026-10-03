@@ -4,8 +4,10 @@
 #   NVMe p1   976 MB ESP          /boot (systemd-boot)
 #   NVMe p2   977 MB ext4         Debian's old /boot, unused
 #   NVMe p3   LUKS -> LVM thinkcentre-vg
-#               root  NixOS, reformatted; the old swap LV is merged into it
-#               home  420 GB, kept as is: /home/main/services lives here
+#               root    31 GB, Debian, kept as the fallback during the trial
+#               nixos   NixOS, made from the 24 GB swap volume; Debian's
+#                       root gets merged into it once NixOS is the default
+#               home    420 GB, kept as is: /home/main/services lives here
 #   sdb       4 TB HDD, LUKS with a keyfile, kept as is: /home/main/storage
 #   sda       120 GB SSD, LUKS, unused
 #
@@ -33,7 +35,7 @@
   };
 
   fileSystems."/" = {
-    device = "/dev/mapper/thinkcentre--vg-root";
+    device = "/dev/mapper/thinkcentre--vg-nixos";
     fsType = "ext4";
     # LVM on LUKS: the volume only appears after the unlock, which over SSH
     # can take longer than systemd's default 90 s (see mixi, 2026-10-03).
@@ -82,7 +84,7 @@
     depends = [ "/home" ];
   };
 
-  # No swap partition anymore (its space went to root); compressed RAM instead.
+  # No swap volume anymore (its space is the NixOS root); compressed RAM instead.
   zramSwap.enable = true;
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";

@@ -16,7 +16,44 @@
 
   # Boot ----------------------------------------------------------------------
   boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
+  # Debian stays the firmware's default until NixOS has proven itself. NixOS
+  # is started with a one-time BootNext (see the reinstall runbook), so
+  # installing the bootloader must not reorder the boot entries.
+  boot.loader.efi.canTouchEfiVariables = false;
+
+  # Reboot if the kernel or systemd hangs. Nobody is on site to press the
+  # button.
+  systemd.watchdog.runtimeTime = "60s";
+
+  # Trial boot (#18): if NixOS doesn't come up properly, reboot. Because it
+  # was started with BootNext, a reboot lands back in Debian. Remove both once
+  # NixOS is the default.
+  #
+  # In the initrd: nobody unlocked the disk within 30 minutes.
+  boot.initrd.systemd.timers.trial-fallback = {
+    wantedBy = [ "initrd.target" ];
+    timerConfig.OnActiveSec = "30min";
+  };
+  boot.initrd.systemd.services.trial-fallback = {
+    unitConfig.DefaultDependencies = false;
+    serviceConfig.ExecStart = "/bin/systemctl reboot";
+  };
+  # After boot: fuji isn't reachable over the tailnet 20 minutes in.
+  systemd.timers.trial-fallback = {
+    wantedBy = [ "timers.target" ];
+    timerConfig.OnBootSec = "20min";
+  };
+  systemd.services.trial-fallback = {
+    serviceConfig.Type = "oneshot";
+    script = ''
+      if ${pkgs.iputils}/bin/ping -c 5 -W 5 100.64.0.1 >/dev/null; then
+        echo "fuji reachable over the tailnet, staying in NixOS"
+      else
+        echo "fuji not reachable, rebooting back into Debian"
+        systemctl reboot
+      fi
+    '';
+  };
 
   # Nix -----------------------------------------------------------------------
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
