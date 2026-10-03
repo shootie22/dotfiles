@@ -18,6 +18,10 @@
   fileSystems."/" = {
     device = "/dev/mapper/vg-nixos";
     fsType = "ext4";
+    # The volume only appears once the disk is unlocked, which over SSH can
+    # take longer than the default 90 s. After that, the boot gives up and
+    # sits in emergency mode even though the passphrase was right.
+    options = [ "x-systemd.device-timeout=infinity" ];
   };
 
   fileSystems."/boot" = {
