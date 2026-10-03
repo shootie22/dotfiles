@@ -17,6 +17,16 @@ in
       key = "deploy_key";
     };
 
+    # Builds run inside the nix-daemon, not this service, so limits go on the
+    # daemon: lowest CPU and IO priority, and at most 2 cores. fuji runs the
+    # control plane and RO's Traefik; builds must never starve those. The
+    # heavy building moves to remote builders with Phase 2 (infrastructure
+    # #111).
+    nix.daemonCPUSchedPolicy = "idle";
+    nix.daemonIOSchedClass = "idle";
+    nix.settings.cores = 2;
+    nix.settings.max-jobs = 1;
+
     # The desktops use these caches; without them fuji would compile codex and
     # the CachyOS kernel itself every week.
     nix.settings.extra-substituters = [
