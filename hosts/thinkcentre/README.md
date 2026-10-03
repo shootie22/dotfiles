@@ -1,6 +1,8 @@
 # thinkcentre
 
-Debian 13, not NixOS: nothing here is applied automatically. This file is the
+Debian 13 for now. The NixOS config that replaces it is in configuration.nix
+and hardware-configuration.nix (infrastructure #17), not installed yet. Until
+the reinstall, nothing here is applied automatically. This file is the
 record of the machine's hand-managed state, so it can be rebuilt or audited.
 
 ## K3s agent
