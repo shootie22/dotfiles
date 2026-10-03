@@ -78,7 +78,7 @@ in
       serviceConfig = {
         DynamicUser = true;
         LoadCredential = [ "identity:${key}" ];
-        ExecStart = "${pkgs.openssh}/bin/ssh -F ${sshConfig "edge.radunenu.com" tunnels.${name}.port "localhost:${toString sshPort}"}"
+        ExecStart = "${pkgs.openssh}/bin/ssh -F ${sshConfig "edge.radunenu.com" tunnels.${name}.port "127.0.0.1:${toString sshPort}"}"
           + " -o UserKnownHostsFile=${knownHosts} -i %d/identity -NT edge";
         Restart = "always";
         RestartSec = "30s";
@@ -95,7 +95,7 @@ in
         storePaths = [ "${pkgs.openssh}/bin/ssh" ];
         contents = {
           "/etc/ssh/edge-tunnel/config".source =
-            sshConfig edgeAddress tunnels."${name}-initrd".port "localhost:${toString initrdPort}";
+            sshConfig edgeAddress tunnels."${name}-initrd".port "127.0.0.1:${toString initrdPort}";
           "/etc/ssh/edge-tunnel/known_hosts".source = knownHosts;
         };
         services.edge-tunnel = {

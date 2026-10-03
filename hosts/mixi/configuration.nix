@@ -78,7 +78,10 @@
 
   # A way in through the edge that doesn't need the tailnet (infrastructure
   # #103). Replaces the old tunnels to RO, which died with RO's port 22.
-  dotfiles.edgeTunnel.enable = true;
+  dotfiles.edgeTunnel = {
+    enable = true;
+    initrd = true;
+  };
 
   # Nix ----------------------------------------------------------------------
   nix.settings = {

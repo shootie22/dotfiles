@@ -7,7 +7,7 @@
 # port: where the tunnel listens on the edge, loopback only.
 # key:  the public key allowed to listen there. Each host generates its own
 #       on first activation and writes the public half to
-#       /etc/ssh/edge-tunnel/<name>.pub. copied here from there.
+#       /etc/ssh/edge-tunnel/<name>.pub, which gets copied here.
 {
   mixi = { port = 2201; key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH5NmtEWzHy+zg0WXkbU44wcWbdebmo2lkYM4oiCtag5"; };
   mixi-initrd = { port = 2202; key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIAgVxRFMQgYWVSeF4Yqf3gTkwUvIemNYAeAxtPxU/pH"; };

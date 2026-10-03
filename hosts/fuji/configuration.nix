@@ -75,7 +75,10 @@
 
   # A way in through the edge that doesn't need the tailnet (infrastructure
   # #103).
-  dotfiles.edgeTunnel.enable = true;
+  dotfiles.edgeTunnel = {
+    enable = true;
+    initrd = true;
+  };
 
   # Every Saturday night: propose a flake.lock update as a pull request
   # (infrastructure #84).
