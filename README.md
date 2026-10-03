@@ -66,9 +66,6 @@ cd ~/git/dotfiles
 sudo nixos-rebuild switch --flake .#mixi
 ```
 
-the explicit feature option is only needed for the first switch from mixi's
-old non-flake configuration. later rebuilds can omit it.
-
 
 
 ## helpers
