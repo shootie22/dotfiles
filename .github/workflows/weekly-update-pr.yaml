@@ -1,0 +1,37 @@
+# fuji pushes an update-YYYY-MM-DD branch with a new flake.lock once a week
+# (modules/nixos/weekly-update.nix). This turns it into a pull request whose
+# description is the report in the commit message, and closes last week's if
+# it was never merged. Uses only GitHub's built-in token.
+name: Weekly update PR
+
+on:
+  push:
+    branches: ["update-*"]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Open the pull request, close older ones
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          title=$(git log -1 --format=%s)
+          git log -1 --format=%b > body.md
+          for old in $(gh pr list --state open --json headRefName,number \
+              --jq ".[] | select(.headRefName | startswith(\"update-\")) | select(.headRefName != \"$BRANCH\") | .number"); do
+            gh pr close "$old" --delete-branch --comment "Replaced by the update from $BRANCH."
+          done
+          if gh pr view "$BRANCH" >/dev/null 2>&1; then
+            gh pr edit "$BRANCH" --title "$title" --body-file body.md
+          else
+            gh pr create --head "$BRANCH" --base main --title "$title" --body-file body.md
+          fi
