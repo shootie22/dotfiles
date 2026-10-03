@@ -8,8 +8,8 @@ set -euo pipefail
 repo=git@github.com:shootie22/dotfiles.git
 work=$STATE_DIRECTORY/dotfiles
 relay=http://100.64.0.9:9190/alert
-build_hosts=(edge fuji nixpad workstation)
-eval_hosts=(minima-vm)   # aarch64, can't build here; mixi needs --impure, skipped
+build_hosts=(edge fuji thinkcentre nixpad workstation)
+eval_hosts=(mixi minima-vm)   # aarch64, can't build here
 today=$(date +%F)
 branch=update-$today
 
@@ -21,6 +21,10 @@ notify() {
     -d "$(jq -n --arg t "$1" --arg m "$2" '{title: $t, message: $m}')" >/dev/null \
     || echo "relay unreachable: $1"
 }
+# healthchecks.io expects a ping every week (infrastructure tofu/healthchecks.tf):
+# silence means the job didn't run or didn't finish. Failures alert through
+# the relay instead.
+done_ok() { curl -fsS -m 10 --retry 3 -o /dev/null "$(cat "$CREDENTIALS_DIRECTORY/ping_url")" || echo "healthchecks.io unreachable"; }
 build() { nix build --no-link --print-out-paths ".#nixosConfigurations.$1.config.system.build.toplevel"; }
 ver() { nix eval --raw ".#nixosConfigurations.$1.$2" 2>/dev/null || echo "?"; }
 
@@ -41,6 +45,7 @@ old_kernel=$(ver fuji config.boot.kernelPackages.kernel.version)
 nix flake update 2>&1 | grep -E '^• Updated' || true
 if git diff --quiet flake.lock; then
   echo "nothing new this week"
+  done_ok
   exit 0
 fi
 
@@ -61,7 +66,7 @@ new_kernel=$(ver fuji config.boot.kernelPackages.kernel.version)
 {
   echo "Built every x86_64 host with the new versions, and evaluated minima-vm. mixi isn't checked here (its config needs --impure)."
   echo
-  echo "Merging rolls it out: the edge, fuji and minima update themselves through comin; the desktops, mixi and the thinkcentre on their next rebuild."
+  echo "Merging rolls it out: the edge, fuji, mixi and minima update themselves through comin; the desktops on their next rebuild. The thinkcentre is built here but still runs Debian."
   echo
   minor() { cut -d. -f1,2 <<<"$1"; }
   if [[ $(minor "$old_k3s") != $(minor "$new_k3s") ]]; then
@@ -96,3 +101,4 @@ MSG
 git push -q -f origin "HEAD:refs/heads/$branch"
 notify "Update pending" "New versions for $today are ready to review: https://github.com/shootie22/dotfiles/pulls"
 echo "pushed $branch"
+done_ok
