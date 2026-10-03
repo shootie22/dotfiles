@@ -137,6 +137,7 @@
         ./hosts/mixi/configuration.nix
         apple-silicon.nixosModules.apple-silicon-support
         sops-nix.nixosModules.sops
+        comin.nixosModules.comin
 
         home-manager.nixosModules.home-manager
         {
