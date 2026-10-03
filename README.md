@@ -137,14 +137,10 @@ cd /home/bro/gitrepos/github/dotfiles
 sudo nixos-rebuild switch --flake .#nixpad
 ```
 
-fuji reads its authorized SSH keys from `/etc/secrets/ssh/authorized_keys`,
-outside this public repo, the same way workstation does. That requires
-`--impure` so Nix may read the file:
-
-```bash
-cd ~/git/dotfiles
-sudo nixos-rebuild switch --flake .#fuji --impure
-```
+fuji, the edge and minima deploy themselves from this repo with comin. Every
+server and the workstation trust the admin devices in
+`lib/admin-ssh-keys.nix`; nothing reads keys from outside the repo, so no
+rebuild needs `--impure` except mixi's (Apple firmware in /boot).
 
 </details>
 
