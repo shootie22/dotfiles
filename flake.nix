@@ -193,6 +193,16 @@
       ];
     };
 
+    # Not installed yet: Debian until the reinstall (infrastructure #18).
+    nixosConfigurations.thinkcentre = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ./hosts/thinkcentre/configuration.nix
+        sops-nix.nixosModules.sops
+        comin.nixosModules.comin
+      ];
+    };
+
     nixosConfigurations.edge = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       modules = [
