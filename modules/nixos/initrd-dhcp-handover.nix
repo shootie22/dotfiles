@@ -37,6 +37,10 @@ in
       description = "Drop the IPv4 address left over from the initrd";
       wantedBy = [ "NetworkManager.service" ];
       before = [ "NetworkManager.service" ];
+      # Only at boot, before NetworkManager first starts. On a live switch
+      # NetworkManager is already running and this would flush the address it
+      # manages, cutting the machine off.
+      unitConfig.ConditionPathExists = "!/run/NetworkManager";
       serviceConfig = {
         Type = "oneshot";
         ExecStart = "${pkgs.iproute2}/bin/ip -4 addr flush dev ${nic}";
