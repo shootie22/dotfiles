@@ -4,6 +4,8 @@
 #   via-edge <host>         SSH to fuji or mixi through its reverse tunnel on the edge
 #   unlock-via-edge <host>  same, into the initrd: asks for the disk passphrase
 #                           and continues the boot (systemctl default)
+#   thinkcentre-unlock      unlock the thinkcentre from the DK LAN through mixi,
+#                           finding it by MAC; Debian or NixOS, whichever is booting
 #   mixi-unlock             unlock mixi from inside the DK LAN, jumping through
 #                           the thinkcentre (needs the tailnet, not the edge)
 #
@@ -42,5 +44,24 @@ in
   (pkgs.writeShellScriptBin "mixi-unlock" ''
     [ $# -gt 0 ] || set -- systemctl default
     exec ssh -t -J main@100.64.0.4 -p 2222 -o HostKeyAlias=mixi-initrd root@192.168.88.173 "$@"
+  '')
+  # The thinkcentre from the DK LAN, through mixi. Its address is looked up by
+  # MAC first: the initrd's DHCP may get a different one than the running
+  # system. Works for Debian (dropbear, unlocks by itself) and NixOS (initrd
+  # sshd, needs systemctl default); each has its own host key alias.
+  (pkgs.writeShellScriptBin "thinkcentre-unlock" ''
+    mixi=mixa@100.64.0.2
+    mac=6c:4b:90:49:96:28
+    # shellcheck disable=SC2016
+    ip=$(ssh "$mixi" 'for i in $(seq 1 254); do ping -c 1 -W 1 192.168.88.$i >/dev/null 2>&1 & done; wait; ip neigh' \
+      | grep -i "$mac" | cut -d' ' -f1 | head -1)
+    [ -n "$ip" ] || { echo "thinkcentre ($mac) not found on the DK LAN" >&2; exit 1; }
+    banner=$(ssh "$mixi" "timeout 5 bash -c 'exec 3<>/dev/tcp/$ip/2222; head -c 32 <&3'" 2>/dev/null)
+    case "$banner" in
+      *dropbear*) echo "thinkcentre at $ip, Debian's dropbear"; alias=thinkcentre-dropbear ;;
+      SSH-*) echo "thinkcentre at $ip, NixOS initrd"; alias=thinkcentre-initrd; [ $# -gt 0 ] || set -- systemctl default ;;
+      *) echo "thinkcentre at $ip, but nothing answers on 2222 (booted already, or still starting)" >&2; exit 1 ;;
+    esac
+    exec ssh -t -J "$mixi" -p 2222 -o HostKeyAlias="$alias" "root@$ip" "$@"
   '')
 ]
