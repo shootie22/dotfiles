@@ -131,6 +131,12 @@
         config.allowUnfree = true;
       }).callPackage ./pkgs/antigravity-cli { };
 
+    # VM rehearsal of the move to etcd (infrastructure Phase 3, tests/etcd-migration.nix).
+    checks.x86_64-linux.etcd-migration = import ./tests/etcd-migration.nix {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      k3sPackage = nixosConfigurations.fuji.config.services.k3s.package;
+    };
+
     nixosConfigurations.mixi = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
       modules = [
