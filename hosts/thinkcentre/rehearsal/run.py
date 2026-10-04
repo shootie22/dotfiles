@@ -24,7 +24,8 @@ import sys
 import time
 
 PASSPHRASE = "test"
-PROMPT = re.compile(rb"root@thinkcentre-rehearsal[^\r\n]*# ")
+# The prompt is colored: "...]#" followed by an escape sequence, not a space.
+PROMPT = re.compile(rb"root@thinkcentre-rehearsal[^\r\n]*#")
 MARKER = b"FAKE-DEBIAN-BOOTED"
 ASK = re.compile(rb"passphrase for disk", re.I)
 
