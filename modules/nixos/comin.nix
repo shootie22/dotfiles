@@ -67,7 +67,7 @@ in
     systemd.services.comin-unstick = {
       description = "Restart comin when it hangs after a cancelled evaluation";
       serviceConfig.Type = "oneshot";
-      path = with pkgs; [ systemd coreutils gnugrep ];
+      path = with pkgs; [ systemd coreutils gnugrep curl jq ];
       script = ''
         last=$(journalctl -u comin -n 1 -o short-unix --no-pager --quiet)
         case "$last" in
@@ -79,6 +79,11 @@ in
         if [ "$age" -gt 900 ]; then
           echo "comin stuck for $age s after a cancelled evaluation, restarting it"
           systemctl restart comin
+          # Tell the alert relay on the edge, so it doesn't go unnoticed.
+          curl -fsS -m 10 -X POST http://100.64.0.9:9190/alert \
+            -d "$(jq -n --arg h "$(hostname)" --arg a "$age" \
+              '{title: "comin restarted on \($h)", message: "It had hung for \($a) s after a cancelled evaluation (infrastructure #140). Restarted automatically; nothing else to do unless it keeps happening."}')" \
+            >/dev/null || echo "relay unreachable"
         fi
       '';
     };
