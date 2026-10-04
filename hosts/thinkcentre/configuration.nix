@@ -111,6 +111,15 @@
 
   services.smartd.enable = true;
 
+  # The Gitea runner pod (infrastructure kubernetes/services/gitea-runner-thinkcentre)
+  # runs CI jobs in the host's Docker through /var/run/docker.sock, like on
+  # mixi. Images and build layers on /home, not the root volume.
+  virtualisation.docker = {
+    enable = true;
+    daemon.settings.data-root = "/home/docker";
+  };
+  systemd.services.docker.unitConfig.RequiresMountsFor = [ "/home" ];
+
   # Kubernetes ----------------------------------------------------------------
   # Rejoins as the same node: /etc/rancher/node/password is carried over from
   # Debian, so the node keeps its name, labels and taints.
@@ -174,6 +183,7 @@
     paths = [ "/home" ];
     exclude = [
       "/home/rancher" # container images, re-pulled
+      "/home/docker" # CI images and build layers
       "/home/thinkcentre-borg-cache"
       "/home/lost+found"
     ];
