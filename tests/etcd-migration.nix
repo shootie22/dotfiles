@@ -14,6 +14,8 @@
 #   4. fuji crashes: the cluster keeps working from the other two
 #   5. fuji comes back and rejoins
 #   6. an etcd snapshot is taken
+#   7. it's restored on fuji after stopping every server (cluster-reset)
+#   8. the thinkcentre and the edge rejoin the restored cluster
 { pkgs, k3sPackage }:
 
 let
@@ -171,7 +173,32 @@ pkgs.testers.runNixOSTest {
         fuji.wait_until_succeeds("[ $(etcdctl-k3s member list | grep -c started) -eq 3 ]", timeout=300)
 
     with subtest("6. etcd snapshot"):
-        thinkcentre.succeed("k3s etcd-snapshot save --name rehearsal")
-        thinkcentre.succeed("ls /var/lib/rancher/k3s/server/db/snapshots/ | grep rehearsal")
+        fuji.succeed("k3s etcd-snapshot save --name rehearsal")
+        snap = fuji.succeed("ls -1 /var/lib/rancher/k3s/server/db/snapshots/ | grep rehearsal | head -1").strip()
+        fuji.succeed("kubectl create configmap after-snapshot --from-literal=gone=after-restore")
+
+    with subtest("7. restore the snapshot on fuji (cluster-reset)"):
+        # All servers down first, then fuji alone restores, like after losing
+        # the cluster's data.
+        for m in (thinkcentre, edge, fuji):
+            m.succeed("systemctl stop k3s")
+        # The service's own command line, plus the reset flags.
+        cmd = fuji.succeed("systemctl show k3s -p ExecStart --value | sed -E 's/.*argv\\[\\]=([^;]*);.*/\\1/'").strip()
+        fuji.succeed(f"{cmd} --cluster-reset --cluster-reset-restore-path=/var/lib/rancher/k3s/server/db/snapshots/{snap} 2>&1 | tail -3")
+        fuji.succeed("systemctl start k3s")
+        fuji.wait_until_succeeds("kubectl get cm rehearsal", timeout=300)
+        fuji.succeed("kubectl get cm written-without-fuji")
+        fuji.fail("kubectl get cm after-snapshot")
+        fuji.wait_until_succeeds("kubectl rollout status deploy/rehearsal --timeout=10s", timeout=300)
+
+    with subtest("8. the other two rejoin the restored cluster"):
+        # After a reset the other members start from scratch: their etcd data
+        # goes, then they join again.
+        for m in (thinkcentre, edge):
+            m.succeed("rm -rf /var/lib/rancher/k3s/server/db")
+            m.succeed("systemctl start k3s")
+        fuji.wait_until_succeeds("[ $(etcdctl-k3s member list | grep -c started) -eq 3 ]", timeout=600)
+        fuji.wait_until_succeeds("kubectl get node thinkcentre | grep -w Ready", timeout=600)
+        print("etcd members after restore:", members(fuji))
   '';
 }
