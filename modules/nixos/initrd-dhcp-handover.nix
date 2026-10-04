@@ -5,9 +5,10 @@
 # into stage 2 with that lease's lifetime. NetworkManager then sees the NIC as
 # "connected (externally)" and never runs DHCP itself, so when the initrd
 # lease expires the LAN address disappears. That took every public site down
-# on 2026-10-01 (infrastructure repo, docs/incidents). Drop the initrd's IPv4
-# before NetworkManager starts, and declare a DHCP profile for the NIC, so
-# NetworkManager always manages it from scratch.
+# on 2026-10-01 (infrastructure repo, docs/incidents). Take the NIC down and
+# drop everything the initrd configured on it before NetworkManager starts, and
+# declare a DHCP profile for it, so NetworkManager always manages it from
+# scratch.
 { config, lib, pkgs, ... }:
 
 let
@@ -34,7 +35,7 @@ in
     };
 
     systemd.services.flush-initrd-ipv4 = {
-      description = "Drop the IPv4 address left over from the initrd";
+      description = "Drop the addresses left over from the initrd";
       wantedBy = [ "NetworkManager.service" ];
       before = [ "NetworkManager.service" ];
       # Only at boot, before NetworkManager first starts. On a live switch
@@ -43,7 +44,14 @@ in
       unitConfig.ConditionPathExists = "!/run/NetworkManager";
       serviceConfig = {
         Type = "oneshot";
-        ExecStart = "${pkgs.iproute2}/bin/ip -4 addr flush dev ${nic}";
+        # All addresses, not only IPv4, and the link down: if anything is left
+        # (IPv6 from router advertisements, say), NetworkManager calls the
+        # device "connected (externally)" and never runs DHCP. Found in the
+        # thinkcentre rehearsal VM, 2026-10-04.
+        ExecStart = [
+          "${pkgs.iproute2}/bin/ip link set dev ${nic} down"
+          "${pkgs.iproute2}/bin/ip addr flush dev ${nic}"
+        ];
       };
     };
   };

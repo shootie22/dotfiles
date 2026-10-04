@@ -96,10 +96,12 @@ in
       serviceConfig.ExecStart = "/bin/systemctl reboot";
     };
 
-    # Boot health: the boot only counts as good (systemd-bless-boot) once the
-    # LAN works and sshd runs. If that doesn't happen within 15 minutes, reboot,
-    # which uses up a try. A machine that boots but can't be reached is the one
-    # state boot counting alone wouldn't catch.
+    # Boot health: the boot only counts as good (systemd-bless-boot) once sshd
+    # runs and the LAN answers: the router replies to a ping or, if pings are
+    # filtered, to ARP. If not within the allowed time, a generation that
+    # hasn't proven itself yet reboots, which uses up one of its tries. One
+    # that already booted fine before doesn't: then the network is the
+    # problem, and rebooting into the same thing would just loop.
     systemd.services.boot-health = {
       description = "Check the machine is reachable before marking the boot good";
       wantedBy = [ "multi-user.target" ];
@@ -113,16 +115,29 @@ in
         RemainAfterExit = true;
         TimeoutStartSec = "20min";
       };
-      path = [ pkgs.iputils pkgs.iproute2 pkgs.systemd ];
+      path = [ pkgs.iputils pkgs.iproute2 pkgs.systemd pkgs.gnused ];
       script = ''
+        gw=${cfg.gateway}
+        lan_ok() {
+          ping -c 1 -W 2 "$gw" >/dev/null 2>&1 && return 0
+          dev=$(ip route get "$gw" 2>/dev/null | sed -n 's/.* dev \([^ ]*\).*/\1/p')
+          [ -n "$dev" ] && arping -q -c 1 -w 2 -I "$dev" "$gw"
+        }
         for i in $(seq 1 ${toString cfg.healthChecks}); do
-          if systemctl is-active -q sshd.service && ping -c 1 -W 2 ${cfg.gateway} >/dev/null; then
+          if systemctl is-active -q sshd.service && lan_ok; then
             echo "LAN and sshd up after ''${i}0 s"
             exit 0
           fi
           sleep 10
         done
-        echo "no LAN or no sshd after ${toString cfg.healthChecks}0 s, rebooting"
+        state=$(${pkgs.systemd}/lib/systemd/systemd-bless-boot status 2>/dev/null || true)
+        case "$state" in
+          clean|good)
+            echo "no LAN or no sshd, but this generation has booted fine before; not rebooting"
+            exit 1
+            ;;
+        esac
+        echo "no LAN or no sshd after ${toString cfg.healthChecks}0 s on an unproven generation ($state), rebooting"
         systemctl reboot
         exit 1
       '';
