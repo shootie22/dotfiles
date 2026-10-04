@@ -128,8 +128,12 @@ class VM:
                 raise RuntimeError(f"command timed out: {command}")
         text, self.buf = self.buf.split(tag, 1)
         lines = text.decode(errors="replace").replace("\r", "").split("\n")
-        # The first line is the echoed command.
-        return "\n".join(lines[1:]).strip()
+        # The output starts after the last echo of the command line (the
+        # terminal can echo it more than once, with prompt and escape codes).
+        echo = f'__END_""{n}__'
+        last = max((i for i, l in enumerate(lines) if echo in l), default=0)
+        out = "\n".join(lines[last + 1:])
+        return re.sub(r"\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07", "", out).strip()
 
     def unlock_and_login(self, timeout=300):
         i = self.expect([ASK, MARKER], timeout)
