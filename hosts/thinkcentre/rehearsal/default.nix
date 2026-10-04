@@ -18,6 +18,13 @@ let
   cfg = config.rehearsal;
   # The same system with the boot health check pointed at an address that
   # never answers: a generation that boots but counts as unreachable.
+  # Throwaway keys for unlocking the VM over SSH, like the real machine. They
+  # only exist in the rehearsal's store paths and open nothing else.
+  testKeys = pkgs.runCommand "rehearsal-test-keys" { nativeBuildInputs = [ pkgs.openssh ]; } ''
+    mkdir $out
+    ssh-keygen -q -t ed25519 -N "" -C rehearsal-initrd -f $out/initrd_host_ed25519_key
+    ssh-keygen -q -t ed25519 -N "" -C rehearsal-client -f $out/client_ed25519
+  '';
   broken = (extendModules {
     modules = [
       {
@@ -79,6 +86,18 @@ in
       };
     };
     dotfiles.lanInterface = "enp0s3";
+    # Unlock over SSH in the initrd, as on the real machine (port 2222).
+    boot.initrd.network.ssh = {
+      enable = true;
+      port = 2222;
+      # NixOS rejects store paths for host keys (they'd be world-readable).
+      # Fine for a throwaway key in a VM; the key itself goes into the image
+      # through extraDependencies below.
+      hostKeys = [ (builtins.unsafeDiscardStringContext "${testKeys}/initrd_host_ed25519_key") ];
+      authorizedKeys = [ (builtins.readFile "${testKeys}/client_ed25519.pub") ];
+    };
+    # For run.py: where the client key is.
+    system.build.rehearsalKeys = testKeys;
     networking.networkmanager.enable = true;
     services.openssh.enable = true;
 
@@ -114,6 +133,6 @@ in
         ${broken}/bin/switch-to-configuration boot
       '')
     ];
-    system.extraDependencies = lib.optionals (!cfg.broken) [ broken ];
+    system.extraDependencies = [ testKeys ] ++ lib.optionals (!cfg.broken) [ broken ];
   };
 }

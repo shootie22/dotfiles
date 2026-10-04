@@ -16,7 +16,9 @@ Everything it creates stays in the current directory.
 
 import argparse
 import os
+import pty
 import re
+import select
 import shutil
 import socket
 import subprocess
@@ -28,6 +30,7 @@ PASSPHRASE = "test"
 PROMPT = re.compile(rb"root@thinkcentre-rehearsal[^\r\n]*#")
 MARKER = b"FAKE-DEBIAN-BOOTED"
 ASK = re.compile(rb"passphrase for disk", re.I)
+SSH_PORT = 12222
 
 
 class VM:
@@ -52,7 +55,8 @@ class VM:
             "-drive", f"if=pflash,format=raw,readonly=on,file={ovmf_code}",
             "-drive", f"if=pflash,format=raw,file={vars_fd}",
             "-drive", f"file={disk},if=virtio,format=qcow2",
-            "-netdev", "user,id=n0",
+            # The initrd's sshd (2222) reachable from the harness, as from mixi.
+            "-netdev", f"user,id=n0,hostfwd=tcp:127.0.0.1:{SSH_PORT}-:2222",
             "-device", "virtio-net-pci,netdev=n0,addr=0x3",
             # Let the emulated iTCO watchdog actually reset the machine.
             "-global", "ICH9-LPC.noreboot=false",
@@ -395,10 +399,49 @@ class Rehearsal:
         finally:
             vm.close()
 
+    def scenario_ssh_unlock(self):
+        """Unlock over SSH into the initrd, the way it's done for real."""
+        s = "unlock over SSH into the initrd"
+        if not self.args.keys:
+            return self.record(s, False, "no --keys given")
+        key = os.path.join(self.args.keys, "client_ed25519")
+        host_fp = subprocess.run(["ssh-keygen", "-lf", os.path.join(self.args.keys, "initrd_host_ed25519_key.pub")],
+                                 capture_output=True, text=True).stdout.split()[1]
+        vm = VM("s8", self.disk("s8", "base.qcow2"), self.vars_copy("s8", "vars-trial.fd"), self.ovmf_code)
+        try:
+            if vm.expect([ASK], 300) != 0:
+                return self.record(s, False, "initrd never asked for the passphrase")
+            scan = subprocess.run(["ssh-keyscan", "-p", str(SSH_PORT), "-t", "ed25519", "127.0.0.1"],
+                                  capture_output=True, text=True).stdout
+            fp = subprocess.run(["ssh-keygen", "-lf", "-"], input=scan, capture_output=True, text=True).stdout
+            if host_fp not in fp:
+                return self.record(s, False, f"unexpected host key: {fp.strip()}")
+            pid, fd = pty.fork()
+            if pid == 0:
+                os.execvp("ssh", ["ssh", "-tt", "-p", str(SSH_PORT), "-i", key, "-o", "IdentitiesOnly=yes",
+                                  "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+                                  "root@127.0.0.1", "systemctl default"])
+            out, sent, t0 = b"", False, time.time()
+            while time.time() - t0 < 60 and not sent:
+                r, _, _ = select.select([fd], [], [], 1)
+                if r:
+                    try:
+                        out += os.read(fd, 4096)
+                    except OSError:
+                        break
+                    if re.search(rb"(?i)passphrase", out):
+                        time.sleep(0.5)
+                        os.write(fd, (PASSPHRASE + "\n").encode())
+                        sent = True
+            booted = vm.expect([PROMPT], 300) == 0
+            self.record(s, sent and booted, f"host key matches; prompt over SSH: {sent}; booted to a login: {booted}")
+        finally:
+            vm.close()
+
     def main(self):
         os.chdir(self.args.workdir)
         self.setup()
-        for sc in (self.scenario_trial_boot, self.scenario_no_unlock_trial, self.scenario_firmware_ignores_order_no_unlock,
+        for sc in (self.scenario_ssh_unlock, self.scenario_trial_boot, self.scenario_no_unlock_trial, self.scenario_firmware_ignores_order_no_unlock,
                    self.scenario_no_network, self.scenario_panic, self.scenario_watchdog, self.scenario_bad_update):
             if self.args.only and sc.__name__ not in self.args.only:
                 continue
@@ -418,4 +461,5 @@ if __name__ == "__main__":
     ap.add_argument("--ovmf", required=True, help="path of the OVMF.fd package (with FV/)")
     ap.add_argument("--workdir", default=".")
     ap.add_argument("--only", nargs="*")
+    ap.add_argument("--keys", help="the rehearsalKeys output (test SSH keys)")
     sys.exit(Rehearsal(ap.parse_args()).main())
