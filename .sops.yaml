@@ -8,6 +8,12 @@ creation_rules:
   - path_regex: secrets/thinkcentre\.yaml$
     age: age1yvhkx6094utagx3xdfzyq08pwkatyj8lyrpt7jpufq70v8yer9csv66dfc
 
+  # For the thinkcentre's NixOS install (infrastructure #18): the 4 TB disk's
+  # keyfile (binary) and the k3s agent token. Personal key too, so they can
+  # be recovered and checked from nixpad.
+  - path_regex: secrets/thinkcentre-(storage-key\.bin|k3s\.yaml)$
+    age: age1yvhkx6094utagx3xdfzyq08pwkatyj8lyrpt7jpufq70v8yer9csv66dfc,age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659
+
   - path_regex: secrets/minima\.yaml$
     age: age14y8ufs6pmctu6rcyz6kmm63m6a0ctga24s7zxkcf38akj7tvzyxqy564tk
 
