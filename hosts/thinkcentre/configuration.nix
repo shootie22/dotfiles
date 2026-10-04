@@ -165,13 +165,19 @@
   # copied over during the reinstall.
   sops.age.keyFile = "/var/lib/sops-nix/key.txt";
   sops.defaultSopsFile = ../../secrets/thinkcentre.yaml;
-  # k3s_agent_token and tc_storage_key aren't in secrets/thinkcentre.yaml yet
-  # (only the thinkcentre's key can add them). Switch validation back on once
-  # they are; it's step one of the reinstall runbook.
-  sops.validateSopsFiles = false;
-
-  sops.secrets.k3s_agent_token = { owner = "root"; mode = "0400"; };
-  sops.secrets.tc_storage_key = { owner = "root"; mode = "0400"; };
+  # The k3s token and the 4 TB disk's keyfile have their own files, encrypted to
+  # the thinkcentre and the personal key (2026-10-04).
+  sops.secrets.k3s_agent_token = {
+    sopsFile = ../../secrets/thinkcentre-k3s.yaml;
+    owner = "root";
+    mode = "0400";
+  };
+  sops.secrets.tc_storage_key = {
+    sopsFile = ../../secrets/thinkcentre-storage-key.bin;
+    format = "binary";
+    owner = "root";
+    mode = "0400";
+  };
   sops.secrets.borg_ssh_private_key = { owner = "root"; mode = "0400"; };
   sops.secrets.borg_repo_passphrase = { owner = "root"; mode = "0400"; };
 
