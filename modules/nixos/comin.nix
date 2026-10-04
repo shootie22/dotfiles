@@ -58,5 +58,36 @@ in
         RandomizedDelaySec = "10min";
       };
     };
+
+    # comin hangs when a new commit arrives while it's still evaluating the
+    # previous one: it logs "store: no generation with uuid ... has been found"
+    # and then nothing, until restarted (infrastructure #140). If that error is
+    # its last log line for 15 minutes, restart it. A build in progress keeps
+    # logging, so it never matches.
+    systemd.services.comin-unstick = {
+      description = "Restart comin when it hangs after a cancelled evaluation";
+      serviceConfig.Type = "oneshot";
+      path = with pkgs; [ systemd coreutils gnugrep ];
+      script = ''
+        last=$(journalctl -u comin -n 1 -o short-unix --no-pager --quiet)
+        case "$last" in
+          *"no generation with uuid"*) ;;
+          *) exit 0 ;;
+        esac
+        at=''${last%%.*}
+        age=$(( $(date +%s) - at ))
+        if [ "$age" -gt 900 ]; then
+          echo "comin stuck for $age s after a cancelled evaluation, restarting it"
+          systemctl restart comin
+        fi
+      '';
+    };
+    systemd.timers.comin-unstick = {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "15min";
+        OnUnitActiveSec = "5min";
+      };
+    };
   };
 }
