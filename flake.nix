@@ -203,6 +203,15 @@
       ];
     };
 
+    # Rehearsal VM for the thinkcentre migration (hosts/thinkcentre/rehearsal).
+    nixosConfigurations.thinkcentre-rehearsal = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ./hosts/thinkcentre/rehearsal
+        disko.nixosModules.disko
+      ];
+    };
+
     nixosConfigurations.edge = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       modules = [

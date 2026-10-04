@@ -14,97 +14,124 @@
 { config, lib, pkgs, ... }:
 
 let
-  gateway = "192.168.88.1"; # the DK router
+  cfg = config.dotfiles.bootSafety;
 in
 {
-  boot.loader.systemd-boot.enable = true;
-  # Debian stays the firmware's default until NixOS has proven itself, so
-  # installing the bootloader must not touch the firmware's boot entries.
-  boot.loader.efi.canTouchEfiVariables = false;
-
-  # Layer 2 ------------------------------------------------------------------
-  boot.loader.systemd-boot.bootCounting = {
-    enable = true;
-    tries = 3;
-  };
-  # During the trial: Debian, through its own shim and GRUB, as the entry
-  # systemd-boot falls back to once every NixOS generation is marked bad. The
-  # name has to match systemd-boot's `nixos-*` default, and the sort key puts
-  # it after every NixOS generation. Remove it together with Debian.
-  boot.loader.systemd-boot.extraEntries."nixos-zz-debian-fallback.conf" = ''
-    title Debian (fallback during the NixOS trial)
-    sort-key zzz-debian
-    efi /EFI/debian/shimx64.efi
-  '';
-
-  # Layer 3 ------------------------------------------------------------------
-  # Reboot 10 s after a kernel panic or oops, like Debian does here.
-  boot.kernelParams = [ "panic=10" ];
-  boot.kernel.sysctl."kernel.panic_on_oops" = 1;
-
-  # Hardware watchdog (iTCO_wdt, checked to register on this board): reboots
-  # if systemd stops responding, in the initrd as well as after it.
-  boot.initrd.kernelModules = [ "iTCO_wdt" ];
-  boot.initrd.systemd.settings.Manager.RuntimeWatchdogSec = "60s";
-  systemd.settings.Manager = {
-    RuntimeWatchdogSec = "60s";
-    RebootWatchdogSec = "10min";
-  };
-
-  # Nobody unlocked the disk within 45 minutes: reboot. During the trial that
-  # lands in Debian (BootNext is gone); later it uses up one boot-counting try.
-  # IgnoreOnIsolate keeps it running if the initrd falls into emergency mode.
-  boot.initrd.systemd.timers.unlock-timeout = {
-    wantedBy = [ "initrd.target" "emergency.target" ];
-    timerConfig.OnActiveSec = "45min";
-    unitConfig = {
-      DefaultDependencies = false;
-      IgnoreOnIsolate = true;
+  # Defaults are the real thinkcentre; the rehearsal VM (rehearsal/) shortens
+  # the timeouts and points the health check at QEMU's gateway.
+  options.dotfiles.bootSafety = {
+    gateway = lib.mkOption {
+      type = lib.types.str;
+      default = "192.168.88.1"; # the DK router
+      description = "Address the boot health check pings to decide the LAN works.";
+    };
+    unlockTimeout = lib.mkOption {
+      type = lib.types.str;
+      default = "45min";
+      description = "Reboot if the disk hasn't been unlocked by then.";
+    };
+    healthChecks = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 90;
+      description = "Health check attempts, 10 s apart, before rebooting.";
+    };
+    debianFallback = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Offer Debian as the entry after all bad NixOS generations (trial only).";
     };
   };
-  boot.initrd.systemd.services.unlock-timeout = {
-    unitConfig = {
-      DefaultDependencies = false;
-      IgnoreOnIsolate = true;
-    };
-    serviceConfig.ExecStart = "/bin/systemctl reboot";
-  };
 
-  # Boot health: the boot only counts as good (systemd-bless-boot) once the
-  # LAN works and sshd runs. If that doesn't happen within 15 minutes, reboot,
-  # which uses up a try. A machine that boots but can't be reached is the one
-  # state boot counting alone wouldn't catch.
-  systemd.services.boot-health = {
-    description = "Check the machine is reachable before marking the boot good";
-    wantedBy = [ "multi-user.target" ];
-    requiredBy = [ "boot-complete.target" ];
-    before = [ "boot-complete.target" ];
-    after = [ "network-online.target" "sshd.service" ];
-    wants = [ "network-online.target" ];
-    unitConfig.IgnoreOnIsolate = true;
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      TimeoutStartSec = "20min";
+  config = {
+    boot.loader.systemd-boot.enable = true;
+    # Debian stays the firmware's default until NixOS has proven itself, so
+    # installing the bootloader must not touch the firmware's boot entries.
+    boot.loader.efi.canTouchEfiVariables = false;
+
+    # Layer 2 ------------------------------------------------------------------
+    boot.loader.systemd-boot.bootCounting = {
+      enable = true;
+      tries = 3;
     };
-    path = [ pkgs.iputils pkgs.iproute2 pkgs.systemd ];
-    script = ''
-      for i in $(seq 1 90); do
-        if systemctl is-active -q sshd.service && ping -c 1 -W 2 ${gateway} >/dev/null; then
-          echo "LAN and sshd up after ''${i}0 s"
-          exit 0
-        fi
-        sleep 10
-      done
-      echo "no LAN or no sshd after 15 minutes, rebooting"
-      systemctl reboot
-      exit 1
+    # During the trial: Debian, through its own shim and GRUB, as the entry
+    # systemd-boot falls back to once every NixOS generation is marked bad. The
+    # name has to match systemd-boot's `nixos-*` default, and the sort key puts
+    # it after every NixOS generation. Remove it together with Debian.
+    boot.loader.systemd-boot.extraEntries."nixos-zz-debian-fallback.conf" = lib.mkIf cfg.debianFallback ''
+      title Debian (fallback during the NixOS trial)
+      sort-key zzz-debian
+      efi /EFI/debian/shimx64.efi
     '';
-  };
 
-  # Layer 4 ------------------------------------------------------------------
-  # Data mounts never stop the boot; k3s waits for them instead (see
-  # configuration.nix), so a missing disk means stopped services, not an
-  # unreachable machine or data written to the wrong place.
-  fileSystems."/home".options = [ "nofail" ];
+    # Layer 3 ------------------------------------------------------------------
+    # Reboot 10 s after a kernel panic or oops, like Debian does here.
+    boot.kernelParams = [ "panic=10" ];
+    boot.kernel.sysctl."kernel.panic_on_oops" = 1;
+
+    # Hardware watchdog (iTCO_wdt, checked to register on this board): reboots
+    # if systemd stops responding, in the initrd as well as after it.
+    boot.initrd.kernelModules = [ "iTCO_wdt" ];
+    boot.initrd.systemd.settings.Manager.RuntimeWatchdogSec = "60s";
+    systemd.settings.Manager = {
+      RuntimeWatchdogSec = "60s";
+      RebootWatchdogSec = "10min";
+    };
+
+    # Nobody unlocked the disk within 45 minutes: reboot. During the trial that
+    # lands in Debian (BootNext is gone); later it uses up one boot-counting try.
+    # IgnoreOnIsolate keeps it running if the initrd falls into emergency mode.
+    boot.initrd.systemd.timers.unlock-timeout = {
+      wantedBy = [ "initrd.target" "emergency.target" ];
+      timerConfig.OnActiveSec = cfg.unlockTimeout;
+      unitConfig = {
+        DefaultDependencies = false;
+        IgnoreOnIsolate = true;
+      };
+    };
+    boot.initrd.systemd.services.unlock-timeout = {
+      unitConfig = {
+        DefaultDependencies = false;
+        IgnoreOnIsolate = true;
+      };
+      serviceConfig.ExecStart = "/bin/systemctl reboot";
+    };
+
+    # Boot health: the boot only counts as good (systemd-bless-boot) once the
+    # LAN works and sshd runs. If that doesn't happen within 15 minutes, reboot,
+    # which uses up a try. A machine that boots but can't be reached is the one
+    # state boot counting alone wouldn't catch.
+    systemd.services.boot-health = {
+      description = "Check the machine is reachable before marking the boot good";
+      wantedBy = [ "multi-user.target" ];
+      requiredBy = [ "boot-complete.target" ];
+      before = [ "boot-complete.target" ];
+      after = [ "network-online.target" "sshd.service" ];
+      wants = [ "network-online.target" ];
+      unitConfig.IgnoreOnIsolate = true;
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        TimeoutStartSec = "20min";
+      };
+      path = [ pkgs.iputils pkgs.iproute2 pkgs.systemd ];
+      script = ''
+        for i in $(seq 1 ${toString cfg.healthChecks}); do
+          if systemctl is-active -q sshd.service && ping -c 1 -W 2 ${cfg.gateway} >/dev/null; then
+            echo "LAN and sshd up after ''${i}0 s"
+            exit 0
+          fi
+          sleep 10
+        done
+        echo "no LAN or no sshd after ${toString cfg.healthChecks}0 s, rebooting"
+        systemctl reboot
+        exit 1
+      '';
+    };
+
+    # Layer 4 ------------------------------------------------------------------
+    # Data mounts never stop the boot; k3s waits for them instead (see
+    # configuration.nix), so a missing disk means stopped services, not an
+    # unreachable machine or data written to the wrong place.
+    fileSystems."/home".options = [ "nofail" ];
+  };
 }
