@@ -145,11 +145,14 @@ class VM:
         return None
 
     def wait_exit(self, timeout):
-        try:
-            self.proc.wait(timeout)
-            return True
-        except subprocess.TimeoutExpired:
-            return False
+        # Keep draining the console: a full serial buffer blocks the guest,
+        # shutdown included.
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self.proc.poll() is not None:
+                return True
+            self._read()
+        return self.proc.poll() is not None
 
     def close(self):
         if self.proc.poll() is None:
@@ -236,7 +239,8 @@ class Rehearsal:
                     vm.run(f"efibootmgr -n {nums['nixos']}")
                 # Undo the blessing of this boot, so the scenarios start with a
                 # fresh boot counter like a just-installed generation.
-                vm.run("cd /boot/loader/entries && for f in nixos-generation-*.conf; do case $f in *+*) ;; *) mv \"$f\" \"${f%.conf}+3.conf\" ;; esac; done; ls; sync")
+                vm.run("cd /boot/loader/entries && for f in nixos-*.conf; do case $f in nixos-zz-*) continue ;; esac; "
+                       "b=${f%.conf}; b=${b%%+*}; [ \"$f\" = \"$b+3.conf\" ] || mv \"$f\" \"$b+3.conf\"; done; ls; sync")
                 print(f"setup {mode}: {vm.run('efibootmgr | head -4')}".replace("\n", " | "), flush=True)
                 vm.send("poweroff\n")
                 if not vm.wait_exit(120):
@@ -259,7 +263,8 @@ class Rehearsal:
             current_ok = f"BootCurrent: {self.entries['nixos']}" in out and "BootNext" not in out
             vm.run("for i in $(seq 60); do systemctl is-active -q systemd-bless-boot && break; sleep 2; done", timeout=150)
             entries = vm.run("ls /boot/loader/entries")
-            blessed = re.search(r"nixos-generation-\d+\.conf", entries) is not None
+            # A blessed entry has no "+tries" counter left in its name.
+            blessed = re.search(r"nixos-[0-9a-f]{16,}\.conf", entries) is not None
             sshd = vm.run("systemctl is-active sshd")
             health = vm.run("systemctl is-active boot-health")
             k3s = vm.run("systemctl is-active fake-k3s")
