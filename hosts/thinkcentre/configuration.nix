@@ -6,6 +6,7 @@
 {
   imports = [
     ./hardware-configuration.nix
+    ./boot-safety.nix
     ../../modules/nixos/k3s-tailnet-guard.nix
     ../../modules/nixos/k3s-dns.nix
     ../../modules/nixos/initrd-dhcp-handover.nix
@@ -14,46 +15,7 @@
     ../../modules/nixos/edge-tunnel.nix
   ];
 
-  # Boot ----------------------------------------------------------------------
-  boot.loader.systemd-boot.enable = true;
-  # Debian stays the firmware's default until NixOS has proven itself. NixOS
-  # is started with a one-time BootNext (see the reinstall runbook), so
-  # installing the bootloader must not reorder the boot entries.
-  boot.loader.efi.canTouchEfiVariables = false;
-
-  # Reboot if the kernel or systemd hangs. Nobody is on site to press the
-  # button.
-  systemd.watchdog.runtimeTime = "60s";
-
-  # Trial boot (#18): if NixOS doesn't come up properly, reboot. Because it
-  # was started with BootNext, a reboot lands back in Debian. Remove both once
-  # NixOS is the default.
-  #
-  # In the initrd: nobody unlocked the disk within 30 minutes.
-  boot.initrd.systemd.timers.trial-fallback = {
-    wantedBy = [ "initrd.target" ];
-    timerConfig.OnActiveSec = "30min";
-  };
-  boot.initrd.systemd.services.trial-fallback = {
-    unitConfig.DefaultDependencies = false;
-    serviceConfig.ExecStart = "/bin/systemctl reboot";
-  };
-  # After boot: fuji isn't reachable over the tailnet 20 minutes in.
-  systemd.timers.trial-fallback = {
-    wantedBy = [ "timers.target" ];
-    timerConfig.OnBootSec = "20min";
-  };
-  systemd.services.trial-fallback = {
-    serviceConfig.Type = "oneshot";
-    script = ''
-      if ${pkgs.iputils}/bin/ping -c 5 -W 5 100.64.0.1 >/dev/null; then
-        echo "fuji reachable over the tailnet, staying in NixOS"
-      else
-        echo "fuji not reachable, rebooting back into Debian"
-        systemctl reboot
-      fi
-    '';
-  };
+  # Boot: boot-safety.nix (systemd-boot, boot counting, watchdog, fallbacks).
 
   # Nix -----------------------------------------------------------------------
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
@@ -159,6 +121,25 @@
     tokenFile = config.sops.secrets.k3s_agent_token.path;
     extraFlags = [ "--node-external-ip=100.64.0.4" ];
   };
+
+  # k3s only starts once every data mount is there. If the 4 TB disk didn't
+  # open, Gitea would otherwise start on an empty repositories folder and new
+  # pushes would land on the wrong disk.
+  systemd.services.k3s.unitConfig.RequiresMountsFor = [
+    "/home"
+    "/var/lib/rancher"
+    "/home/main/storage"
+    "/home/main/services/gitea/git/repositories"
+  ];
+
+  # Docker Hub rate-limits anonymous pulls (hit on 2026-10-03). Google's mirror
+  # first; k3s falls back to Docker Hub itself when an image isn't there.
+  environment.etc."rancher/k3s/registries.yaml".text = ''
+    mirrors:
+      docker.io:
+        endpoint:
+          - "https://mirror.gcr.io"
+  '';
 
   # Secrets -------------------------------------------------------------------
   # The age key is the one from the Debian install (/etc/sops/age/keys.txt),

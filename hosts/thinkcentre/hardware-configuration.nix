@@ -79,7 +79,7 @@
   fileSystems."/var/lib/rancher" = {
     device = "/home/rancher";
     fsType = "none";
-    options = [ "bind" ];
+    options = [ "bind" "nofail" ];
     depends = [ "/home" ];
   };
 
