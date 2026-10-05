@@ -119,6 +119,7 @@
     sops
     borgbackup
     smartmontools
+    efibootmgr # the firmware boot entries are set by hand (canTouchEfiVariables = false)
   ];
 
   services.smartd.enable = true;
