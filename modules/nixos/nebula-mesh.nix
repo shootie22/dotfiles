@@ -64,10 +64,11 @@ in
           preferred_ranges = lib.optional (me ? lan) me.lan;
           # Scraped by Prometheus over the mesh itself, so a host that's
           # missing there shows up as down (infrastructure monitoring,
-          # job nebula). The host firewall only lets it through on the mesh.
+          # job nebula). Bound to the mesh address only: tailscale accepts
+          # anything on tailscale0 before the host firewall runs.
           stats = {
             type = "prometheus";
-            listen = "0.0.0.0:8101";
+            listen = "${me.ip}:8101";
             path = "/metrics";
             namespace = "nebula";
             interval = "15s";

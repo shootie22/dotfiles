@@ -56,6 +56,8 @@ let
         ${meshIP "fuji"} = [ "${addr nodes.rorouter "eth2"}:4242" "${addr nodes.fuji "eth1"}:4242" ];
       };
       settings.punchy = { punch = true; respond = true; };
+      # As in the module: metrics only on the mesh address.
+      settings.stats = { type = "prometheus"; listen = "${meshIP name}:8101"; path = "/metrics"; namespace = "nebula"; interval = "15s"; };
       firewall = {
         outbound = [ { port = "any"; proto = "any"; host = "any"; } ];
         inbound = [ { port = "any"; proto = "any"; group = "servers"; } ];
@@ -88,6 +90,7 @@ let
 
   base = { ... }: {
     virtualisation.memorySize = 512;
+    environment.systemPackages = [ pkgs.curl ];
   };
 in
 pkgs.testers.runNixOSTest {
@@ -146,6 +149,10 @@ pkgs.testers.runNixOSTest {
             m.execute("journalctl -u nebula@mesh -o cat | grep -qE 'certName=(thinkcentre|mixi) .*from=.192[.]168[.]2[.][0-9]+:4241'")[0] == 0
             for m in (thinkcentre, mixi))
         assert direct, "thinkcentre and mixi aren't talking over their LAN"
+        # Metrics answer on the mesh address only (Prometheus scrapes them there).
+        for n, ip in servers.items():
+            fuji.succeed(f"curl -sf -m 5 -o /tmp/m http://{ip}:8101/metrics && grep -q ^nebula_ /tmp/m")
+        minima.fail("curl -sf -m 5 http://${addr nodes.fuji "eth1"}:8101/metrics")
 
     with subtest("2. edge down: a restarted DK node finds everyone through fuji"):
         edge.crash()
