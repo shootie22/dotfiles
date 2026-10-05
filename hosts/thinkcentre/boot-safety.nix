@@ -80,8 +80,13 @@ in
     # Nobody unlocked the disk within 45 minutes: reboot. During the trial that
     # lands in Debian (BootNext is gone); later it uses up one boot-counting try.
     # IgnoreOnIsolate keeps it running if the initrd falls into emergency mode.
+    # That also carried it over the switch to the real system, where it has no
+    # unit file and showed up failed (first real boot, 2026-10-05), so it's
+    # stopped explicitly before the switch.
     boot.initrd.systemd.timers.unlock-timeout = {
       wantedBy = [ "initrd.target" "emergency.target" ];
+      conflicts = [ "initrd-switch-root.target" ];
+      before = [ "initrd-switch-root.target" ];
       timerConfig.OnActiveSec = cfg.unlockTimeout;
       unitConfig = {
         DefaultDependencies = false;

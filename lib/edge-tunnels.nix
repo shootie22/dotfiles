@@ -13,6 +13,6 @@
   mixi-initrd = { port = 2202; key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIAgVxRFMQgYWVSeF4Yqf3gTkwUvIemNYAeAxtPxU/pH"; };
   fuji = { port = 2211; key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO4QC7IeqAXpfnIPfPMPEHQjeUKTWtb/H3iqo4EUqEEJ"; };
   fuji-initrd = { port = 2212; key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHX+m0QePnB9VWgcUCwN4tfFz+HbX30aodv98ZfYVK8P"; };
-  thinkcentre = { port = 2221; key = null; };
-  thinkcentre-initrd = { port = 2222; key = null; };
+  thinkcentre = { port = 2221; key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH7V94GrjvW9A77JP+laYpx2xUHNZhYfw+SDXEWTB3se"; };
+  thinkcentre-initrd = { port = 2222; key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGJ0PEdBpILbxvExwi85nv2ZgyPgogD+aWbJJVVVsxN+"; };
 }

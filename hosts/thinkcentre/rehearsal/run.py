@@ -276,6 +276,9 @@ class Rehearsal:
             sshd = vm.run("systemctl is-active sshd")
             health = vm.run("systemctl is-active boot-health")
             k3s = vm.run("systemctl is-active fake-k3s")
+            # The initrd's unlock timer must not survive the switch to the real
+            # system (it did on the real thinkcentre, 2026-10-05).
+            leftover = vm.run("systemctl list-units --all --no-legend 'unlock-timeout*' | wc -l")
             vm.send("reboot\n")
             back_to_debian = vm.expect([MARKER, ASK], 180) == 0
             ok = current_ok and blessed and back_to_debian
@@ -284,6 +287,8 @@ class Rehearsal:
             self.record("missing data disk: boot completes, sshd up, k3s stand-in waits",
                         sshd == "active" and health == "active" and k3s != "active",
                         f"sshd {sshd}, boot-health {health}, k3s stand-in {k3s}")
+            self.record("initrd unlock timer gone after the switch", leftover.strip() == "0",
+                        f"unlock-timeout units left: {leftover.strip()}")
         finally:
             vm.close()
 

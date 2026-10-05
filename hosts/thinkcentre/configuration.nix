@@ -61,6 +61,10 @@
     authorizedKeys = map
       (key: ''restrict,pty,command="systemctl default" ${key}'')
       config.users.users.main.openssh.authorizedKeys.keys;
+    # OpenSSH stops answering an address for a while after connections that
+    # don't log in. thinkcentre-unlock probes the port first, from mixi, and
+    # that locked the real unlock out on the first NixOS boot (2026-10-05).
+    extraConfig = "PerSourcePenalties no";
   };
 
   # Hand the NIC over cleanly from the initrd to NetworkManager (#81).

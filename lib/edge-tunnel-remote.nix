@@ -1,7 +1,8 @@
 # Ways in that don't need the tailnet (infrastructure #103, docs/remote-access.md
 # in the infrastructure repo):
 #
-#   via-edge <host>         SSH to fuji or mixi through its reverse tunnel on the edge
+#   via-edge <host>         SSH to fuji, mixi or the thinkcentre through its
+#                           reverse tunnel on the edge
 #   unlock-via-edge <host>  same, into the initrd: asks for the disk passphrase
 #                           and continues the boot (systemctl default)
 #   thinkcentre-unlock      unlock the thinkcentre from the DK LAN through mixi,
@@ -25,7 +26,8 @@ let
     case "''${1:-}" in
       mixi) port=${toString tunnels."mixi${suffix}".port} user=mixa alias=100.64.0.2 ;;
       fuji) port=${toString tunnels."fuji${suffix}".port} user=fuji alias=100.64.0.1 ;;
-      *) echo "usage: $(basename "$0") <mixi|fuji> [ssh args]" >&2; exit 2 ;;
+      thinkcentre) port=${toString tunnels."thinkcentre${suffix}".port} user=main alias=100.64.0.4 ;;
+      *) echo "usage: $(basename "$0") <mixi|fuji|thinkcentre> [ssh args]" >&2; exit 2 ;;
     esac
     host=$1; shift
   '';
