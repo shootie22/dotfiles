@@ -8,6 +8,8 @@
 # reach:      where the others reach a lighthouse. fuji is listed by RO's
 #             public name (UDP 4242 forwarded on the router) and by its LAN
 #             address, for minima next to it.
+# lan:        the site's LAN; hosts next to each other prefer it over
+#             anything else.
 #
 # Certificates are in lib/nebula/: ca.crt, and one per host, signed from the
 # public key the host makes on its first activation. The CA key is kept
@@ -17,9 +19,9 @@
   port = 4242;
   hosts = {
     edge = { ip = "10.99.0.1"; lighthouse = true; reach = [ "141.95.67.178:4242" ]; };
-    fuji = { ip = "10.99.0.2"; lighthouse = true; reach = [ "ro.radunenu.com:4242" "192.168.100.136:4242" ]; };
-    thinkcentre = { ip = "10.99.0.3"; };
-    mixi = { ip = "10.99.0.4"; };
-    minima = { ip = "10.99.0.5"; };
+    fuji = { ip = "10.99.0.2"; lan = "192.168.100.0/24"; lighthouse = true; reach = [ "ro.radunenu.com:4242" "192.168.100.136:4242" ]; };
+    thinkcentre = { ip = "10.99.0.3"; lan = "192.168.88.0/24"; };
+    mixi = { ip = "10.99.0.4"; lan = "192.168.88.0/24"; };
+    minima = { ip = "10.99.0.5"; lan = "192.168.100.0/24"; };
   };
 }

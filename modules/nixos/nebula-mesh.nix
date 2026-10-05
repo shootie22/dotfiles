@@ -57,6 +57,8 @@ in
         listen.host = "[::]";
         settings = {
           punchy = { punch = true; respond = true; };
+          # Hosts on the same LAN use it, not a relay or the public route.
+          preferred_ranges = lib.optional (me ? lan) me.lan;
           # fuji is found by name; follow RO's address when it changes.
           static_map.cadence = "5m";
           # Never run Nebula over the tailnet or the pod network: hosts tell
