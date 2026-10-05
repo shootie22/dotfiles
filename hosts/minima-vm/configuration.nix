@@ -145,14 +145,15 @@
   services.k3s = {
     enable = true;
     role = "agent";
-    serverAddr = "https://100.64.0.1:6443";
+    # On the Nebula mesh since Phase 3 (lib/nebula.nix), like the other
+    # nodes: it learns the other servers from fuji by itself, and flannel
+    # runs inside the mesh.
+    serverAddr = "https://10.99.0.2:6443";
     tokenFile = "/run/secrets/k3s_agent_token";
-
-    # Only the external address is the tailnet one. The API server reaches
-    # kubelets via ExternalIP first, and Flannel uses it for its endpoint, so
-    # k3s never needs the tailnet address to exist when it starts.
     extraFlags = [
-      "--node-external-ip=100.64.0.8"
+      "--node-ip=10.99.0.5"
+      "--node-external-ip=10.99.0.5"
+      "--flannel-iface=nebula.mesh"
     ];
   };
 
