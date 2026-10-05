@@ -18,6 +18,8 @@
 #   4. the tailnet goes away: the cluster and the pod network keep working
 #   5. fuji crashes and comes back with no tailnet: it rejoins by itself
 #   6. cold start of everything with no tailnet: the cluster comes back
+#   7. a node that has never been in the cluster joins while fuji is down,
+#      through the fixed registration address k3s-api (#21)
 # Pods reach each other across nodes at every step, with big packets too:
 # flannel's WireGuard runs inside Nebula, and a wrong MTU only shows there.
 { pkgs, k3sPackage }:
@@ -27,7 +29,7 @@ let
   token = pkgs.writeText "k3s-token" "rehearsal-token";
 
   # Nebula --------------------------------------------------------------------
-  mesh = { edge = 1; fuji = 2; thinkcentre = 3; mixi = 4; };
+  mesh = { edge = 1; fuji = 2; thinkcentre = 3; mixi = 4; newnode = 5; };
   meshIP = name: "10.99.0.${toString mesh.${name}}";
   certs = pkgs.runCommand "nebula-test-certs" { nativeBuildInputs = [ pkgs.nebula ]; } ''
     mkdir $out && cd $out
@@ -68,7 +70,7 @@ let
 
   # Sites -------------------------------------------------------------------
   # eth1: the site's LAN (or the internet for the edge). eth2: the tailnet.
-  siteVlan = { edge = 100; fuji = 1; thinkcentre = 2; mixi = 2; };
+  siteVlan = { edge = 100; fuji = 1; thinkcentre = 2; mixi = 2; newnode = 2; };
   router = lanVlan: forward: { ... }: {
     virtualisation.vlans = [ lanVlan 100 ];
     virtualisation.memorySize = 384;
@@ -129,6 +131,9 @@ let
   meshServer = ip: [
     "server" "--node-ip" ip "--node-external-ip" ip "--advertise-address" ip
     "--egress-selector-mode=disabled" "--flannel-backend=wireguard-native" "--flannel-iface" "nebula.mesh" "--flannel-external-ip"
+    # The fixed registration address (#21): a name every node resolves from
+    # /etc/hosts to both API servers.
+    "--tls-san" "k3s-api"
   ] ++ disabled;
   meshAgent = ip: [ "agent" "--server" "https://${meshIP "fuji"}:6443" "--node-ip" ip "--node-external-ip" ip "--flannel-iface" "nebula.mesh" ];
 
@@ -208,6 +213,17 @@ pkgs.testers.runNixOSTest {
         })
         (nebulaNode "mixi") (site "dkrouter")
       ];
+    };
+    # Joins for the first time in step 7, while fuji is down, through the
+    # fixed registration address.
+    newnode = { config, nodes, ... }: {
+      imports = [
+        (k3sNode "newnode" {
+          join = [ "agent" "--server" "https://k3s-api:6443" "--node-ip" (meshIP "newnode") "--node-external-ip" (meshIP "newnode") "--flannel-iface" "nebula.mesh" ];
+        })
+        (nebulaNode "newnode") (site "dkrouter")
+      ];
+      networking.hosts = { ${meshIP "fuji"} = [ "k3s-api" ]; ${meshIP "thinkcentre"} = [ "k3s-api" ]; };
     };
     # Not in the cluster today; joins as the etcd-only member in step 3.
     edge = { config, ... }: {
@@ -357,5 +373,13 @@ pkgs.testers.runNixOSTest {
         for n in ("fuji", "thinkcentre", "mixi"):
             api().wait_until_succeeds(f"kubectl get node {n} | grep -w Ready", timeout=600)
         pods_reach_each_other(3)
+
+    with subtest("7. a new node joins while fuji is down (fixed registration address, #21)"):
+        newnode.start()
+        newnode.wait_for_unit("nebula@mesh.service")
+        fuji.crash()
+        set_mode(newnode, "join")
+        thinkcentre.wait_until_succeeds("kubectl get node newnode | grep -w Ready", timeout=600)
+        print(thinkcentre.succeed("kubectl get nodes -o wide"))
   '';
 }
