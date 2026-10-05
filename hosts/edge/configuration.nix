@@ -86,6 +86,36 @@
   sops.age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
   sops.defaultSopsFile = ../../secrets/edge.yaml;
   sops.secrets.tailscale_authkey = { };
+  sops.secrets.k3s_server_token = { };
+
+  # etcd ------------------------------------------------------------------
+  # The third etcd member (Phase 3, infrastructure docs/ha/runbooks/
+  # etcd-migration.md): only a vote, no API, no workloads. On the Nebula mesh
+  # like fuji and the thinkcentre; cluster-wide settings the same as theirs.
+  services.k3s = {
+    enable = true;
+    role = "server";
+    serverAddr = "https://10.99.0.2:6443";
+    tokenFile = config.sops.secrets.k3s_server_token.path;
+    extraFlags = [
+      "--node-ip=10.99.0.1"
+      "--node-external-ip=10.99.0.1"
+      "--advertise-address=10.99.0.1"
+      "--egress-selector-mode=disabled"
+      "--flannel-backend=wireguard-native"
+      "--flannel-iface=nebula.mesh"
+      "--flannel-external-ip"
+      "--disable-apiserver"
+      "--disable-controller-manager"
+      "--disable-scheduler"
+      "--node-taint=node-role.kubernetes.io/etcd=true:NoExecute"
+    ];
+  };
+  # Only once the mesh is up: its peers are only reachable there.
+  systemd.services.k3s = {
+    wants = [ "nebula@mesh.service" ];
+    after = [ "nebula@mesh.service" ];
+  };
 
   # Tailnet ---------------------------------------------------------------
   services.tailscale = {
