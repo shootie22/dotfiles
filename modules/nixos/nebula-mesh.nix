@@ -48,10 +48,13 @@ in
         # Lighthouses don't list lighthouses.
         lighthouses = lib.optionals (!isLighthouse) (lib.mapAttrsToList (_: h: h.ip) lighthouses);
         relays = lib.optionals (!isLighthouse) (lib.mapAttrsToList (_: h: h.ip) lighthouses);
-        # Only lighthouses on the fixed port: another RO host on it would take
-        # RO's public 4242 when NATed, the port forwarded to fuji (found in
+        # A fixed port everywhere, open in the host firewall, so hosts on the
+        # same LAN can reach each other directly (with a random one, the
+        # firewall dropped them and they went through a relay). Not 4242
+        # except on the lighthouses: another RO host on it would take RO's
+        # public 4242 when NATed, the port forwarded to fuji (found in
         # tests/nebula-backbone.nix).
-        listen.port = if isLighthouse then mesh.port else 0;
+        listen.port = if isLighthouse then mesh.port else mesh.port - 1;
         staticHostMap = lib.mapAttrs' (_: h: lib.nameValuePair h.ip h.reach) lighthouses;
         # IPv6 too: where both ends have it, it's a direct path without NAT.
         listen.host = "[::]";

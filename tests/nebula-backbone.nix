@@ -45,10 +45,10 @@ let
       # Lighthouses don't list lighthouses.
       lighthouses = lib.optionals (name != "edge" && name != "fuji") [ (meshIP "edge") (meshIP "fuji") ];
       relays = lib.optionals (name != "edge" && name != "fuji") [ (meshIP "edge") (meshIP "fuji") ];
-      # Only the lighthouses get the fixed port (the module's default). minima
+      # Not 4242 except on the lighthouses (as in modules/nixos/nebula-mesh.nix): minima
       # on 4242 too took RO's public 4242 when its traffic was NATed, the port
       # forwarded to fuji, and the edge's packets for fuji went to minima.
-      listen.port = if name == "edge" || name == "fuji" then 4242 else 0;
+      listen.port = if name == "edge" || name == "fuji" then 4242 else 4241;
       staticHostMap = {
         ${meshIP "edge"} = [ "${addr nodes.edge "eth1"}:4242" ];
         # fuji through RO's public address and the forwarded port, and on
@@ -141,6 +141,11 @@ pkgs.testers.runNixOSTest {
             m.wait_for_unit("nebula@mesh.service")
         no_direct_path_into_dk()
         full_mesh(servers.keys())
+        # The two DK hosts talk over their LAN, not through a relay.
+        direct = any(
+            m.execute("journalctl -u nebula@mesh -o cat | grep -qE 'certName=(thinkcentre|mixi) .*from=.192[.]168[.]2[.][0-9]+:4241'")[0] == 0
+            for m in (thinkcentre, mixi))
+        assert direct, "thinkcentre and mixi aren't talking over their LAN"
 
     with subtest("2. edge down: a restarted DK node finds everyone through fuji"):
         edge.crash()
