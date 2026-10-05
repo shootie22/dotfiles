@@ -142,6 +142,13 @@
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
     };
 
+    # VM rehearsal of Phase 3 on Nebula, down to a cold start without the tailnet
+    # (infrastructure #20-#26, #141; tests/etcd-over-nebula.nix).
+    checks.x86_64-linux.etcd-over-nebula = import ./tests/etcd-over-nebula.nix {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      k3sPackage = nixosConfigurations.fuji.config.services.k3s.package;
+    };
+
     nixosConfigurations.mixi = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
       modules = [
