@@ -1,9 +1,27 @@
 # thinkcentre
 
-Debian 13 for now. The NixOS config that replaces it is in configuration.nix
-and hardware-configuration.nix (infrastructure #17), not installed yet. Until
-the reinstall, nothing here is applied automatically. This file is the
-record of the machine's hand-managed state, so it can be rebuilt or audited.
+NixOS since 5 Oct 2026, on trial: it runs from the `nixos` volume next to
+Debian, and Debian is still there as the fallback until the trial ends
+(infrastructure docs/ha/runbooks/thinkcentre-reinstall.md). The NixOS config
+is configuration.nix, hardware-configuration.nix and boot-safety.nix, deployed
+by comin like the other servers.
+
+The rest of this file is the record of the Debian install's hand-managed
+state, kept until Debian is retired.
+
+## Remote disk unlock (NixOS)
+
+The initrd's SSH listens on 2222 on the LAN. From an admin device:
+
+```sh
+thinkcentre-unlock    # finds it through mixi by MAC, Debian or NixOS
+```
+
+The NixOS initrd gets a different LAN address than Debian did, so don't rely
+on a fixed one. Its host key is `ED25519
+SHA256:nnd7PFVWutz2G/v4n3Z7sRG58d10PW06Rv9xsiHrM0U` (known_hosts alias
+`thinkcentre-initrd`). Once NixOS is the default, `unlock-via-edge thinkcentre`
+works too.
 
 ## K3s agent
 
@@ -45,7 +63,7 @@ PasswordAuthentication no
 KbdInteractiveAuthentication no
 ```
 
-## Remote disk unlock
+## Remote disk unlock (Debian)
 
 The root disk is LUKS; nobody is on site to type the passphrase. An early-boot
 SSH server (dropbear-initramfs) takes it instead, reachable on the LAN only, so
