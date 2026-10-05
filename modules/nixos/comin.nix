@@ -59,31 +59,62 @@ in
       };
     };
 
-    # comin hangs when a new commit arrives while it's still evaluating the
-    # previous one: it logs "store: no generation with uuid ... has been found"
-    # and then nothing, until restarted (infrastructure #140). If that error is
-    # its last log line for 15 minutes, restart it. A build in progress keeps
-    # logging, so it never matches.
+    # comin can hang in two known ways, both until restarted:
+    # - a new commit arrives while it's still evaluating the previous one: it
+    #   logs "store: no generation with uuid ... has been found" and then
+    #   nothing (infrastructure #140)
+    # - the clock jumps back: it stops fetching without any error (the
+    #   thinkcentre's first NixOS boot, 2026-10-05)
+    # Restart it on the first after 15 quiet minutes, on the second when the
+    # fetch counter hasn't moved for 45 minutes (it fetches every minute) and
+    # it's been quiet for 15. A build in progress keeps logging, so neither
+    # interrupts one.
     systemd.services.comin-unstick = {
-      description = "Restart comin when it hangs after a cancelled evaluation";
-      serviceConfig.Type = "oneshot";
-      path = with pkgs; [ systemd coreutils gnugrep curl jq ];
+      description = "Restart comin when it hangs";
+      serviceConfig = {
+        Type = "oneshot";
+        StateDirectory = "comin-unstick";
+      };
+      path = with pkgs; [ systemd coreutils gnugrep gawk curl jq ];
       script = ''
+        now=$(date +%s)
         last=$(journalctl -u comin -n 1 -o short-unix --no-pager --quiet)
-        case "$last" in
-          *"no generation with uuid"*) ;;
-          *) exit 0 ;;
-        esac
         at=''${last%%.*}
-        age=$(( $(date +%s) - at ))
-        if [ "$age" -gt 900 ]; then
-          echo "comin stuck for $age s after a cancelled evaluation, restarting it"
+        quiet=$(( now - ''${at:-$now} ))
+
+        restart() {
+          echo "restarting comin: $1"
           systemctl restart comin
+          rm -f /var/lib/comin-unstick/fetches
           # Tell the alert relay on the edge, so it doesn't go unnoticed.
           curl -fsS -m 10 -X POST http://100.64.0.9:9190/alert \
-            -d "$(jq -n --arg h "$(hostname)" --arg a "$age" \
-              '{title: "comin restarted on \($h)", message: "It had hung for \($a) s after a cancelled evaluation (infrastructure #140). Restarted automatically; nothing else to do unless it keeps happening."}')" \
+            -d "$(jq -n --arg h "$(hostname)" --arg r "$1" \
+              '{title: "comin restarted on \($h)", message: "\($r). Restarted automatically; nothing else to do unless it keeps happening."}')" \
             >/dev/null || echo "relay unreachable"
+          exit 0
+        }
+
+        case "$last" in
+          *"no generation with uuid"*)
+            if [ "$quiet" -gt 900 ]; then
+              restart "It had hung for $quiet s after a cancelled evaluation (infrastructure #140)"
+            fi ;;
+        esac
+
+        # Fetch counter: remember when it last changed.
+        count=$(curl -fsS -m 10 http://127.0.0.1:4243/metrics 2>/dev/null \
+          | awk '/^comin_fetch_count/ { s += $NF; n++ } END { if (n) print s }')
+        [ -n "$count" ] || exit 0
+        state=/var/lib/comin-unstick/fetches
+        old="" since=""
+        if [ -f "$state" ]; then read -r old since < "$state"; fi
+        if [ "$count" != "$old" ]; then
+          echo "$count $now" > "$state"
+          exit 0
+        fi
+        stalled=$(( now - since ))
+        if [ "$stalled" -gt 2700 ] && [ "$quiet" -gt 900 ]; then
+          restart "It hadn't fetched for $stalled s"
         fi
       '';
     };
