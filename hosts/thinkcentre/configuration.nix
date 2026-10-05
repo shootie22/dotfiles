@@ -93,6 +93,11 @@
 
   # Locale --------------------------------------------------------------------
   time.timeZone = "Europe/Copenhagen";
+  # Debian keeps the hardware clock in local time. Read as UTC, NixOS's first
+  # boot started two hours ahead until NTP pulled it back, and k3s and comin
+  # tripped over the jump (2026-10-05). Same as Debian while it's still there
+  # to boot into; can go back to UTC once Debian is retired.
+  time.hardwareClockInLocalTime = true;
   i18n.defaultLocale = "en_US.UTF-8";
 
   # Users ---------------------------------------------------------------------
