@@ -146,12 +146,25 @@
   # Kubernetes ----------------------------------------------------------------
   # Rejoins as the same node: /etc/rancher/node/password is carried over from
   # Debian, so the node keeps its name, labels and taints.
+  # Since Phase 3 a server: the second etcd member and control plane, on its
+  # Nebula address like fuji (infrastructure docs/ha/runbooks/etcd-migration.md).
   services.k3s = {
     enable = true;
-    role = "agent";
-    serverAddr = "https://100.64.0.1:6443";
-    tokenFile = config.sops.secrets.k3s_agent_token.path;
-    extraFlags = [ "--node-external-ip=100.64.0.4" ];
+    role = "server";
+    serverAddr = "https://10.99.0.2:6443";
+    tokenFile = config.sops.secrets.k3s_server_token.path;
+    # Same as fuji's, on its own address; k3s refuses a server whose
+    # cluster-wide settings differ.
+    extraFlags = [
+      "--node-ip=10.99.0.3"
+      "--node-external-ip=10.99.0.3"
+      "--advertise-address=10.99.0.3"
+      "--tls-san=100.64.0.4"
+      "--egress-selector-mode=disabled"
+      "--flannel-backend=wireguard-native"
+      "--flannel-iface=nebula.mesh"
+      "--flannel-external-ip"
+    ];
   };
 
   # k3s only starts once every data mount is there. If the 4 TB disk didn't
@@ -180,7 +193,7 @@
   sops.defaultSopsFile = ../../secrets/thinkcentre.yaml;
   # The k3s token and the 4 TB disk's keyfile have their own files, encrypted to
   # the thinkcentre and the personal key (2026-10-04).
-  sops.secrets.k3s_agent_token = {
+  sops.secrets.k3s_server_token = {
     sopsFile = ../../secrets/thinkcentre-k3s.yaml;
     owner = "root";
     mode = "0400";
