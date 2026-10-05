@@ -314,6 +314,18 @@ pkgs.testers.runNixOSTest {
         m = members(fuji)
         print("etcd members:", m)
         assert all(all(u.startswith("https://10.99.0.") for u in urls) for _, urls in m), m
+        # The migration copies the API's lease for fuji's old address without
+        # its expiry, so the kubernetes Service would keep that address as an
+        # endpoint forever (found on the real cluster, 5 Oct). The runbook's fix:
+        # delete leases that aren't a live server's.
+        leases = fuji.succeed("etcdctl-k3s get /registry/masterleases/ --prefix --keys-only").split()
+        print("API leases:", leases)
+        for k in leases:
+            if not k.startswith("/registry/masterleases/10.99.0."):
+                fuji.succeed(f"etcdctl-k3s del {k}")
+        fuji.wait_until_succeeds(
+            "[ \"$(kubectl get endpointslices -l kubernetes.io/service-name=kubernetes -o jsonpath='{.items[*].endpoints[*].addresses[*]}' | tr ' ' '\\n' | sort | tr '\\n' ' ')\" = "
+            f"\"{MESH['fuji']} {MESH['thinkcentre']} \" ]", timeout=60)
         pods_reach_each_other(3)
 
     with subtest("4. the tailnet goes away"):
