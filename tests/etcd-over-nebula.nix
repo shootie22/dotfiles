@@ -110,18 +110,25 @@ let
       --cacert $d/server-ca.crt --cert $d/client.crt --key $d/client.key "$@"
   '';
 
-  # Today's flags (hosts/*/configuration.nix): the tailnet address everywhere.
+  # Today's flags (hosts/*/configuration.nix): the node address is the LAN
+  # one (on the real fuji and minima a public IPv6 one), not reachable from
+  # the other site; flannel uses the tailnet address (--flannel-external-ip).
+  # The API is advertised where every node reaches it (the real one is fuji's
+  # LAN address, routed to DK over the tailnet).
   disabled = [ "--disable" "coredns" "--disable" "local-storage" "--disable" "metrics-server" "--disable" "servicelb" "--disable" "traefik" ];
-  todayServer = tailIP: [
-    "server" "--node-ip" tailIP "--node-external-ip" tailIP "--advertise-address" tailIP
+  todayServer = lanIP: tailIP: [
+    "server" "--node-ip" lanIP "--node-external-ip" tailIP "--advertise-address" tailIP
     "--egress-selector-mode=disabled" "--flannel-backend=wireguard-native" "--flannel-external-ip"
   ] ++ disabled;
-  todayAgent = server: tailIP: [ "agent" "--server" "https://${server}:6443" "--node-ip" tailIP "--node-external-ip" tailIP ];
+  todayAgent = server: lanIP: tailIP: [ "agent" "--server" "https://${server}:6443" "--node-ip" lanIP "--node-external-ip" tailIP ];
   # On Nebula: the node's mesh address for everything, and flannel on the
-  # mesh interface, so its WireGuard takes its MTU from Nebula's.
+  # mesh interface, so its WireGuard takes its MTU from Nebula's. The servers
+  # keep --flannel-external-ip: while an agent isn't moved yet, flannel has
+  # to keep using its tailnet address, not its LAN one the other site can't
+  # reach.
   meshServer = ip: [
     "server" "--node-ip" ip "--node-external-ip" ip "--advertise-address" ip
-    "--egress-selector-mode=disabled" "--flannel-backend=wireguard-native" "--flannel-iface" "nebula.mesh"
+    "--egress-selector-mode=disabled" "--flannel-backend=wireguard-native" "--flannel-iface" "nebula.mesh" "--flannel-external-ip"
   ] ++ disabled;
   meshAgent = ip: [ "agent" "--server" "https://${meshIP "fuji"}:6443" "--node-ip" ip "--node-external-ip" ip "--flannel-iface" "nebula.mesh" ];
 
@@ -178,7 +185,7 @@ pkgs.testers.runNixOSTest {
     fuji = { config, nodes, ... }: {
       imports = [
         (k3sNode "fuji" {
-          today = todayServer (addr nodes.fuji "eth2");
+          today = todayServer (addr nodes.fuji "eth1") (addr nodes.fuji "eth2");
           etcd = meshServer (meshIP "fuji") ++ [ "--cluster-init" ];
         })
         (nebulaNode "fuji") (site "rorouter")
@@ -187,7 +194,7 @@ pkgs.testers.runNixOSTest {
     thinkcentre = { config, nodes, ... }: {
       imports = [
         (k3sNode "thinkcentre" {
-          today = todayAgent (addr nodes.fuji "eth2") (addr nodes.thinkcentre "eth2");
+          today = todayAgent (addr nodes.fuji "eth2") (addr nodes.thinkcentre "eth1") (addr nodes.thinkcentre "eth2");
           server = meshServer (meshIP "thinkcentre") ++ [ "--server" "https://${meshIP "fuji"}:6443" ];
         })
         (nebulaNode "thinkcentre") (site "dkrouter")
@@ -196,7 +203,7 @@ pkgs.testers.runNixOSTest {
     mixi = { config, nodes, ... }: {
       imports = [
         (k3sNode "mixi" {
-          today = todayAgent (addr nodes.fuji "eth2") (addr nodes.mixi "eth2");
+          today = todayAgent (addr nodes.fuji "eth2") (addr nodes.mixi "eth1") (addr nodes.mixi "eth2");
           mesh = meshAgent (meshIP "mixi");
         })
         (nebulaNode "mixi") (site "dkrouter")
