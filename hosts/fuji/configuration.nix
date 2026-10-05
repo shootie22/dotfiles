@@ -266,7 +266,9 @@
     services.borgbackup.jobs.k3s = {
     paths = [
       "/var/lib/rancher/k3s/backup-staging/storage"
-      "/var/lib/rancher/k3s/backup-staging/state.db"
+      # The cluster: etcd snapshots k3s takes every 12 hours (5 kept). Since
+      # Phase 3; before, it was a copy of the SQLite database.
+      "/var/lib/rancher/k3s/server/db/snapshots"
       # hostPath data for Keycloak and Baikal, which isn't in a k3s volume.
       # Keycloak's Postgres is copied live, so this is crash-consistent only;
       # proper dumps come with CNPG (infrastructure #32).
@@ -321,20 +323,12 @@
         ${pkgs.btrfs-progs}/bin/btrfs subvolume delete "$staging/storage"
       fi
 
-      ${pkgs.coreutils}/bin/rm -f "$staging/state.db"
-
       ${pkgs.btrfs-progs}/bin/btrfs subvolume snapshot -r \
         /var/lib/rancher/k3s/storage \
         "$staging/storage"
 
-      ${pkgs.sqlite}/bin/sqlite3 -batch \
-        /var/lib/rancher/k3s/server/db/state.db \
-        ".backup '$staging/state.db'"
-
-      ${pkgs.sqlite}/bin/sqlite3 -batch -noheader -list \
-        "$staging/state.db" \
-        'PRAGMA integrity_check;' \
-        | ${pkgs.gnugrep}/bin/grep -qx ok
+      # At least one etcd snapshot to back up.
+      ls /var/lib/rancher/k3s/server/db/snapshots/etcd-snapshot-* >/dev/null
     '';
 
     postHook = ''
@@ -343,8 +337,6 @@
       if ${pkgs.btrfs-progs}/bin/btrfs subvolume show "$staging/storage" >/dev/null 2>&1; then
         ${pkgs.btrfs-progs}/bin/btrfs subvolume delete "$staging/storage"
       fi
-
-      ${pkgs.coreutils}/bin/rm -f "$staging/state.db"
     '';
   };
 
