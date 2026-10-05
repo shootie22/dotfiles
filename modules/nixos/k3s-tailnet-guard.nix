@@ -31,20 +31,28 @@ in
     };
   };
 
-  # k3s uses the node's tailnet address. Started before tailscale0 has it,
-  # k3s exits ("failed to find interface with specified node ip") and only
-  # comes up after a few restarts (thinkcentre's first NixOS boot,
-  # 2026-10-05). Wait for the address, at most 2 minutes, then start anyway.
+  # k3s uses the node's tailnet address, and from Phase 3 on its Nebula one
+  # (lib/nebula.nix). Started before the interface has it, k3s exits
+  # ("failed to find interface with specified node ip") and only comes up
+  # after a few restarts (thinkcentre's first NixOS boot, 2026-10-05). Wait
+  # for both, at most 2 minutes, then start anyway: k3s must never be kept
+  # down waiting for a network it may not need.
   systemd.services.k3s = {
     wants = [ "tailscaled.service" ];
-    after = [ "tailscaled.service" ];
+    after = [ "tailscaled.service" "nebula@mesh.service" ];
     serviceConfig.ExecStartPre = [
-      "-${pkgs.writeShellScript "k3s-wait-tailnet" ''
+      "-${pkgs.writeShellScript "k3s-wait-addresses" ''
+        has() { ${ip} -4 addr show dev "$1" 2>/dev/null | grep -q "inet $2"; }
         for _ in $(seq 1 120); do
-          ${ip} -4 addr show dev tailscale0 2>/dev/null | grep -q 'inet 100\.64\.' && exit 0
+          tailnet=no; mesh=no
+          has tailscale0 '100\.64\.' && tailnet=yes
+          # Only on hosts that run the mesh.
+          if ! ${ip} link show nebula.mesh >/dev/null 2>&1 && ! systemctl -q is-enabled nebula@mesh 2>/dev/null; then mesh=yes; fi
+          has nebula.mesh '10\.99\.0\.' && mesh=yes
+          [ "$tailnet$mesh" = yesyes ] && exit 0
           sleep 1
         done
-        echo "no tailnet address after 2 minutes, starting k3s anyway"
+        echo "after 2 minutes: tailnet address $tailnet, mesh address $mesh; starting k3s anyway"
         exit 1
       ''}"
     ];
