@@ -200,12 +200,24 @@
   services.k3s = {
     enable = true;
     role = "server";
+    # etcd instead of SQLite (Phase 3, infrastructure docs/ha/runbooks/
+    # etcd-migration.md), on the Nebula mesh (lib/nebula.nix): the tailnet
+    # needs Headscale, which needs this cluster, so the cluster can't need
+    # the tailnet.
+    clusterInit = true;
 
     extraFlags = [
-      "--node-external-ip=100.64.0.1"
-      "--advertise-address=192.168.100.136"
+      "--node-ip=10.99.0.2"
+      "--node-external-ip=10.99.0.2"
+      "--advertise-address=10.99.0.2"
+      # Agents not moved yet still connect at the old addresses.
+      "--tls-san=100.64.0.1"
+      "--tls-san=192.168.100.136"
       "--egress-selector-mode=disabled"
       "--flannel-backend=wireguard-native"
+      # flannel's WireGuard inside Nebula, sized to fit it. External IPs stay
+      # on: until an agent moves, flannel has to use its tailnet address.
+      "--flannel-iface=nebula.mesh"
       "--flannel-external-ip"
     ];
   };
