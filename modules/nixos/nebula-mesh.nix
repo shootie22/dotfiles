@@ -53,10 +53,34 @@ in
         # tests/nebula-backbone.nix).
         listen.port = if isLighthouse then mesh.port else 0;
         staticHostMap = lib.mapAttrs' (_: h: lib.nameValuePair h.ip h.reach) lighthouses;
+        # IPv6 too: where both ends have it, it's a direct path without NAT.
+        listen.host = "[::]";
         settings = {
           punchy = { punch = true; respond = true; };
           # fuji is found by name; follow RO's address when it changes.
           static_map.cadence = "5m";
+          # Never run Nebula over the tailnet or the pod network: hosts tell
+          # the lighthouses all their addresses by default, tailscale's
+          # included, and the mesh would quietly depend on what it's there
+          # to replace.
+          lighthouse.local_allow_list.interfaces = {
+            "tailscale.*" = false;
+            "nebula.*" = false;
+            "flannel.*" = false;
+            "cni.*" = false;
+            "veth.*" = false;
+            "docker.*" = false;
+            "br-.*" = false;
+          };
+          lighthouse.remote_allow_list = {
+            "0.0.0.0/0" = true;
+            "::/0" = true;
+            "100.64.0.0/10" = false; # tailnet
+            "fd7a:115c:a1e0::/48" = false; # tailnet
+            "10.42.0.0/16" = false; # pods
+            "10.43.0.0/16" = false; # services
+            "172.16.0.0/12" = false; # docker
+          };
         };
         firewall = {
           outbound = [ { port = "any"; proto = "any"; host = "any"; } ];
