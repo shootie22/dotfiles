@@ -15,4 +15,9 @@
     options = "--delete-older-than 14d";
   };
   nix.settings.auto-optimise-store = true;
+  # Between the weekly runs: when a build or download leaves less than 2 GiB
+  # free, Nix deletes unused store paths until 6 GiB are free. Only garbage,
+  # never a generation that's still kept.
+  nix.settings.min-free = 2 * 1024 * 1024 * 1024;
+  nix.settings.max-free = 6 * 1024 * 1024 * 1024;
 }
