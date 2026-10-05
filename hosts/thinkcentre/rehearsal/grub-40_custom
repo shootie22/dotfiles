@@ -1,0 +1,17 @@
+#!/bin/sh
+exec tail -n +3 $0
+# NixOS trial (infrastructure docs/ha/runbooks/thinkcentre-reinstall.md).
+# Started once with `grub-reboot nixos`. If the chainload fails, GRUB has
+# already cleared the one-time entry, so the reboot below lands in Debian.
+menuentry 'NixOS (systemd-boot)' --id nixos {
+	insmod part_gpt
+	insmod fat
+	insmod chain
+	echo 'Starting NixOS through systemd-boot'
+	search --no-floppy --fs-uuid --set=root 4A5A-55D9
+	chainloader /EFI/systemd/systemd-bootx64.efi
+	boot
+	echo 'NixOS chainload failed, rebooting into Debian'
+	sleep 5
+	reboot
+}
