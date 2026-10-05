@@ -6,7 +6,11 @@
     ../../modules/nixos/k3s-tailnet-guard.nix
     ../../modules/nixos/k3s-dns.nix
     ../../modules/nixos/comin.nix
+    ../../modules/nixos/nebula-mesh.nix
   ];
+
+  # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
+  dotfiles.nebulaMesh.enable = true;
 
   networking.hostName = "minima";
   # The flake output is minima-vm, not the hostname.

@@ -12,8 +12,12 @@
     ../../modules/nixos/initrd-dhcp-handover.nix
     ../../modules/nixos/server-housekeeping.nix
     ../../modules/nixos/comin.nix
+    ../../modules/nixos/nebula-mesh.nix
     ../../modules/nixos/edge-tunnel.nix
   ];
+
+  # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
+  dotfiles.nebulaMesh.enable = true;
 
   # Boot: boot-safety.nix (systemd-boot, boot counting, watchdog, fallbacks).
 

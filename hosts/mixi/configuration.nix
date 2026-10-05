@@ -9,9 +9,13 @@
     ../../modules/nixos/failover-checker
     ../../modules/nixos/server-housekeeping.nix
     ../../modules/nixos/comin.nix
+    ../../modules/nixos/nebula-mesh.nix
     ../../modules/nixos/edge-tunnel.nix
     ../../modules/nixos/initrd-dhcp-handover.nix
   ];
+
+  # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
+  dotfiles.nebulaMesh.enable = true;
 
   # Deployed by comin from this repo. No automatic kernel reboots: the disk
   # has to be unlocked by hand after a reboot (infrastructure #136).

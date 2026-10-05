@@ -10,6 +10,7 @@
     (modulesPath + "/profiles/qemu-guest.nix")
     (import ./disko.nix { device = "/dev/sda"; })
     ../../modules/nixos/comin.nix
+    ../../modules/nixos/nebula-mesh.nix
     ./haproxy.nix
     ../../modules/nixos/failover-checker
     ../../modules/nixos/game-relay.nix
@@ -17,6 +18,9 @@
     ../../modules/nixos/dnssec-check
     ./tunnels.nix
   ];
+
+  # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
+  dotfiles.nebulaMesh.enable = true;
 
   networking.hostName = "edge";
   time.timeZone = "UTC";
