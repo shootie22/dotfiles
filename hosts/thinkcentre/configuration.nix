@@ -225,10 +225,12 @@
       monthly = 6;
       yearly = 1;
     };
+    # Borg exits 1 for warnings, and a game world always changes while it's
+    # read; that's still a good archive. With the default, the job stopped
+    # right after creating it: the archive kept its ".failed" name and prune
+    # and compact never ran (first NixOS run, 2026-10-05).
+    failOnWarnings = false;
   };
-  # Borg exits 1 for warnings (a file changed while reading); that's still a
-  # good archive. The Debian unit had the same exception.
-  systemd.services.borgbackup-job-thinkcentre.serviceConfig.SuccessExitStatus = "1";
 
   # Keep the version from the machine's original installation. Changing it
   # can alter defaults for stateful services and data formats.
