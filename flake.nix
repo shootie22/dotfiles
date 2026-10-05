@@ -137,6 +137,11 @@
       k3sPackage = nixosConfigurations.fuji.config.services.k3s.package;
     };
 
+    # VM rehearsal of the Nebula backbone (infrastructure #141, tests/nebula-backbone.nix).
+    checks.x86_64-linux.nebula-backbone = import ./tests/nebula-backbone.nix {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+    };
+
     nixosConfigurations.mixi = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
       modules = [
