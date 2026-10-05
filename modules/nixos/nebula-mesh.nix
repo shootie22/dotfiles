@@ -62,6 +62,16 @@ in
           punchy = { punch = true; respond = true; };
           # Hosts on the same LAN use it, not a relay or the public route.
           preferred_ranges = lib.optional (me ? lan) me.lan;
+          # Scraped by Prometheus over the mesh itself, so a host that's
+          # missing there shows up as down (infrastructure monitoring,
+          # job nebula). The host firewall only lets it through on the mesh.
+          stats = {
+            type = "prometheus";
+            listen = "0.0.0.0:8101";
+            path = "/metrics";
+            namespace = "nebula";
+            interval = "15s";
+          };
           # fuji is found by name; follow RO's address when it changes.
           static_map.cadence = "5m";
           # Never run Nebula over the tailnet or the pod network: hosts tell
