@@ -166,10 +166,14 @@
   services.k3s = {
     enable = true;
     role = "agent";
-    serverAddr = "https://100.64.0.1:6443";
+    # On the Nebula mesh since Phase 3 (lib/nebula.nix): it learns the other
+    # servers from fuji by itself.
+    serverAddr = "https://10.99.0.2:6443";
     tokenFile = "/run/secrets/k3s_agent_token";
     extraFlags = [
-      "--node-external-ip=100.64.0.2"
+      "--node-ip=10.99.0.4"
+      "--node-external-ip=10.99.0.4"
+      "--flannel-iface=nebula.mesh"
       "--node-label=location=denmark"
       "--node-label=hardware=m1"
     ];
