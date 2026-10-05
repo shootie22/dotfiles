@@ -114,6 +114,10 @@
     isNormalUser = true;
     uid = 1000;
     group = "main";
+    # Keep main's user manager running. Started and stopped by each SSH
+    # login, it sometimes was stopping just as comin switched, and the switch
+    # counted as failed ("user activation for main failed", 2026-10-05).
+    linger = true;
     extraGroups = [ "wheel" "networkmanager" ];
     openssh.authorizedKeys.keys = builtins.attrValues (import ../../lib/admin-ssh-keys.nix);
   };
