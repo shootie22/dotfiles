@@ -74,10 +74,12 @@
   # has to be unlocked by hand after a reboot.
   dotfiles.comin.rebootAt = null;
 
-  # A way in through the edge that doesn't need the tailnet (#103). The
-  # initrd part waits until the first activation has generated its key and
-  # the keys are in lib/edge-tunnels.nix; see the reinstall runbook.
-  dotfiles.edgeTunnel.enable = true;
+  # A way in through the edge that doesn't need the tailnet (#103), from the
+  # initrd too, for unlocking. Both keys are in lib/edge-tunnels.nix.
+  dotfiles.edgeTunnel = {
+    enable = true;
+    initrd = true;
+  };
 
   services.openssh = {
     enable = true;
