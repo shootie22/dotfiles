@@ -92,10 +92,13 @@
   i18n.defaultLocale = "en_US.UTF-8";
 
   # Users ---------------------------------------------------------------------
-  # uid 1000 as on Debian: everything under /home/main is owned by it.
+  # uid and gid 1000 as on Debian: everything under /home/main is owned by
+  # main:main.
+  users.groups.main.gid = 1000;
   users.users.main = {
     isNormalUser = true;
     uid = 1000;
+    group = "main";
     extraGroups = [ "wheel" "networkmanager" ];
     openssh.authorizedKeys.keys = builtins.attrValues (import ../../lib/admin-ssh-keys.nix);
   };
