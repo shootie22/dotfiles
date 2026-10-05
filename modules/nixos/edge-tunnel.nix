@@ -53,9 +53,11 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Generate the keys on first activation. The public halves are readable
-    # by anyone, so they can be copied into lib/edge-tunnels.nix.
-    system.activationScripts.edgeTunnelKeys = ''
+    # Generate the keys on first activation, after the users exist: ssh-keygen
+    # fails without a passwd entry for root (seen in the thinkcentre install,
+    # 2026-10-05). The public halves are readable by anyone, so they can be
+    # copied into lib/edge-tunnels.nix.
+    system.activationScripts.edgeTunnelKeys = lib.stringAfter [ "users" ] ''
       install -d -m 755 ${keyDir}
       install -d -m 700 /etc/secrets/initrd
       for k in ${key}:${name} ${initrdKey}:${name}-initrd; do
