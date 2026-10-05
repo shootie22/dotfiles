@@ -15,6 +15,7 @@ let
     { port = 24545; proto = "udp"; name = "MegaBopl3D"; }
     { port = 5520;  proto = "udp"; name = "Hytale"; }
     { port = 7777;  proto = "udp"; name = "Crosty"; }
+    { port = 24567; proto = "udp"; name = "Bopl 2D"; }
   ];
   portsOf = proto: map (p: p.port) (lib.filter (p: p.proto == proto) ports);
   server = p:
