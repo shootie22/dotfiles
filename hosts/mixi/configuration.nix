@@ -148,12 +148,18 @@
   virtualisation.docker.enable = true;
 
   # tailscale ----------------------------------------------------------------
+  # Infrastructure DNS must not depend on Tailscale state, same as the
+  # thinkcentre: with the tailnet down, mixi couldn't even look up fuji to
+  # find the Nebula mesh (2026-10-05).
+  networking.networkmanager.dns = "none";
+  networking.nameservers = [ "1.1.1.1" "9.9.9.9" "8.8.8.8" ];
+
   services.tailscale = {
     enable = true;
     # Accept Fuji's route to its LAN API address (the kubernetes Service
     # endpoint); loosens reverse-path filtering for routed replies.
     useRoutingFeatures = "client";
-    extraSetFlags = [ "--accept-routes" ];
+    extraSetFlags = [ "--accept-routes" "--accept-dns=false" ];
   };
 
   # kubernetes

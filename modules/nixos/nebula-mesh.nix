@@ -73,8 +73,9 @@ in
             namespace = "nebula";
             interval = "15s";
           };
-          # fuji is found by name; follow RO's address when it changes.
-          static_map.cadence = "5m";
+          # fuji is found by name: follow RO's address when it changes, and
+          # retry soon when a lookup fails at boot.
+          static_map.cadence = "1m";
           # Never run Nebula over the tailnet or the pod network: hosts tell
           # the lighthouses all their addresses by default, tailscale's
           # included, and the mesh would quietly depend on what it's there
@@ -106,6 +107,24 @@ in
       # Only certificates from our CA get onto the mesh, and Nebula's own
       # firewall above only lets the servers group in.
       networking.firewall.trustedInterfaces = [ "nebula.mesh" ];
+
+      # Tailscale's routing table comes before the main one, and fuji's LAN
+      # address is routed over the tailnet for DK. On minima, next to fuji,
+      # that sent the mesh's own packets to fuji over the tailnet too. Only
+      # Nebula's ports: other LAN traffic (pods reaching the API at fuji's LAN
+      # address) keeps going the way it does today.
+      systemd.services.nebula-mesh-lan-route = lib.mkIf (me ? lan) {
+        description = "Send Nebula's packets on the LAN past tailscale's routes";
+        wantedBy = [ "multi-user.target" ];
+        before = [ "nebula@mesh.service" "tailscaled.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          ExecStartPre = "-${pkgs.iproute2}/bin/ip rule del priority 5205";
+          ExecStart = "${pkgs.iproute2}/bin/ip rule add priority 5205 to ${me.lan} ipproto udp dport ${toString (mesh.port - 1)}-${toString mesh.port} lookup main";
+          ExecStop = "${pkgs.iproute2}/bin/ip rule del priority 5205";
+        };
+      };
     })
   ]);
 }
