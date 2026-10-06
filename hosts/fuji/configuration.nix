@@ -38,6 +38,17 @@
       peer = "thinkcentre";
       exclude = [ "/postgres" "/gitea/indexers" "/gitea/queues" ];
     };
+    minecraft-hc = {
+      data = "/srv/standby/thinkcentre/minecraft-hc";
+      peer = "thinkcentre";
+      minecraft = { namespace = "minecraft-hc"; app = "minecraft-hc"; };
+    };
+    minecraft-skyblock = {
+      data = "/srv/standby/thinkcentre/minecraft-skyblock";
+      peer = "thinkcentre";
+      minecraft = { namespace = "minecraft-skyblock"; app = "minecraft-skyblock"; };
+    };
+    hytale = { data = "/srv/standby/thinkcentre/hytale"; peer = "thinkcentre"; };
     baikal = {
       data = "/home/fuji/services/baikal";
       peer = "thinkcentre";

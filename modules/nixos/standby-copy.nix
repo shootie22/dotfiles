@@ -86,7 +86,17 @@ let
         start=$(date +%s)
 
         snap=$(mktemp -d ${stateDir}/snap.XXXXXX)
-        trap 'rm -rf "$snap"' EXIT
+        ${if job.postCopy == null then ''
+          trap 'rm -rf "$snap"' EXIT
+        '' else ''
+          # Undone whatever happens to the copy (e.g. a game's saves resumed).
+          trap 'rm -rf "$snap"; ${pkgs.writeShellScript "standby-copy-${name}-post" job.postCopy} || echo "post-copy step failed" >&2' EXIT
+        ''}
+        ${lib.optionalString (job.preCopy != null) ''
+          # Getting the folder into a state worth copying (e.g. a game saving
+          # its world and pausing saves). A failure here doesn't stop the copy.
+          ${pkgs.writeShellScript "standby-copy-${name}-pre" job.preCopy} || echo "pre-copy step failed, copying anyway" >&2
+        ''}
         ${lib.concatMapStrings (db: ''
           mkdir -p "$snap/$(dirname ${lib.escapeShellArg db})"
           # sqlite3 would quietly create an empty database at a wrong path.
@@ -156,6 +166,16 @@ in
             type = lib.types.nullOr lib.types.str;
             default = null;
             description = "rsync --bwlimit, e.g. \"20m\".";
+          };
+          preCopy = lib.mkOption {
+            type = lib.types.nullOr lib.types.lines;
+            default = null;
+            description = "Shell run before the copy; its failure doesn't stop the copy.";
+          };
+          postCopy = lib.mkOption {
+            type = lib.types.nullOr lib.types.lines;
+            default = null;
+            description = "Shell run after the copy, whatever happened to it.";
           };
           onlyWhenActive = lib.mkOption {
             type = lib.types.nullOr lib.types.str;

@@ -136,9 +136,9 @@ let
       publicKeys = { fuji = "ssh-ed25519 PLACEHOLDER"; thinkcentre = "ssh-ed25519 PLACEHOLDER"; };
       receive = { enable = true; dir = if name == "fuji" then "/srv/standby" else "/srv/receive"; from = [ peer ]; };
       # Every 20 seconds here instead of 10 minutes.
-      send.app.interval = lib.mkForce "*:*:0/20";
+      send.minecraft-hc.interval = lib.mkForce "*:*:0/20";
     };
-    dotfiles.siteFailover.services.app = { inherit data peer; initial = name == "thinkcentre"; };
+    dotfiles.siteFailover.services.minecraft-hc = { inherit data peer; initial = name == "thinkcentre"; };
     systemd.tmpfiles.rules = lib.optional (name == "thinkcentre") "d /srv/live/app 0755 root root -";
   };
 in
@@ -148,10 +148,11 @@ pkgs.testers.runNixOSTest {
   nodes = {
     rorouter = { nodes, ... }: { imports = [ (router 1 (addr nodes.fuji "eth1")) ]; };
     dkrouter = { ... }: { imports = [ (router 2 null) ]; };
-    fuji = pairNode "fuji" "thinkcentre" "/srv/standby/thinkcentre/app";
+    fuji = pairNode "fuji" "thinkcentre" "/srv/standby/thinkcentre/minecraft-hc";
     # A pattern, like a local-path volume's folder.
     thinkcentre = pairNode "thinkcentre" "fuji" "/srv/li*/app";
-    edge = k3sNode "edge";
+    # The game relay follows the label (modules/nixos/game-relay.nix).
+    edge = { imports = [ (k3sNode "edge") ../modules/nixos/game-relay.nix ]; dotfiles.gameRelay.enable = true; };
   };
 
   testScript = ''
@@ -167,15 +168,21 @@ pkgs.testers.runNixOSTest {
             time.sleep(3)
         raise Exception("no API")
 
+    def relay_points_at(ip, timeout=120):
+        edge.wait_until_succeeds(
+            f"systemctl start game-relay-targets && grep -qx '  6767 {ip};' /run/game-relay/targets.conf "
+            f"&& grep -qx '  51751 {ip};' /run/game-relay/targets.conf && systemctl is-active -q nginx",
+            timeout=timeout)
+
     def holder(via):
-        return via.succeed("kubectl get nodes -l ha.radunenu.com/app=active -o jsonpath='{.items[*].metadata.name}'").strip()
+        return via.succeed("kubectl get nodes -l ha.radunenu.com/minecraft-hc=active -o jsonpath='{.items[*].metadata.name}'").strip()
 
     def running_on(m):
         # The counter's container on this machine, read from the runtime's
         # files: containerd may be down on a node that's cut off.
         return m.execute(
             "for d in /run/k3s/containerd/io.containerd.runtime.v2.task/k8s.io/*/; do "
-            "jq -e '.mounts[] | select(.source == \"/srv/ha/app\")' $d/config.json >/dev/null 2>&1 && "
+            "jq -e '.mounts[] | select(.source == \"/srv/ha/minecraft-hc\")' $d/config.json >/dev/null 2>&1 && "
             "kill -0 $(cat $d/init.pid) 2>/dev/null && exit 0; done; exit 1"
         )[0] == 0
 
@@ -189,7 +196,7 @@ pkgs.testers.runNixOSTest {
             f"echo \"''${{line%ssh-ed25519 PLACEHOLDER}}{pub}\" > $f; chmod 0444 $f"
         )
 
-    FUJI = "/srv/standby/thinkcentre/app"  # the service's folder on fuji
+    FUJI = "/srv/standby/thinkcentre/minecraft-hc"  # the service's folder on fuji
 
     def count(m, path):
         return int(m.succeed(f"cat {path}/n").strip() or 0)
@@ -205,7 +212,7 @@ pkgs.testers.runNixOSTest {
       template:
         metadata: {labels: {app: app}}
         spec:
-          nodeSelector: {ha.radunenu.com/app: active}
+          nodeSelector: {ha.radunenu.com/minecraft-hc: active}
           tolerations:
             - {key: node.kubernetes.io/unreachable, operator: Exists, effect: NoExecute, tolerationSeconds: 30}
             - {key: node.kubernetes.io/not-ready, operator: Exists, effect: NoExecute, tolerationSeconds: 30}
@@ -216,7 +223,7 @@ pkgs.testers.runNixOSTest {
               command: [sh, -c, 'n=$(cat /data/n 2>/dev/null || echo 0); while true; do n=$((n+1)); echo $n > /data/n; echo "$NODE $n" >> /data/log; sleep 1; done']
               env: [{name: NODE, valueFrom: {fieldRef: {fieldPath: spec.nodeName}}}]
               volumeMounts: [{name: data, mountPath: /data}]
-          volumes: [{name: data, hostPath: {path: /srv/ha/app, type: Directory}}]
+          volumes: [{name: data, hostPath: {path: /srv/ha/minecraft-hc, type: Directory}}]
     """
 
     with subtest("1. cluster up, the thinkcentre takes the label"):
@@ -234,7 +241,7 @@ pkgs.testers.runNixOSTest {
         for m in (fuji, thinkcentre):
             trust(m)
         a = api()
-        a.wait_until_succeeds("kubectl get nodes -l ha.radunenu.com/app=active -o name | grep -x node/thinkcentre", timeout=300)
+        a.wait_until_succeeds("kubectl get nodes -l ha.radunenu.com/minecraft-hc=active -o name | grep -x node/thinkcentre", timeout=300)
         assert holder(a) == "thinkcentre", holder(a)
 
     with subtest("2. the service runs on the thinkcentre and gets copied to fuji"):
@@ -243,28 +250,31 @@ pkgs.testers.runNixOSTest {
         a.succeed(f"cat > /tmp/app.yaml <<'YAML'\n{textwrap.dedent(app).replace('IMAGE', image)}\nYAML")
         a.succeed("kubectl apply -f /tmp/app.yaml")
         thinkcentre.wait_until_succeeds("test \"$(cat /srv/live/app/n)\" -gt 5", timeout=300)
-        fuji.wait_until_succeeds("test -e /srv/standby/thinkcentre/app/.standby-copy-ok", timeout=300)
-        # The standby has the copy, but no /srv/ha/app: nothing could run on it.
-        fuji.fail("test -e /srv/ha/app")
-        thinkcentre.succeed("mountpoint -q /srv/ha/app")
+        fuji.wait_until_succeeds("test -e /srv/standby/thinkcentre/minecraft-hc/.standby-copy-ok", timeout=300)
+        # The standby has the copy, but no /srv/ha/minecraft-hc: nothing could run on it.
+        fuji.fail("test -e /srv/ha/minecraft-hc")
+        thinkcentre.succeed("mountpoint -q /srv/ha/minecraft-hc")
         print("copied to fuji:", count(fuji, FUJI), "live:", count(thinkcentre, "/srv/live/app"))
+        relay_points_at("10.99.0.3")
         # fuji isn't active, so it doesn't send.
-        fuji.succeed("systemctl start standby-copy-app.service")
-        fuji.succeed("journalctl -u standby-copy-app | grep -q 'not the active node'")
+        fuji.succeed("systemctl start standby-copy-minecraft-hc.service")
+        fuji.succeed("journalctl -u standby-copy-minecraft-hc | grep -q 'not the active node'")
         assert not running_on(fuji)
 
     with subtest("3. the thinkcentre crashes: fuji takes over on the copy"):
-        thinkcentre.succeed("systemctl start standby-copy-app.service")
+        thinkcentre.succeed("systemctl start standby-copy-minecraft-hc.service")
         copied = count(fuji, FUJI)
         t0 = time.time()
         # A real server unpacked its images long ago; this one minutes ago, and
         # a crash before they reach the disk leaves containerd broken.
         thinkcentre.succeed("sync")
         thinkcentre.crash()
-        fuji.wait_until_succeeds("kubectl get nodes -l ha.radunenu.com/app=active -o name | grep -x node/fuji", timeout=600)
+        fuji.wait_until_succeeds("kubectl get nodes -l ha.radunenu.com/minecraft-hc=active -o name | grep -x node/fuji", timeout=600)
         print(f"TIME crash: fuji has the label after ~{time.time() - t0:.0f} s")
-        fuji.wait_until_succeeds(f"test \"$(cat /srv/ha/app/n)\" -gt {copied + 3}", timeout=600)
+        fuji.wait_until_succeeds(f"test \"$(cat /srv/ha/minecraft-hc/n)\" -gt {copied + 3}", timeout=600)
         print(f"TIME crash: the service runs on fuji after ~{time.time() - t0:.0f} s, carrying on from {copied}")
+        relay_points_at("10.99.0.2")
+        print(f"TIME crash: the game relay points at fuji after ~{time.time() - t0:.0f} s")
 
     with subtest("4. the thinkcentre comes back as the standby"):
         thinkcentre.start()
@@ -274,12 +284,12 @@ pkgs.testers.runNixOSTest {
         time.sleep(30)
         assert holder(fuji) == "fuji", holder(fuji)
         assert not running_on(thinkcentre)
-        thinkcentre.fail("test -e /srv/ha/app")
-        thinkcentre.succeed("curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9112/app | grep -x 503")
-        thinkcentre.succeed("curl -s http://127.0.0.1:9112/app | grep -q 'holder=fuji$'")
+        thinkcentre.fail("test -e /srv/ha/minecraft-hc")
+        thinkcentre.succeed("curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9112/minecraft-hc | grep -x 503")
+        thinkcentre.succeed("curl -s http://127.0.0.1:9112/minecraft-hc | grep -q 'holder=fuji$'")
         # fuji's copies now land in the thinkcentre's folder.
-        fuji.succeed("systemctl start standby-copy-app.service")
-        n = count(fuji, "/srv/ha/app")
+        fuji.succeed("systemctl start standby-copy-minecraft-hc.service")
+        n = count(fuji, "/srv/ha/minecraft-hc")
         thinkcentre.succeed(f"test \"$(cat /srv/live/app/n)\" -ge {n - 2}")
         print("the thinkcentre has fuji's copy:", count(thinkcentre, "/srv/live/app"))
 
@@ -298,8 +308,9 @@ pkgs.testers.runNixOSTest {
         assert stopped is not None and started is not None, (stopped, started)
         print(f"TIME cut: fuji stopped the service after ~{stopped:.0f} s, the thinkcentre runs it after ~{started:.0f} s")
         assert stopped < started
+        relay_points_at("10.99.0.3")
         # fuji can't send while cut off (it can't ask the cluster).
-        fuji.fail("systemctl start standby-copy-app.service")
+        fuji.fail("systemctl start standby-copy-minecraft-hc.service")
 
     with subtest("6. the cut heals: fuji is the standby"):
         fuji.succeed("iptables -D INPUT -i nebula.mesh -j DROP; iptables -D OUTPUT -o nebula.mesh -j DROP")
@@ -307,10 +318,10 @@ pkgs.testers.runNixOSTest {
         time.sleep(30)
         assert holder(thinkcentre) == "thinkcentre"
         assert not running_on(fuji)
-        thinkcentre.succeed("systemctl start standby-copy-app.service")
+        thinkcentre.succeed("systemctl start standby-copy-minecraft-hc.service")
         n = count(thinkcentre, "/srv/live/app")
         fuji.succeed(f"test \"$(cat {FUJI}/n)\" -ge {n - 2}")
-        fuji.fail("test -e /srv/ha/app")
+        fuji.fail("test -e /srv/ha/minecraft-hc")
         # Who wrote, in order: the copy's lost minutes show as a step back
         # in the count at each takeover.
         lines = thinkcentre.succeed("cat /srv/live/app/log").splitlines()

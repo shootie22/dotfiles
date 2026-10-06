@@ -45,6 +45,20 @@
       # queues, which Gitea rebuilds.
       exclude = [ "/postgres" "/gitea/indexers" "/gitea/queues" ];
     };
+    # Game worlds; the Minecraft ones save over RCON before each copy.
+    minecraft-hc = {
+      data = "/home/main/services/minecraft-hc-aug2026-nl/server";
+      peer = "fuji";
+      initial = true;
+      minecraft = { namespace = "minecraft-hc"; app = "minecraft-hc"; };
+    };
+    minecraft-skyblock = {
+      data = "/home/main/game_servers/minecraft-skyblock-apr2026";
+      peer = "fuji";
+      initial = true;
+      minecraft = { namespace = "minecraft-skyblock"; app = "minecraft-skyblock"; };
+    };
+    hytale = { data = "/home/main/game_servers/hytale"; peer = "fuji"; initial = true; };
     headscale = { data = "/home/standby/fuji/headscale"; peer = "fuji"; sqlite = [ "db.sqlite" ]; };
     legacy-web = { data = "/home/standby/fuji/legacy-web"; peer = "fuji"; };
   };

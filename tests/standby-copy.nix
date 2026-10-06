@@ -50,6 +50,10 @@ pkgs.testers.runNixOSTest {
       sqlite = [ "db/app.sqlite" ];
       exclude = [ "/cache" ];
       interval = "*:0/1";
+      # Like a game: something to do before (lands in the copy) and after
+      # (runs even when the copy fails).
+      preCopy = "date +%s > /srv/app/pre-ran";
+      postCopy = "touch /tmp/post-ran";
     };
     # A second job at the same time, as on the real hosts.
     # A glob source, like a local-path volume.
@@ -105,6 +109,8 @@ pkgs.testers.runNixOSTest {
             want = fuji.succeed(f"stat -c %u:%a /srv/app{sub}").strip()
             thinkcentre.succeed(f"test \"$(stat -c %u:%a {d}{sub})\" = {want}")
         thinkcentre.succeed(f"test -s {d}/.standby-copy-ok")
+        thinkcentre.succeed(f"test -s {d}/pre-ran")
+        fuji.succeed("test -e /tmp/post-ran")
         thinkcentre.fail(f"test -e {d}/cache")
         thinkcentre.fail(f"test -e {d}/db/app.sqlite-wal")
         thinkcentre.succeed(f"test \"$(sqlite3 {d}/db/app.sqlite 'pragma integrity_check')\" = ok")
@@ -138,7 +144,10 @@ pkgs.testers.runNixOSTest {
 
     with subtest("no standby disk, no copy"):
         thinkcentre.succeed("umount /srv/standby")
+        fuji.succeed("rm -f /tmp/post-ran")
         fuji.fail("systemctl start standby-copy-app.service")
+        # The after-step ran anyway.
+        fuji.succeed("test -e /tmp/post-ran")
         thinkcentre.fail("test -e /srv/standby/fuji")
   '';
 }

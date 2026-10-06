@@ -18,7 +18,9 @@ both nodes and does three things:
 - open: when this node may run the service, /srv/ha/<service> is a bind of
   the service's folder here.
 
-GET /<service> on localhost says what this node thinks (for checks by hand).
+GET /<service> says what this node thinks: on localhost for checks by hand,
+and on the mesh address for the game relay (modules/nixos/game-relay.nix),
+which sends players to whichever node holds the label.
 """
 
 import glob
@@ -242,5 +244,18 @@ class Gate(BaseHTTPRequestHandler):
         pass
 
 
+def serve(address):
+    # The mesh address may not be there yet at boot; keep trying, without
+    # ever holding up the loop above.
+    while True:
+        try:
+            ThreadingHTTPServer((address, cfg["port"]), Gate).serve_forever()
+        except OSError as e:
+            log(f"status page on {address}: {e}; retrying")
+            time.sleep(10)
+
+
 threading.Thread(target=loop, daemon=True).start()
-ThreadingHTTPServer(("127.0.0.1", cfg["port"]), Gate).serve_forever()
+for address in cfg["listen"][1:]:
+    threading.Thread(target=serve, args=(address,), daemon=True).start()
+serve(cfg["listen"][0])

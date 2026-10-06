@@ -18,11 +18,25 @@
 let
   cfg = config.dotfiles.siteFailover;
   copy = config.dotfiles.standbyCopy;
+  mesh = import ../../../lib/nebula.nix;
+  k3s = "${config.services.k3s.package}/bin/k3s";
+  # A Minecraft server's world, written out and held still while it's
+  # copied (RCON; the password is the server's own Kubernetes secret).
+  rcon = m: commands: ''
+    ip=$(${k3s} kubectl -n ${m.namespace} get pod -l app=${m.app} \
+      -o jsonpath='{.items[?(@.status.phase=="Running")].status.podIP}')
+    if [ -z "$ip" ]; then echo "${m.app} isn't running, nothing to save"; exit 0; fi
+    MCRCON_PASS=$(${k3s} kubectl -n ${m.namespace} get secret ${m.secret} -o jsonpath='{.data.password}' | base64 -d)
+    export MCRCON_PASS
+    ${pkgs.mcrcon}/bin/mcrcon -H "$ip" -P 25575 ${commands}
+  '';
   python = pkgs.python3;
   settings = {
     node = config.networking.hostName;
     k3s = [ "${config.services.k3s.package}/bin/k3s" ];
     inherit (cfg) port interval;
+    # Read-only status: localhost, and the mesh for the game relay.
+    listen = [ "127.0.0.1" mesh.hosts.${config.networking.hostName}.ip ];
     fail_after = cfg.failAfter;
     api_grace = cfg.apiGrace;
     services = lib.mapAttrs (svc: s: {
@@ -64,6 +78,17 @@ in
           };
           sqlite = lib.mkOption { type = lib.types.listOf lib.types.str; default = [ ]; };
           exclude = lib.mkOption { type = lib.types.listOf lib.types.str; default = [ ]; };
+          minecraft = lib.mkOption {
+            default = null;
+            description = "A Minecraft server: save and hold the world still over RCON while it's copied.";
+            type = lib.types.nullOr (lib.types.submodule {
+              options = {
+                namespace = lib.mkOption { type = lib.types.str; };
+                app = lib.mkOption { type = lib.types.str; description = "The pod's app label."; };
+                secret = lib.mkOption { type = lib.types.str; default = "minecraft-rcon"; };
+              };
+            });
+          };
         };
       }));
     };
@@ -79,6 +104,8 @@ in
       source = "/srv/ha/${svc}";
       to = s.peer;
       inherit (s) sqlite exclude;
+      preCopy = if s.minecraft == null then null else rcon s.minecraft ''"save-off" "save-all flush"'';
+      postCopy = if s.minecraft == null then null else rcon s.minecraft ''"save-on"'';
       onlyWhenActive = svc;
     }) cfg.services;
 
