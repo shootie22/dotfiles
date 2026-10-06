@@ -45,6 +45,12 @@
       # queues, which Gitea rebuilds.
       exclude = [ "/postgres" "/gitea/indexers" "/gitea/queues" ];
     };
+    rybbit-clickhouse = {
+      data = "/home/main/services/rybbit/clickhouse";
+      peer = "fuji";
+      initial = true;
+      clickhouse = { namespace = "rybbit"; app = "rybbit-clickhouse"; };
+    };
     # Game worlds; the Minecraft ones save over RCON before each copy.
     minecraft-hc = {
       data = "/home/main/services/minecraft-hc-aug2026-nl/server";

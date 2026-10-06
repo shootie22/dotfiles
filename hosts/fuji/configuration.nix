@@ -38,6 +38,11 @@
       peer = "thinkcentre";
       exclude = [ "/postgres" "/gitea/indexers" "/gitea/queues" ];
     };
+    rybbit-clickhouse = {
+      data = "/srv/standby/thinkcentre/rybbit-clickhouse";
+      peer = "thinkcentre";
+      clickhouse = { namespace = "rybbit"; app = "rybbit-clickhouse"; };
+    };
     minecraft-hc = {
       data = "/srv/standby/thinkcentre/minecraft-hc";
       peer = "thinkcentre";

@@ -20,6 +20,16 @@ let
   copy = config.dotfiles.standbyCopy;
   mesh = import ../../../lib/nebula.nix;
   k3s = "${config.services.k3s.package}/bin/k3s";
+  # Runs a command inside a service's running pod (for hold-still steps).
+  inPod = ns: app: cmd: ''
+    pod=$(${k3s} kubectl -n ${ns} get pod -l app=${app} \
+      -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}')
+    if [ -z "$pod" ]; then echo "${app} isn't running"; exit 0; fi
+    ${k3s} kubectl -n ${ns} exec "$pod" -- sh -c ${lib.escapeShellArg cmd}
+  '';
+  # ClickHouse, with the credentials its container already has.
+  clickhouse = c: query: inPod c.namespace c.app
+    ''clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --query "${query}"'';
   # A Minecraft server's world, written out and held still while it's
   # copied (RCON; the password is the server's own Kubernetes secret).
   rcon = m: commands: ''
@@ -78,6 +88,26 @@ in
           };
           sqlite = lib.mkOption { type = lib.types.listOf lib.types.str; default = [ ]; };
           exclude = lib.mkOption { type = lib.types.listOf lib.types.str; default = [ ]; };
+          preCopy = lib.mkOption {
+            type = lib.types.nullOr lib.types.lines;
+            default = null;
+            description = "Shell run before each copy (standby-copy.nix), e.g. to hold a database still.";
+          };
+          postCopy = lib.mkOption {
+            type = lib.types.nullOr lib.types.lines;
+            default = null;
+            description = "Shell run after each copy, whatever happened to it.";
+          };
+          clickhouse = lib.mkOption {
+            default = null;
+            description = "A ClickHouse server: merges stopped while its folder is copied, so the parts on disk hold still.";
+            type = lib.types.nullOr (lib.types.submodule {
+              options = {
+                namespace = lib.mkOption { type = lib.types.str; };
+                app = lib.mkOption { type = lib.types.str; description = "The pod's app label."; };
+              };
+            });
+          };
           minecraft = lib.mkOption {
             default = null;
             description = "A Minecraft server: save and hold the world still over RCON while it's copied.";
@@ -103,9 +133,17 @@ in
     dotfiles.standbyCopy.send = lib.mapAttrs (svc: s: {
       source = "/srv/ha/${svc}";
       to = s.peer;
-      inherit (s) sqlite exclude;
-      preCopy = if s.minecraft == null then null else rcon s.minecraft ''"save-off" "save-all flush"'';
-      postCopy = if s.minecraft == null then null else rcon s.minecraft ''"save-on"'';
+      inherit (s) sqlite;
+      # A part being written lives in tmp_* until it's renamed into place.
+      exclude = s.exclude ++ lib.optional (s.clickhouse != null) "tmp_*";
+      preCopy =
+        if s.minecraft != null then rcon s.minecraft ''"save-off" "save-all flush"''
+        else if s.clickhouse != null then clickhouse s.clickhouse "SYSTEM STOP MERGES"
+        else s.preCopy;
+      postCopy =
+        if s.minecraft != null then rcon s.minecraft ''"save-on"''
+        else if s.clickhouse != null then clickhouse s.clickhouse "SYSTEM START MERGES"
+        else s.postCopy;
       onlyWhenActive = svc;
     }) cfg.services;
 
