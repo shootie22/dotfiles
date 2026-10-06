@@ -258,6 +258,17 @@
     owner = "root";
     mode = "0400";
   };
+  # The standby SSD (Crucial BX500, formatted 6 Oct): opened with that key
+  # once the system is up. nofail: a problem with it never stops fuji from
+  # booting, only the standby copies are missing then.
+  environment.etc.crypttab.text = ''
+    standby UUID=2e6749b5-95fe-4173-a9d2-7af1b4082075 ${config.sops.secrets.fuji_standby_key.path} luks,nofail,discard
+  '';
+  fileSystems."/srv/standby" = {
+    device = "/dev/mapper/standby";
+    fsType = "btrfs";
+    options = [ "nofail" "noatime" "compress=zstd" ];
+  };
 
   sops.secrets.nut_upsmon_password = {
     owner = "root";
