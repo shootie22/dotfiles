@@ -104,6 +104,7 @@
       "--egress-selector-mode=disabled"
       "--flannel-backend=wireguard-native"
       "--flannel-iface=nebula.mesh"
+      "--node-label=topology.kubernetes.io/zone=edge"
       "--flannel-external-ip"
       "--disable-apiserver"
       "--disable-controller-manager"
