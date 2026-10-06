@@ -4,14 +4,17 @@
 #
 # Health checks ask Traefik itself for a host that doesn't exist, so they
 # get Traefik's 404 no matter which services are up. Over HTTPS the check
-# uses that name as SNI too, which also catches fuji's tailnet port 443
-# being sent to the private tools proxy instead of Traefik.
+# uses that name as SNI too, so anything other than Traefik answering on 443
+# fails it.
 { config, ... }:
 
 let
+  # Over Nebula (lib/nebula.nix), not the tailnet: the way in when RO is down
+  # mustn't depend on Headscale (infrastructure #153).
+  mesh = (import ../../lib/nebula.nix).hosts;
   servers = ''
-        server fuji 100.64.0.1:@PORT@ check @CHECK@
-        server thinkcentre 100.64.0.4:@PORT@ check backup @CHECK@
+        server fuji ${mesh.fuji.ip}:@PORT@ check @CHECK@
+        server thinkcentre ${mesh.thinkcentre.ip}:@PORT@ check backup @CHECK@
   '';
   backend = port: check: builtins.replaceStrings [ "@PORT@" "@CHECK@" ] [ (toString port) check ] servers;
 in
