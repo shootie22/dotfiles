@@ -154,6 +154,13 @@
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
     };
 
+    # Phase 4: Postgres with CloudNativePG, one instance per site
+    # (infrastructure #28-#33; tests/cnpg-across-sites.nix).
+    checks.x86_64-linux.cnpg-across-sites = import ./tests/cnpg-across-sites.nix {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      k3sPackage = nixosConfigurations.fuji.config.services.k3s.package;
+    };
+
     nixosConfigurations.mixi = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
       modules = [
@@ -183,6 +190,12 @@
           modules.dev = {
             enable = true;
             user = "nixa";
+            # 22c/44t, 64 GB. RAM and disk are only used as the guest
+            # touches them; RAM is returned when the VM stops.
+            cpus = 44;
+            memoryMB = 16384;
+            homeSizeMB = 131072;
+            storeOverlaySizeMB = 32768;
           };
         }
         chaotic.nixosModules.default
