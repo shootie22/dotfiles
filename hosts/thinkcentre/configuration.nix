@@ -151,7 +151,7 @@
   services.k3s = {
     enable = true;
     role = "server";
-    serverAddr = "https://10.99.0.2:6443";
+    serverAddr = "https://k3s-api:6443";
     tokenFile = config.sops.secrets.k3s_server_token.path;
     # Same as fuji's, on its own address; k3s refuses a server whose
     # cluster-wide settings differ.
@@ -159,6 +159,7 @@
       "--node-ip=10.99.0.3"
       "--node-external-ip=10.99.0.3"
       "--advertise-address=10.99.0.3"
+      "--tls-san=k3s-api"
       "--tls-san=100.64.0.4"
       "--egress-selector-mode=disabled"
       "--flannel-backend=wireguard-native"
