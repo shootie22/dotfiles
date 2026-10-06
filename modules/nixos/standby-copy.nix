@@ -46,7 +46,11 @@ let
         ++ lib.optional (job.bwlimit != null) "--bwlimit=${job.bwlimit}";
     in {
       description = "Copy ${name} to ${job.to} (standby)";
-      after = [ "network-online.target" "nebula@mesh.service" ];
+      # Never restarted by a switch: a first copy can run for hours, and the
+      # switch (and comin behind it) would wait for it. The next run picks up
+      # the change.
+      restartIfChanged = false;
+      after =[ "network-online.target" "nebula@mesh.service" ];
       wants = [ "network-online.target" ];
       path = with pkgs; [ rsync openssh sqlite coreutils findutils ];
       serviceConfig = {
