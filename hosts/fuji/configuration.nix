@@ -228,6 +228,9 @@
   systemd.tmpfiles.rules = [
     "v /var/lib/rancher/k3s/storage 0700 root root -"
     "d /var/lib/rancher/k3s/backup-staging 0700 root root -"
+    # Hourly Postgres dumps from the cluster (infrastructure #32); 26 is the
+    # postgres user in the CNPG images.
+    "d /var/lib/pg-dumps 0700 26 26 -"
   ];
 
   # sops -------------------------------------------------------------------
@@ -292,6 +295,8 @@
       # The cluster: etcd snapshots k3s takes every 12 hours (5 kept). Since
       # Phase 3; before, it was a copy of the SQLite database.
       "/var/lib/rancher/k3s/server/db/snapshots"
+      # Hourly dumps of the CNPG databases (infrastructure #32).
+      "/var/lib/pg-dumps"
       # hostPath data for Keycloak and Baikal, which isn't in a k3s volume.
       # Keycloak's Postgres is copied live, so this is crash-consistent only;
       # proper dumps come with CNPG (infrastructure #32).
