@@ -145,7 +145,8 @@
   # Dry run: it only logs what it would do.
   dotfiles.failoverChecker = {
     enable = true;
-    peers = [ "http://100.64.0.2:9180/" ];
+    # mixi, over Nebula (not dependent on Headscale).
+    peers = [ "http://10.99.0.4:9180/" ];
   };
 
   # Housekeeping ----------------------------------------------------------

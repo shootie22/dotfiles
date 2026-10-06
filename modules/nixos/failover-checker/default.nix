@@ -20,7 +20,8 @@ let
     edge_ip = "141.95.67.178";
     cloudflare_zone = "radunenu.com";
     cloudflare_nameserver = "nola.ns.cloudflare.com";
-    relay_url = "http://100.64.0.9:9190/alert"; # alert relay on the edge
+    # The alert relay on the edge, over Nebula: not dependent on Headscale.
+    relay_url = "http://${(import ../../../lib/nebula.nix).hosts.edge.ip}:9190/alert";
     desec_apex_zones = [ "byradu.com" "cubi.tube" "cubtube.lol" "kronorite.com" "radunenu.com" "yeetus.net" ];
   };
 in

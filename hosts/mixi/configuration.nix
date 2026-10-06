@@ -190,7 +190,8 @@
   # the thinkcentre runs NixOS. Dry run: it only logs what it would do.
   dotfiles.failoverChecker = {
     enable = true;
-    peers = [ "http://100.64.0.9:9180/" ];
+    # The edge, over Nebula (not dependent on Headscale).
+    peers = [ "http://10.99.0.1:9180/" ];
   };
 
   sops.age.keyFile = "/var/lib/sops-nix/key.txt";
