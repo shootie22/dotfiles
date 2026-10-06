@@ -36,24 +36,20 @@
       exclude = [ "/metadata/cache" ];
     };
     baikal = { data = "/home/standby/fuji/baikal"; peer = "fuji"; sqlite = [ "Specific/db/db.sqlite" ]; };
+    gitea = {
+      data = "/home/main/services/gitea";
+      peer = "fuji";
+      initial = true;
+      # The old Postgres 14 (Gitea is on CNPG now), and the search index and
+      # queues, which Gitea rebuilds.
+      exclude = [ "/postgres" "/gitea/indexers" "/gitea/queues" ];
+    };
     headscale = { data = "/home/standby/fuji/headscale"; peer = "fuji"; sqlite = [ "db.sqlite" ]; };
     legacy-web = { data = "/home/standby/fuji/legacy-web"; peer = "fuji"; };
   };
 
-  # Plain copies to fuji's standby SSD (infrastructure #142), for what isn't
-  # under site-failover yet.
-  dotfiles.standbyCopy = {
-    receive = { enable = true; dir = "/home/standby"; from = [ "fuji" ]; };
-    send = {
-      gitea = {
-        source = "/home/main/services/gitea";
-        to = "fuji";
-        # The old Postgres 14 (Gitea is on CNPG now), and the search index and
-        # queues, which Gitea rebuilds.
-        exclude = [ "/postgres" "/gitea/indexers" "/gitea/queues" ];
-      };
-    };
-  };
+  # The receiving side for fuji's copies (infrastructure #142).
+  dotfiles.standbyCopy.receive = { enable = true; dir = "/home/standby"; from = [ "fuji" ]; };
 
   # Boot: boot-safety.nix (systemd-boot, boot counting, watchdog, fallbacks).
 

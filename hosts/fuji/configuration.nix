@@ -32,6 +32,11 @@
       sqlite = [ "config/absdatabase.sqlite" ];
       exclude = [ "/metadata/cache" ];
     };
+    gitea = {
+      data = "/srv/standby/thinkcentre/gitea";
+      peer = "thinkcentre";
+      exclude = [ "/postgres" "/gitea/indexers" "/gitea/queues" ];
+    };
     baikal = {
       data = "/home/fuji/services/baikal";
       peer = "thinkcentre";
