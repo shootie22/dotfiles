@@ -211,6 +211,7 @@
       "--node-external-ip=10.99.0.2"
       "--advertise-address=10.99.0.2"
       # Agents not moved yet still connect at the old addresses.
+      "--tls-san=k3s-api"
       "--tls-san=100.64.0.1"
       "--tls-san=192.168.100.136"
       "--egress-selector-mode=disabled"

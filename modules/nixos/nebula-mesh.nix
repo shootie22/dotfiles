@@ -108,6 +108,14 @@ in
       # firewall above only lets the servers group in.
       networking.firewall.trustedInterfaces = [ "nebula.mesh" ];
 
+      # The fixed registration address (infrastructure #21): k3s-api is every
+      # API server's mesh address, from /etc/hosts, so joining works with any
+      # one of them down and needs no DNS. The servers carry the name in
+      # their certificate (--tls-san=k3s-api).
+      networking.hosts = lib.mkMerge (lib.mapAttrsToList
+        (_: h: { ${h.ip} = [ "k3s-api" ]; })
+        (lib.filterAttrs (_: h: h.api or false) mesh.hosts));
+
       # Tailscale's routing table comes before the main one, and fuji's LAN
       # address is routed over the tailnet for DK. On minima, next to fuji,
       # that sent the mesh's own packets to fuji over the tailnet too. Only
