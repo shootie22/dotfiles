@@ -27,6 +27,10 @@
   # copies go from whichever of the two runs them; fuji's (Baikal, Headscale,
   # legacy-web) arrive in /home/standby/fuji.
   dotfiles.siteFailover.services = {
+    # Stateless game servers: only the label moves (and the relay with it).
+    bopl2d = { stateless = true; peer = "fuji"; initial = true; };
+    crosty = { stateless = true; peer = "fuji"; initial = true; };
+    megabopl3d = { stateless = true; peer = "fuji"; initial = true; };
     privatebin = { data = "/home/main/services/privatebin/data"; peer = "fuji"; initial = true; };
     send-uploads = { data = "/home/main/storage/send-uploads"; peer = "fuji"; initial = true; };
     audiobookshelf = {

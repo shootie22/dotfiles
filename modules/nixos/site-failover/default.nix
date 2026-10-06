@@ -50,8 +50,8 @@ let
     fail_after = cfg.failAfter;
     api_grace = cfg.apiGrace;
     services = lib.mapAttrs (svc: s: {
-      inherit (s) peer initial data;
-      incoming = if incoming svc != s.data then incoming svc else null;
+      inherit (s) peer initial data stateless;
+      incoming = if !s.stateless && incoming svc != s.data then incoming svc else null;
     }) cfg.services;
   };
   configFile = pkgs.writeText "site-failover.json" (builtins.toJSON settings);
@@ -76,8 +76,14 @@ in
       default = { };
       type = lib.types.attrsOf (lib.types.submodule ({ name, ... }: {
         options = {
+          stateless = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = "Nothing on disk (a game server with no world): only the label moves, nothing is copied, mounted or fenced.";
+          };
           data = lib.mkOption {
             type = lib.types.str;
+            default = "";
             description = "The service's folder on this node. May be a pattern matching exactly one folder (a local-path volume).";
           };
           peer = lib.mkOption { type = lib.types.str; description = "The node in the other site."; };
@@ -145,7 +151,7 @@ in
         else if s.clickhouse != null then clickhouse s.clickhouse "SYSTEM START MERGES"
         else s.postCopy;
       onlyWhenActive = svc;
-    }) cfg.services;
+    }) (lib.filterAttrs (_: s: !s.stateless) cfg.services);
 
     systemd.services.site-failover = {
       description = "Site failover for services with files";

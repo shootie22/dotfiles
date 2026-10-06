@@ -5,8 +5,9 @@
 #
 # A game with a world moves between the thinkcentre and fuji with its site
 # (site-failover); its `service` names it there, and the relay asks the
-# site-failover status pages which node holds it, every 10 seconds. The
-# others go to the thinkcentre.
+# site-failover status pages which node holds it, every 10 seconds (the
+# stateless games too, with a label and nothing to copy). A game without a
+# service goes to the thinkcentre.
 { config, lib, pkgs, ... }:
 
 let
@@ -18,10 +19,10 @@ let
     { port = 51751; proto = "tcp"; name = "Minecraft HC SFTP"; service = "minecraft-hc"; }
     { port = 25565; proto = "tcp"; name = "Minecraft Skyblock"; service = "minecraft-skyblock"; }
     { port = 19132; proto = "udp"; name = "Minecraft Bedrock"; service = "minecraft-skyblock"; }
-    { port = 24545; proto = "udp"; name = "MegaBopl3D"; service = null; }
+    { port = 24545; proto = "udp"; name = "MegaBopl3D"; service = "megabopl3d"; }
     { port = 5520;  proto = "udp"; name = "Hytale"; service = "hytale"; }
-    { port = 7777;  proto = "udp"; name = "Crosty"; service = null; }
-    { port = 24567; proto = "udp"; name = "Bopl 2D"; service = null; }
+    { port = 7777;  proto = "udp"; name = "Crosty"; service = "crosty"; }
+    { port = 24567; proto = "udp"; name = "Bopl 2D"; service = "bopl2d"; }
   ];
   portsOf = proto: map (p: p.port) (lib.filter (p: p.proto == proto) ports);
   services = lib.unique (lib.filter (s: s != null) (map (p: p.service) ports));

@@ -83,7 +83,13 @@ def ha_path(svc):
     return f"/srv/ha/{svc}"
 
 
+def stateless(svc):
+    return cfg["services"][svc].get("stateless", False)
+
+
 def data(svc):
+    if stateless(svc):
+        return "/"  # nothing on disk; always "there"
     # The service's folder here. May be a pattern (a local-path volume's
     # folder has a generated name); it counts only if it matches exactly one
     # folder.
@@ -92,6 +98,8 @@ def data(svc):
 
 
 def has_copy(svc):
+    if stateless(svc):
+        return True
     # A whole copy has arrived at least once (standby-copy.nix writes it last).
     d = data(svc)
     return d is not None and os.path.exists(os.path.join(d, ".standby-copy-ok"))
@@ -187,6 +195,8 @@ def containers_using(path):
 
 
 def fence(svc):
+    if stateless(svc):
+        return
     path = ha_path(svc)
     for cid, pid in containers_using(path):
         try:
@@ -210,6 +220,8 @@ def fence(svc):
 
 
 def open_(svc):
+    if stateless(svc):
+        return
     path = ha_path(svc)
     r = bind(data(svc), path)
     if r is not None:

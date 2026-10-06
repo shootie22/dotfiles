@@ -139,6 +139,8 @@ let
       send.minecraft-hc.interval = lib.mkForce "*:*:0/20";
     };
     dotfiles.siteFailover.services.minecraft-hc = { inherit data peer; initial = name == "thinkcentre"; };
+    # A stateless one: only the label (and the relay) should move.
+    dotfiles.siteFailover.services.bopl2d = { stateless = true; inherit peer; initial = name == "thinkcentre"; };
     systemd.tmpfiles.rules = lib.optional (name == "thinkcentre") "d /srv/live/app 0755 root root -";
     # A mount inside the service's folder, like Gitea's repositories on
     # another disk: it has to show through /srv/ha and in the copies.
@@ -284,6 +286,9 @@ pkgs.testers.runNixOSTest {
         print(f"TIME crash: the service runs on fuji after ~{time.time() - t0:.0f} s, carrying on from {copied}")
         relay_points_at("10.99.0.2")
         print(f"TIME crash: the game relay points at fuji after ~{time.time() - t0:.0f} s")
+        fuji.wait_until_succeeds("kubectl get nodes -l ha.radunenu.com/bopl2d=active -o name | grep -x node/fuji", timeout=300)
+        edge.wait_until_succeeds("systemctl start game-relay-targets && grep -qx '  24567 10.99.0.2;' /run/game-relay/targets.conf", timeout=120)
+        print("the stateless service moved too")
 
     with subtest("4. the thinkcentre comes back as the standby"):
         thinkcentre.start()
