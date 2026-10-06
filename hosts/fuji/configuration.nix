@@ -20,14 +20,28 @@
   # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
   dotfiles.nebulaMesh.enable = true;
 
-  # Standby copies (infrastructure #142): the thinkcentre's services land on
-  # the standby SSD, and Baikal goes to the thinkcentre.
-  # DK's services that fail over to here (infrastructure decisions, 6 Oct):
-  # the copy on the standby SSD becomes the live folder.
+  # Services with files that move between here and the thinkcentre when a
+  # site is gone (site-failover, infrastructure decisions 6 Oct). DK's copies
+  # sit on the standby SSD and become the live folder here when needed.
   dotfiles.siteFailover.services = {
     privatebin = { data = "/srv/standby/thinkcentre/privatebin"; peer = "thinkcentre"; };
+    send-uploads = { data = "/srv/standby/thinkcentre/send-uploads"; peer = "thinkcentre"; };
+    audiobookshelf = {
+      data = "/srv/standby/thinkcentre/audiobookshelf";
+      peer = "thinkcentre";
+      sqlite = [ "config/absdatabase.sqlite" ];
+      exclude = [ "/metadata/cache" ];
+    };
+    baikal = {
+      data = "/home/fuji/services/baikal";
+      peer = "thinkcentre";
+      initial = true;
+      sqlite = [ "Specific/db/db.sqlite" ];
+    };
   };
 
+  # Copies to the thinkcentre (infrastructure #142) for what isn't under
+  # site-failover yet, and the receiving side for DK's copies.
   dotfiles.standbyCopy = {
     receive = {
       enable = true;
@@ -36,11 +50,6 @@
       requireMount = "/srv/standby";
     };
     send = {
-      baikal = {
-        source = "/home/fuji/services/baikal";
-        to = "thinkcentre";
-        sqlite = [ "Specific/db/db.sqlite" ];
-      };
       # local-path volumes: pvc-<id>_<namespace>_<claim>
       headscale = {
         source = "/var/lib/rancher/k3s/storage/pvc-*_headscale_headscale-data";

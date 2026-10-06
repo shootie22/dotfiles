@@ -21,24 +21,27 @@
   # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
   dotfiles.nebulaMesh.enable = true;
 
-  # Standby copies for the services that live here, kept on fuji's standby SSD
-  # in RO, and fuji's own copies kept here (infrastructure #142).
-  # Services that fail over to fuji when DK is gone, and stay there
-  # (infrastructure decisions, 6 Oct). Their copies are sent from here.
+  # Services with files that move to fuji when DK is gone, and stay there
+  # (site-failover, infrastructure decisions 6 Oct). The copies go from
+  # whichever of the two runs them; fuji's own (Baikal) come here.
   dotfiles.siteFailover.services = {
     privatebin = { data = "/home/main/services/privatebin/data"; peer = "fuji"; initial = true; };
+    send-uploads = { data = "/home/main/storage/send-uploads"; peer = "fuji"; initial = true; };
+    audiobookshelf = {
+      data = "/home/main/services/audiobookshelf";
+      peer = "fuji";
+      initial = true;
+      sqlite = [ "config/absdatabase.sqlite" ];
+      exclude = [ "/metadata/cache" ];
+    };
+    baikal = { data = "/home/standby/fuji/baikal"; peer = "fuji"; sqlite = [ "Specific/db/db.sqlite" ]; };
   };
 
+  # Plain copies to fuji's standby SSD (infrastructure #142), for what isn't
+  # under site-failover yet.
   dotfiles.standbyCopy = {
     receive = { enable = true; dir = "/home/standby"; from = [ "fuji" ]; };
     send = {
-      send-uploads = { source = "/home/main/storage/send-uploads"; to = "fuji"; };
-      audiobookshelf = {
-        source = "/home/main/services/audiobookshelf";
-        to = "fuji";
-        sqlite = [ "config/absdatabase.sqlite" ];
-        exclude = [ "/metadata/cache" ];
-      };
       gitea = {
         source = "/home/main/services/gitea";
         to = "fuji";
