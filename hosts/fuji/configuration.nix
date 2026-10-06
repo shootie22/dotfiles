@@ -13,10 +13,27 @@
     ../../modules/nixos/nebula-mesh.nix
     ../../modules/nixos/edge-tunnel.nix
     ../../modules/nixos/weekly-update
+    ../../modules/nixos/standby-copy.nix
   ];
 
   # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
   dotfiles.nebulaMesh.enable = true;
+
+  # Standby copies (infrastructure #142): the thinkcentre's services land on
+  # the standby SSD, and Baikal goes to the thinkcentre.
+  dotfiles.standbyCopy = {
+    receive = {
+      enable = true;
+      dir = "/srv/standby";
+      from = [ "thinkcentre" ];
+      requireMount = "/srv/standby";
+    };
+    send.baikal = {
+      source = "/home/fuji/services/baikal";
+      to = "thinkcentre";
+      sqlite = [ "Specific/db/db.sqlite" ];
+    };
+  };
 
   # Boot ----------------------------------------------------------------------
   boot.loader.systemd-boot.enable = true;

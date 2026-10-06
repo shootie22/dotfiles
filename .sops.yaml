@@ -41,3 +41,10 @@ creation_rules:
   # Personal key only: the edge never needs to read this file.
   - path_regex: secrets/edge-bootstrap\.yaml$
     age: age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659
+
+  # Keys fuji and the thinkcentre push standby copies with
+  # (modules/nixos/standby-copy.nix). Personal key too, for recovery.
+  - path_regex: secrets/fuji-standby-copy\.yaml$
+    age: age1qwuleu9k2gzgex43tyhhy80vgg9kym5dcdne32x4f0lw4xzsxy3spau58l,age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659
+  - path_regex: secrets/thinkcentre-standby-copy\.yaml$
+    age: age1yvhkx6094utagx3xdfzyq08pwkatyj8lyrpt7jpufq70v8yer9csv66dfc,age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659

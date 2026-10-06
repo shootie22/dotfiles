@@ -161,6 +161,12 @@
       k3sPackage = nixosConfigurations.fuji.config.services.k3s.package;
     };
 
+    # Standby copies of service folders between the sites
+    # (infrastructure #142; tests/standby-copy.nix).
+    checks.x86_64-linux.standby-copy = import ./tests/standby-copy.nix {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+    };
+
     nixosConfigurations.mixi = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
       modules = [

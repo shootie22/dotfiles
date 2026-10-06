@@ -14,10 +14,28 @@
     ../../modules/nixos/comin.nix
     ../../modules/nixos/nebula-mesh.nix
     ../../modules/nixos/edge-tunnel.nix
+    ../../modules/nixos/standby-copy.nix
   ];
 
   # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
   dotfiles.nebulaMesh.enable = true;
+
+  # Standby copies for the services that live here, kept on fuji's standby SSD
+  # in RO, and fuji's own copies kept here (infrastructure #142).
+  dotfiles.standbyCopy = {
+    receive = { enable = true; dir = "/home/standby"; from = [ "fuji" ]; };
+    send = {
+      privatebin = { source = "/home/main/services/privatebin/data"; to = "fuji"; };
+      send-uploads = { source = "/home/main/storage/send-uploads"; to = "fuji"; };
+      audiobookshelf = {
+        source = "/home/main/services/audiobookshelf";
+        to = "fuji";
+        sqlite = [ "config/absdatabase.sqlite" ];
+        exclude = [ "/metadata/cache" ];
+        bwlimit = "5m"; # 14 GB the first time
+      };
+    };
+  };
 
   # Boot: boot-safety.nix (systemd-boot, boot counting, watchdog, fallbacks).
 
