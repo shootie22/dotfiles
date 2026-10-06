@@ -149,6 +149,11 @@
       k3sPackage = nixosConfigurations.fuji.config.services.k3s.package;
     };
 
+    # Tailscale stays off the Nebula mesh (modules/nixos/nebula-mesh.nix).
+    checks.x86_64-linux.tailscale-off-nebula = import ./tests/tailscale-off-nebula.nix {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+    };
+
     nixosConfigurations.mixi = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
       modules = [

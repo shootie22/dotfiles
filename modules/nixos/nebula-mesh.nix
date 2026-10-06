@@ -116,6 +116,24 @@ in
         (_: h: { ${h.ip} = [ "k3s-api" ]; })
         (lib.filterAttrs (_: h: h.api or false) mesh.hosts));
 
+      # The other direction: tailscale offers its peers every address a host
+      # has, Nebula's included, and picked the path through Nebula between
+      # fuji and the thinkcentre (6 Oct). Tailscale marks its own packets
+      # (0x80000), so refuse those towards the mesh, like k3s-tailnet-guard
+      # does for the pod network. Tested in tests/tailscale-off-nebula.nix.
+      systemd.services.nebula-mesh-tailnet-guard = {
+        description = "Keep tailscale's own traffic off the Nebula mesh";
+        wantedBy = [ "multi-user.target" ];
+        before = [ "tailscaled.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          ExecStartPre = "-${pkgs.iproute2}/bin/ip rule del priority 5201";
+          ExecStart = "${pkgs.iproute2}/bin/ip rule add priority 5201 fwmark 0x80000/0xff0000 to ${mesh.network} unreachable";
+          ExecStop = "${pkgs.iproute2}/bin/ip rule del priority 5201";
+        };
+      };
+
       # Tailscale's routing table comes before the main one, and fuji's LAN
       # address is routed over the tailnet for DK. On minima, next to fuji,
       # that sent the mesh's own packets to fuji over the tailnet too. Only
