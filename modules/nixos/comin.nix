@@ -87,7 +87,7 @@ in
           systemctl restart comin
           rm -f /var/lib/comin-unstick/fetches
           # Tell the alert relay on the edge, so it doesn't go unnoticed.
-          curl -fsS -m 10 -X POST http://100.64.0.9:9190/alert \
+          curl -fsS -m 10 -X POST http://10.99.0.1:9190/alert \
             -d "$(jq -n --arg h "$(hostname)" --arg r "$1" \
               '{title: "comin restarted on \($h)", message: "\($r). Restarted automatically; nothing else to do unless it keeps happening."}')" \
             >/dev/null || echo "relay unreachable"

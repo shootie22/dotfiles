@@ -7,7 +7,7 @@ set -euo pipefail
 
 repo=git@github.com:shootie22/dotfiles.git
 work=$STATE_DIRECTORY/dotfiles
-relay=http://100.64.0.9:9190/alert
+relay=http://10.99.0.1:9190/alert  # the edge's alert relay, over Nebula
 build_hosts=(edge fuji thinkcentre nixpad workstation)
 eval_hosts=(mixi minima-vm)   # aarch64, can't build here
 today=$(date +%F)
