@@ -140,6 +140,11 @@ let
     };
     dotfiles.siteFailover.services.minecraft-hc = { inherit data peer; initial = name == "thinkcentre"; };
     systemd.tmpfiles.rules = lib.optional (name == "thinkcentre") "d /srv/live/app 0755 root root -";
+    # A mount inside the service's folder, like Gitea's repositories on
+    # another disk: it has to show through /srv/ha and in the copies.
+    virtualisation.fileSystems = lib.mkIf (name == "thinkcentre") {
+      "/srv/live/app/nested" = { fsType = "tmpfs"; device = "tmpfs"; };
+    };
   };
 in
 pkgs.testers.runNixOSTest {
@@ -254,6 +259,10 @@ pkgs.testers.runNixOSTest {
         # The standby has the copy, but no /srv/ha/minecraft-hc: nothing could run on it.
         fuji.fail("test -e /srv/ha/minecraft-hc")
         thinkcentre.succeed("mountpoint -q /srv/ha/minecraft-hc")
+        thinkcentre.succeed("echo deep > /srv/live/app/nested/x")
+        thinkcentre.succeed("test \"$(cat /srv/ha/minecraft-hc/nested/x)\" = deep")
+        thinkcentre.succeed("systemctl start standby-copy-minecraft-hc.service")
+        fuji.succeed(f"test \"$(cat {FUJI}/nested/x)\" = deep")
         print("copied to fuji:", count(fuji, FUJI), "live:", count(thinkcentre, "/srv/live/app"))
         relay_points_at("10.99.0.3")
         # fuji isn't active, so it doesn't send.
