@@ -98,6 +98,13 @@ pkgs.testers.runNixOSTest {
         thinkcentre.succeed(f"test \"$(cat {d}/repos/x/file)\" = hello")
         thinkcentre.succeed(f"test \"$(stat -c %u:%a {d}/repos/x/file)\" = 1000:640")
         thinkcentre.succeed(f"test \"$(stat -c %u {d}/db/app.sqlite)\" = 1000")
+        # Folders keep the source's owner and mode, the snapshot step included.
+        fuji.succeed("chown app /srv/app/db && chmod 750 /srv/app/db")
+        fuji.succeed("systemctl start standby-copy-app.service")
+        for sub in ["", "/db"]:
+            want = fuji.succeed(f"stat -c %u:%a /srv/app{sub}").strip()
+            thinkcentre.succeed(f"test \"$(stat -c %u:%a {d}{sub})\" = {want}")
+        thinkcentre.succeed(f"test -s {d}/.standby-copy-ok")
         thinkcentre.fail(f"test -e {d}/cache")
         thinkcentre.fail(f"test -e {d}/db/app.sqlite-wal")
         thinkcentre.succeed(f"test \"$(sqlite3 {d}/db/app.sqlite 'pragma integrity_check')\" = ok")

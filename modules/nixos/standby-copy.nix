@@ -40,14 +40,15 @@ let
   sendJob = name: job:
     let
       target = "standby@${mesh.hosts.${job.to}.ip}";
-      excludes = lib.concatMap (p: [ "/${p}" "/${p}-wal" "/${p}-shm" "/${p}-journal" ]) job.sqlite ++ job.exclude;
+      excludes = [ "/.standby-copy-ok" ]
+        ++ lib.concatMap (p: [ "/${p}" "/${p}-wal" "/${p}-shm" "/${p}-journal" ]) job.sqlite ++ job.exclude;
       rsyncArgs = [ "-aH" "--numeric-ids" "--delete" "--partial" ]
         ++ lib.optional (job.bwlimit != null) "--bwlimit=${job.bwlimit}";
     in {
       description = "Copy ${name} to ${job.to} (standby)";
       after = [ "network-online.target" "nebula@mesh.service" ];
       wants = [ "network-online.target" ];
-      path = with pkgs; [ rsync openssh sqlite coreutils ];
+      path = with pkgs; [ rsync openssh sqlite coreutils findutils ];
       serviceConfig = {
         Type = "oneshot";
         Nice = 10;
@@ -56,6 +57,18 @@ let
       };
       script = ''
         set -euo pipefail
+        ${lib.optionalString (job.onlyWhenActive != null) ''
+          # Only the node running the service sends (site-failover.nix). A node
+          # that can't ask the cluster fails here, so the stale alert still
+          # works; one that isn't active steps aside and drops its metric.
+          active=$(${config.services.k3s.package}/bin/k3s kubectl get node ${config.networking.hostName} \
+            -o jsonpath='{.metadata.labels.ha\.radunenu\.com/${job.onlyWhenActive}}')
+          if [ "$active" != active ]; then
+            echo "not the active node for ${job.onlyWhenActive}, nothing to send"
+            rm -f ${textfileDir}/standby_copy_${name}.prom
+            exit 0
+          fi
+        ''}
         # source may be a glob (a local-path volume's folder has a generated
         # name); it has to match exactly one folder.
         shopt -s nullglob
@@ -86,9 +99,13 @@ let
           ${lib.concatMapStringsSep " " (e: "--exclude=${lib.escapeShellArg e}") excludes} \
           "$src/" ${target}:${name}/ || rc=$?
         [ $rc -eq 0 ] || [ $rc -eq 24 ] || exit $rc
-        ${lib.optionalString (job.sqlite != [ ]) ''
-          rsync -aH --numeric-ids -e "$ssh" "$snap/" ${target}:${name}/
-        ''}
+        # The SQLite snapshots, and a marker saying a whole copy made it: a
+        # standby only takes over a folder that has one (site-failover.nix).
+        # Only the files: the temporary folders' owners and modes must not land
+        # on the copy's folders.
+        date +%s > "$snap/.standby-copy-ok"
+        (cd "$snap" && find . -type f -printf '%P\n') |
+          rsync -aH --numeric-ids --no-implied-dirs --files-from=- -e "$ssh" "$snap/" ${target}:${name}/
 
         end=$(date +%s)
         tmp=$(mktemp ${textfileDir}/.standby_copy_${name}.XXXXXX)
@@ -135,6 +152,11 @@ in
             type = lib.types.nullOr lib.types.str;
             default = null;
             description = "rsync --bwlimit, e.g. \"20m\".";
+          };
+          onlyWhenActive = lib.mkOption {
+            type = lib.types.nullOr lib.types.str;
+            default = null;
+            description = "Send only while this node holds the service's active label (site-failover.nix).";
           };
         };
       });

@@ -167,6 +167,13 @@
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
     };
 
+    # Services with files failing over between the sites
+    # (infrastructure Phase 6; tests/site-failover.nix).
+    checks.x86_64-linux.site-failover = import ./tests/site-failover.nix {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      k3sPackage = nixosConfigurations.fuji.config.services.k3s.package;
+    };
+
     nixosConfigurations.mixi = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
       modules = [

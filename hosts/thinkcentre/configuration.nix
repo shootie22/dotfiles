@@ -15,6 +15,7 @@
     ../../modules/nixos/nebula-mesh.nix
     ../../modules/nixos/edge-tunnel.nix
     ../../modules/nixos/standby-copy.nix
+    ../../modules/nixos/site-failover
   ];
 
   # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
@@ -22,10 +23,15 @@
 
   # Standby copies for the services that live here, kept on fuji's standby SSD
   # in RO, and fuji's own copies kept here (infrastructure #142).
+  # Services that fail over to fuji when DK is gone, and stay there
+  # (infrastructure decisions, 6 Oct). Their copies are sent from here.
+  dotfiles.siteFailover.services = {
+    privatebin = { data = "/home/main/services/privatebin/data"; peer = "fuji"; initial = true; };
+  };
+
   dotfiles.standbyCopy = {
     receive = { enable = true; dir = "/home/standby"; from = [ "fuji" ]; };
     send = {
-      privatebin = { source = "/home/main/services/privatebin/data"; to = "fuji"; };
       send-uploads = { source = "/home/main/storage/send-uploads"; to = "fuji"; };
       audiobookshelf = {
         source = "/home/main/services/audiobookshelf";

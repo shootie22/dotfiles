@@ -14,6 +14,7 @@
     ../../modules/nixos/edge-tunnel.nix
     ../../modules/nixos/weekly-update
     ../../modules/nixos/standby-copy.nix
+    ../../modules/nixos/site-failover
   ];
 
   # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
@@ -21,6 +22,12 @@
 
   # Standby copies (infrastructure #142): the thinkcentre's services land on
   # the standby SSD, and Baikal goes to the thinkcentre.
+  # DK's services that fail over to here (infrastructure decisions, 6 Oct):
+  # the copy on the standby SSD becomes the live folder.
+  dotfiles.siteFailover.services = {
+    privatebin = { data = "/srv/standby/thinkcentre/privatebin"; peer = "thinkcentre"; };
+  };
+
   dotfiles.standbyCopy = {
     receive = {
       enable = true;
