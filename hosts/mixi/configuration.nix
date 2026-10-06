@@ -175,6 +175,7 @@
       "--node-ip=10.99.0.4"
       "--node-external-ip=10.99.0.4"
       "--flannel-iface=nebula.mesh"
+      "--node-label=topology.kubernetes.io/zone=dk"
       "--node-label=location=denmark"
       "--node-label=hardware=m1"
     ];

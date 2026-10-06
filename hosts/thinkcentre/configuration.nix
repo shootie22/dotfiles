@@ -164,6 +164,8 @@
       "--egress-selector-mode=disabled"
       "--flannel-backend=wireguard-native"
       "--flannel-iface=nebula.mesh"
+      "--node-label=topology.kubernetes.io/zone=dk"
+      "--node-label=db=true"
       "--flannel-external-ip"
     ];
   };
