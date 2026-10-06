@@ -32,7 +32,6 @@
         to = "fuji";
         sqlite = [ "config/absdatabase.sqlite" ];
         exclude = [ "/metadata/cache" ];
-        bwlimit = "5m"; # 14 GB the first time
       };
       gitea = {
         source = "/home/main/services/gitea";
@@ -40,7 +39,6 @@
         # The old Postgres 14 (Gitea is on CNPG now), and the search index and
         # queues, which Gitea rebuilds.
         exclude = [ "/postgres" "/gitea/indexers" "/gitea/queues" ];
-        bwlimit = "3m"; # around 105 GB the first time, so about 10 hours
       };
     };
   };
