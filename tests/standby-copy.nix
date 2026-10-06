@@ -51,6 +51,8 @@ pkgs.testers.runNixOSTest {
       exclude = [ "/cache" ];
       interval = "*:0/1";
     };
+    # A second job at the same time, as on the real hosts.
+    dotfiles.standbyCopy.send.other = { source = "/srv/other"; to = "thinkcentre"; };
   };
 
   nodes.thinkcentre = {
@@ -102,6 +104,12 @@ pkgs.testers.runNixOSTest {
         assert rows > 0, rows
         print(f"rows in the copy: {rows}")
         fuji.succeed("grep -q 'standby_copy_last_success_timestamp_seconds{copy=\"app\",to=\"thinkcentre\"}' /var/lib/node-exporter-textfile/standby_copy_app.prom")
+
+    with subtest("two jobs at once"):
+        fuji.succeed("mkdir -p /srv/other && dd if=/dev/urandom of=/srv/other/big bs=1M count=50")
+        # One systemctl call starts both at once and waits for both.
+        fuji.succeed("systemctl start standby-copy-other.service standby-copy-app.service")
+        thinkcentre.succeed("test -s /srv/standby/fuji/other/big")
 
     with subtest("deletes follow, and the timer keeps it going"):
         fuji.succeed("rm -r /srv/app/repos/x/big")

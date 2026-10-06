@@ -32,7 +32,9 @@ let
         echo "${cfg.receive.requireMount} is not mounted" >&2; exit 1; }
     ''}
     install -d -m 0700 ${cfg.receive.dir} ${cfg.receive.dir}/"$sender"
-    exec ${pkgs.rrsync}/bin/rrsync -wo ${cfg.receive.dir}/"$sender"
+    # -no-lock: several jobs from one sender run at once, each into its own
+    # folder.
+    exec ${pkgs.rrsync}/bin/rrsync -wo -no-lock ${cfg.receive.dir}/"$sender"
   '';
 
   sendJob = name: job:
