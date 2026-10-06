@@ -25,6 +25,8 @@
   # site is gone (site-failover, infrastructure decisions 6 Oct). DK's copies
   # sit on the standby SSD and become the live folder here when needed.
   dotfiles.siteFailover.services = {
+    # The Matrix bot's session and encryption keys (moved off minima, #150).
+    steamhappy = { data = "/home/fuji/services/steamhappy"; peer = "thinkcentre"; initial = true; };
     # Stateless game servers: only the label moves (and the relay with it).
     bopl2d = { stateless = true; peer = "thinkcentre"; };
     crosty = { stateless = true; peer = "thinkcentre"; };

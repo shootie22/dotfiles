@@ -27,6 +27,8 @@
   # copies go from whichever of the two runs them; fuji's (Baikal, Headscale,
   # legacy-web) arrive in /home/standby/fuji.
   dotfiles.siteFailover.services = {
+    # The Matrix bot's session and encryption keys (moved off minima, #150).
+    steamhappy = { data = "/home/standby/fuji/steamhappy"; peer = "fuji"; };
     # Stateless game servers: only the label moves (and the relay with it).
     bopl2d = { stateless = true; peer = "fuji"; initial = true; };
     crosty = { stateless = true; peer = "fuji"; initial = true; };
