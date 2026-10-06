@@ -95,7 +95,7 @@
   services.k3s = {
     enable = true;
     role = "server";
-    serverAddr = "https://10.99.0.2:6443";
+    serverAddr = "https://k3s-api:6443";
     tokenFile = config.sops.secrets.k3s_server_token.path;
     extraFlags = [
       "--node-ip=10.99.0.1"
