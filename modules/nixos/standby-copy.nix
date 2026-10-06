@@ -52,11 +52,19 @@ let
         Type = "oneshot";
         Nice = 10;
         IOSchedulingClass = "idle";
-        TimeoutStartSec = "6h"; # the first copy of a big folder
+        TimeoutStartSec = "12h"; # the first copy of a big folder; --partial resumes after
       };
       script = ''
         set -euo pipefail
-        src=${lib.escapeShellArg job.source}
+        # source may be a glob (a local-path volume's folder has a generated
+        # name); it has to match exactly one folder.
+        shopt -s nullglob
+        matches=( ${job.source} )
+        if [ ''${#matches[@]} -ne 1 ] || [ ! -d "''${matches[0]}" ]; then
+          echo "${job.source} matches ''${#matches[@]} folders, not exactly one" >&2
+          exit 1
+        fi
+        src=''${matches[0]}
         ssh="ssh -i ${config.sops.secrets.standby_copy_key.path} -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=20 -o ServerAliveInterval=30 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${stateDir}/known_hosts"
         start=$(date +%s)
 

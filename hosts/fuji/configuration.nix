@@ -28,10 +28,22 @@
       from = [ "thinkcentre" ];
       requireMount = "/srv/standby";
     };
-    send.baikal = {
-      source = "/home/fuji/services/baikal";
-      to = "thinkcentre";
-      sqlite = [ "Specific/db/db.sqlite" ];
+    send = {
+      baikal = {
+        source = "/home/fuji/services/baikal";
+        to = "thinkcentre";
+        sqlite = [ "Specific/db/db.sqlite" ];
+      };
+      # local-path volumes: pvc-<id>_<namespace>_<claim>
+      headscale = {
+        source = "/var/lib/rancher/k3s/storage/pvc-*_headscale_headscale-data";
+        to = "thinkcentre";
+        sqlite = [ "db.sqlite" ];
+      };
+      legacy-web = {
+        source = "/var/lib/rancher/k3s/storage/pvc-*_legacy-web_legacy-api-data";
+        to = "thinkcentre";
+      };
     };
   };
 

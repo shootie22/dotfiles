@@ -52,7 +52,8 @@ pkgs.testers.runNixOSTest {
       interval = "*:0/1";
     };
     # A second job at the same time, as on the real hosts.
-    dotfiles.standbyCopy.send.other = { source = "/srv/other"; to = "thinkcentre"; };
+    # A glob source, like a local-path volume.
+    dotfiles.standbyCopy.send.other = { source = "/srv/oth*"; to = "thinkcentre"; };
   };
 
   nodes.thinkcentre = {
