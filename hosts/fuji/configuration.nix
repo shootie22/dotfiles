@@ -250,6 +250,15 @@
     mode = "0400";
   };
 
+  # Keyfile for the standby SSD (infrastructure #143): opened after the root
+  # disk is unlocked, so it needs no passphrase of its own.
+  sops.secrets.fuji_standby_key = {
+    sopsFile = ../../secrets/fuji-standby-key.bin;
+    format = "binary";
+    owner = "root";
+    mode = "0400";
+  };
+
   sops.secrets.nut_upsmon_password = {
     owner = "root";
     mode = "0400";

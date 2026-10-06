@@ -14,6 +14,10 @@ creation_rules:
   - path_regex: secrets/thinkcentre-(storage-key\.bin|k3s\.yaml)$
     age: age1yvhkx6094utagx3xdfzyq08pwkatyj8lyrpt7jpufq70v8yer9csv66dfc,age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659
 
+  # fuji: the standby SSD's keyfile (binary). Personal key too, for recovery.
+  - path_regex: secrets/fuji-standby-key\.bin$
+    age: age1qwuleu9k2gzgex43tyhhy80vgg9kym5dcdne32x4f0lw4xzsxy3spau58l,age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659
+
   - path_regex: secrets/minima\.yaml$
     age: age14y8ufs6pmctu6rcyz6kmm63m6a0ctga24s7zxkcf38akj7tvzyxqy564tk
 
