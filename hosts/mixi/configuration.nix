@@ -107,11 +107,15 @@
   networking.hostName = "mixi";
   networking.networkmanager.enable = true;
 
-  # Reach Gitea straight through Traefik on Fuji (over the tailnet route to
-  # Fuji's LAN address) instead of via Cloudflare, which rejects request
-  # bodies over 100 MB: the Gitea runner here pushes image layers larger
-  # than that. Also keeps registry traffic inside the network.
-  networking.hosts."192.168.100.136" = [ "git.radunenu.com" ];
+  # Reach Gitea straight through Traefik instead of via Cloudflare, which
+  # rejects request bodies over 100 MB: the Gitea runner here pushes image
+  # layers larger than that. Also keeps registry traffic inside the network.
+  # Over Nebula, to both API servers' Traefik (fuji and the thinkcentre);
+  # either one reaches Gitea wherever it runs (infrastructure #154).
+  networking.hosts = let mesh = (import ../../lib/nebula.nix).hosts; in {
+    ${mesh.thinkcentre.ip} = [ "git.radunenu.com" ];
+    ${mesh.fuji.ip} = [ "git.radunenu.com" ];
+  };
 
   time.timeZone = "Europe/Oslo";
 
