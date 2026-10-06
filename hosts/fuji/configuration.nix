@@ -15,6 +15,7 @@
     ../../modules/nixos/weekly-update
     ../../modules/nixos/standby-copy.nix
     ../../modules/nixos/site-failover
+    ../../modules/nixos/tailnet-https.nix
   ];
 
   # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
@@ -177,34 +178,8 @@
   # WireGuard overlay. IPv4 pod networking uses UDP/51820 between nodes.
   networking.firewall.interfaces.tailscale0.allowedUDPPorts = [ 51820 ];
 
-  # For not having to add ports to *.infra URLs
-  # The edge is the exception: it passes public traffic through to Traefik
-  # here, so its 443 must reach Traefik, not the private proxy.
-  systemd.services.tailnet-https = {
-    description = "Forward tailnet HTTPS to the private proxy";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "firewall.service" ];
-    before = [ "k3s.service" ];
-
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      ExecStop = "-${pkgs.nftables}/bin/nft delete table ip tailnet_https";
-    };
-
-    script = ''
-      ${pkgs.nftables}/bin/nft -f - <<'EOF'
-      add table ip tailnet_https
-      flush table ip tailnet_https
-      table ip tailnet_https {
-        chain prerouting {
-          type nat hook prerouting priority -110; policy accept;
-          iifname "tailscale0" ip saddr != 100.64.0.9 ip daddr 100.64.0.1 tcp dport 443 counter dnat to 100.64.0.1:8443
-        }
-      }
-      EOF
-    '';
-  };
+  # Tailnet HTTPS to the private tools proxy (modules/nixos/tailnet-https.nix).
+  dotfiles.tailnetHttps = { enable = true; address = "100.64.0.1"; };
 
   # Locale ------------------------------------------------------------------
   time.timeZone = "Europe/Bucharest";

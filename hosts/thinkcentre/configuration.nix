@@ -16,6 +16,7 @@
     ../../modules/nixos/edge-tunnel.nix
     ../../modules/nixos/standby-copy.nix
     ../../modules/nixos/site-failover
+    ../../modules/nixos/tailnet-https.nix
   ];
 
   # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
@@ -47,6 +48,10 @@
     headscale = { data = "/home/standby/fuji/headscale"; peer = "fuji"; sqlite = [ "db.sqlite" ]; };
     legacy-web = { data = "/home/standby/fuji/legacy-web"; peer = "fuji"; };
   };
+
+  # Tailnet HTTPS to the private tools proxy (modules/nixos/tailnet-https.nix),
+  # a second copy of fuji's (infrastructure #149).
+  dotfiles.tailnetHttps = { enable = true; address = "100.64.0.4"; };
 
   # The receiving side for fuji's copies (infrastructure #142).
   dotfiles.standbyCopy.receive = { enable = true; dir = "/home/standby"; from = [ "fuji" ]; };
