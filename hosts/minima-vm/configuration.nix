@@ -154,6 +154,7 @@
       "--node-ip=10.99.0.5"
       "--node-external-ip=10.99.0.5"
       "--flannel-iface=nebula.mesh"
+      "--node-label=topology.kubernetes.io/zone=ro"
     ];
   };
 

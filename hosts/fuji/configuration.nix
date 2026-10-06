@@ -219,6 +219,8 @@
       # flannel's WireGuard inside Nebula, sized to fit it. External IPs stay
       # on: until an agent moves, flannel has to use its tailnet address.
       "--flannel-iface=nebula.mesh"
+      "--node-label=topology.kubernetes.io/zone=ro"
+      "--node-label=db=true"
       "--flannel-external-ip"
     ];
   };
