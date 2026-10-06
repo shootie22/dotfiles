@@ -21,6 +21,7 @@ both nodes and does three things:
 GET /<service> on localhost says what this node thinks (for checks by hand).
 """
 
+import glob
 import json
 import os
 import signal
@@ -34,7 +35,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 cfg = json.load(open(sys.argv[1]))
 NODE = cfg["node"]
 PREFIX = "ha.radunenu.com/"
-state = {"api_ok_at": 0.0, "labels": {}}
+state = {"api_ok_at": 0.0, "labels": {}, "holders": {}}
 
 
 def log(msg):
@@ -62,15 +63,24 @@ def ha_path(svc):
     return f"/srv/ha/{svc}"
 
 
+def data(svc):
+    # The service's folder here. May be a pattern (a local-path volume's
+    # folder has a generated name); it counts only if it matches exactly one
+    # folder.
+    matches = [m for m in glob.glob(cfg["services"][svc]["data"]) if os.path.isdir(m)]
+    return matches[0] if len(matches) == 1 else None
+
+
 def has_copy(svc):
     # A whole copy has arrived at least once (standby-copy.nix writes it last).
-    return os.path.exists(os.path.join(cfg["services"][svc]["data"], ".standby-copy-ok"))
+    d = data(svc)
+    return d is not None and os.path.exists(os.path.join(d, ".standby-copy-ok"))
 
 
 def allowed(svc):
     fresh = time.time() - state["api_ok_at"] < cfg["api_grace"]
     mine = state["labels"].get(PREFIX + svc) == "active"
-    return fresh and mine and os.path.isdir(cfg["services"][svc]["data"])
+    return fresh and mine and data(svc) is not None
 
 
 def ready(node):
@@ -113,7 +123,8 @@ def tick():
     for svc, s in cfg["services"].items():
         key = PREFIX + svc
         holders = [n for n, x in nodes.items() if x["metadata"].get("labels", {}).get(key) == "active"]
-        if NODE in holders or not os.path.isdir(s["data"]):
+        state["holders"][svc] = holders
+        if NODE in holders or data(svc) is None:
             continue
         peer = nodes.get(s["peer"])
         peer_ok, since = ready(peer) if peer else (False, 0.0)
@@ -183,17 +194,17 @@ def open_(svc):
     if is_mounted(path):
         return
     os.makedirs(path, exist_ok=True)
-    r = run("mount", "--bind", cfg["services"][svc]["data"], path)
+    r = run("mount", "--bind", data(svc), path)
     log(f"{svc}: active here, {path} ready" if r.returncode == 0 else f"{svc}: bind failed: {r.stderr.strip()}")
 
 
 def ensure_incoming():
     # Where the peer's copies arrive, when that isn't the folder itself.
     for svc, s in cfg["services"].items():
-        target = s["incoming"]
-        if target and os.path.isdir(s["data"]) and not is_mounted(target):
+        target, d = s["incoming"], data(svc)
+        if target and d and not is_mounted(target):
             os.makedirs(target, exist_ok=True)
-            r = run("mount", "--bind", s["data"], target)
+            r = run("mount", "--bind", d, target)
             log(f"{svc}: copies arrive in {target}" if r.returncode == 0 else f"{svc}: bind at {target} failed: {r.stderr.strip()}")
 
 
@@ -224,7 +235,8 @@ class Gate(BaseHTTPRequestHandler):
         mine = state["labels"].get(PREFIX + svc) == "active"
         self.send_response(200 if allowed(svc) else 503)
         self.end_headers()
-        self.wfile.write(f"cluster={'ok' if fresh else 'lost'} active={mine} copy={has_copy(svc)}\n".encode())
+        holders = ",".join(state["holders"].get(svc, [])) or "none"
+        self.wfile.write(f"cluster={'ok' if fresh else 'lost'} active={mine} copy={has_copy(svc)} holder={holders}\n".encode())
 
     def log_message(self, *args):
         pass

@@ -38,29 +38,26 @@
       initial = true;
       sqlite = [ "Specific/db/db.sqlite" ];
     };
+    # local-path volumes: pvc-<id>_<namespace>_<claim>
+    headscale = {
+      data = "/var/lib/rancher/k3s/storage/pvc-*_headscale_headscale-data";
+      peer = "thinkcentre";
+      initial = true;
+      sqlite = [ "db.sqlite" ];
+    };
+    legacy-web = {
+      data = "/var/lib/rancher/k3s/storage/pvc-*_legacy-web_legacy-api-data";
+      peer = "thinkcentre";
+      initial = true;
+    };
   };
 
-  # Copies to the thinkcentre (infrastructure #142) for what isn't under
-  # site-failover yet, and the receiving side for DK's copies.
-  dotfiles.standbyCopy = {
-    receive = {
-      enable = true;
-      dir = "/srv/standby";
-      from = [ "thinkcentre" ];
-      requireMount = "/srv/standby";
-    };
-    send = {
-      # local-path volumes: pvc-<id>_<namespace>_<claim>
-      headscale = {
-        source = "/var/lib/rancher/k3s/storage/pvc-*_headscale_headscale-data";
-        to = "thinkcentre";
-        sqlite = [ "db.sqlite" ];
-      };
-      legacy-web = {
-        source = "/var/lib/rancher/k3s/storage/pvc-*_legacy-web_legacy-api-data";
-        to = "thinkcentre";
-      };
-    };
+  # The receiving side for DK's copies (infrastructure #142).
+  dotfiles.standbyCopy.receive = {
+    enable = true;
+    dir = "/srv/standby";
+    from = [ "thinkcentre" ];
+    requireMount = "/srv/standby";
   };
 
   # Boot ----------------------------------------------------------------------

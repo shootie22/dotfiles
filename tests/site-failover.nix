@@ -139,7 +139,7 @@ let
       send.app.interval = lib.mkForce "*:*:0/20";
     };
     dotfiles.siteFailover.services.app = { inherit data peer; initial = name == "thinkcentre"; };
-    systemd.tmpfiles.rules = lib.optional (name == "thinkcentre") "d ${data} 0755 root root -";
+    systemd.tmpfiles.rules = lib.optional (name == "thinkcentre") "d /srv/live/app 0755 root root -";
   };
 in
 pkgs.testers.runNixOSTest {
@@ -149,7 +149,8 @@ pkgs.testers.runNixOSTest {
     rorouter = { nodes, ... }: { imports = [ (router 1 (addr nodes.fuji "eth1")) ]; };
     dkrouter = { ... }: { imports = [ (router 2 null) ]; };
     fuji = pairNode "fuji" "thinkcentre" "/srv/standby/thinkcentre/app";
-    thinkcentre = pairNode "thinkcentre" "fuji" "/srv/live/app";
+    # A pattern, like a local-path volume's folder.
+    thinkcentre = pairNode "thinkcentre" "fuji" "/srv/li*/app";
     edge = k3sNode "edge";
   };
 
@@ -275,6 +276,7 @@ pkgs.testers.runNixOSTest {
         assert not running_on(thinkcentre)
         thinkcentre.fail("test -e /srv/ha/app")
         thinkcentre.succeed("curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9112/app | grep -x 503")
+        thinkcentre.succeed("curl -s http://127.0.0.1:9112/app | grep -q 'holder=fuji$'")
         # fuji's copies now land in the thinkcentre's folder.
         fuji.succeed("systemctl start standby-copy-app.service")
         n = count(fuji, "/srv/ha/app")

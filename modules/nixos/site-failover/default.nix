@@ -54,7 +54,7 @@ in
         options = {
           data = lib.mkOption {
             type = lib.types.str;
-            description = "The service's folder on this node.";
+            description = "The service's folder on this node. May be a pattern matching exactly one folder (a local-path volume).";
           };
           peer = lib.mkOption { type = lib.types.str; description = "The node in the other site."; };
           initial = lib.mkOption {

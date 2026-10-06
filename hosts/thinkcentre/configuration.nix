@@ -21,9 +21,10 @@
   # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
   dotfiles.nebulaMesh.enable = true;
 
-  # Services with files that move to fuji when DK is gone, and stay there
-  # (site-failover, infrastructure decisions 6 Oct). The copies go from
-  # whichever of the two runs them; fuji's own (Baikal) come here.
+  # Services with files that move between here and fuji when a site is gone,
+  # and stay there (site-failover, infrastructure decisions 6 Oct). The
+  # copies go from whichever of the two runs them; fuji's (Baikal, Headscale,
+  # legacy-web) arrive in /home/standby/fuji.
   dotfiles.siteFailover.services = {
     privatebin = { data = "/home/main/services/privatebin/data"; peer = "fuji"; initial = true; };
     send-uploads = { data = "/home/main/storage/send-uploads"; peer = "fuji"; initial = true; };
@@ -35,6 +36,8 @@
       exclude = [ "/metadata/cache" ];
     };
     baikal = { data = "/home/standby/fuji/baikal"; peer = "fuji"; sqlite = [ "Specific/db/db.sqlite" ]; };
+    headscale = { data = "/home/standby/fuji/headscale"; peer = "fuji"; sqlite = [ "db.sqlite" ]; };
+    legacy-web = { data = "/home/standby/fuji/legacy-web"; peer = "fuji"; };
   };
 
   # Plain copies to fuji's standby SSD (infrastructure #142), for what isn't
