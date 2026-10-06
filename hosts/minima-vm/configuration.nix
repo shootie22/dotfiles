@@ -148,7 +148,7 @@
     # On the Nebula mesh since Phase 3 (lib/nebula.nix), like the other
     # nodes: it learns the other servers from fuji by itself, and flannel
     # runs inside the mesh.
-    serverAddr = "https://10.99.0.2:6443";
+    serverAddr = "https://k3s-api:6443";
     tokenFile = "/run/secrets/k3s_agent_token";
     extraFlags = [
       "--node-ip=10.99.0.5"

@@ -166,9 +166,10 @@
   services.k3s = {
     enable = true;
     role = "agent";
-    # On the Nebula mesh since Phase 3 (lib/nebula.nix): it learns the other
+    # On the Nebula mesh since Phase 3 (lib/nebula.nix). Joins through
+    # k3s-api, which is every API server (#21); it learns the other
     # servers from fuji by itself.
-    serverAddr = "https://10.99.0.2:6443";
+    serverAddr = "https://k3s-api:6443";
     tokenFile = "/run/secrets/k3s_agent_token";
     extraFlags = [
       "--node-ip=10.99.0.4"
