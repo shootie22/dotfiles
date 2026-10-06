@@ -55,10 +55,28 @@ def kubectl(*args):
     return run(*cfg["k3s"], "kubectl", "--request-timeout=8s", *args)
 
 
+def mount_targets():
+    with open("/proc/self/mountinfo") as f:
+        return [line.split()[4] for line in f]
+
+
 def is_mounted(path):
     # os.path.ismount misses a bind mount within the same filesystem.
-    with open("/proc/self/mountinfo") as f:
-        return any(line.split()[4] == path for line in f)
+    return path in mount_targets()
+
+
+def bind(src, dst):
+    # Recursive: a service's folder can have mounts inside it (Gitea's
+    # repositories live on another disk), and a plain bind leaves those out.
+    targets = mount_targets()
+    if dst in targets:
+        nested = [t[len(src):] for t in targets if t.startswith(src + "/")]
+        if all(dst + n in targets for n in nested):
+            return None
+        run("umount", "-R", "-l", dst)
+        log(f"{dst}: nested mounts missing, binding again")
+    os.makedirs(dst, exist_ok=True)
+    return run("mount", "--rbind", src, dst)
 
 
 def ha_path(svc):
@@ -179,7 +197,7 @@ def fence(svc):
     if not os.path.lexists(path):
         return
     if is_mounted(path):
-        r = run("umount", "-l", path)
+        r = run("umount", "-R", "-l", path)
         if r.returncode != 0:
             log(f"{svc}: couldn't unmount {path}: {r.stderr.strip()}")
             return
@@ -193,21 +211,19 @@ def fence(svc):
 
 def open_(svc):
     path = ha_path(svc)
-    if is_mounted(path):
-        return
-    os.makedirs(path, exist_ok=True)
-    r = run("mount", "--bind", data(svc), path)
-    log(f"{svc}: active here, {path} ready" if r.returncode == 0 else f"{svc}: bind failed: {r.stderr.strip()}")
+    r = bind(data(svc), path)
+    if r is not None:
+        log(f"{svc}: active here, {path} ready" if r.returncode == 0 else f"{svc}: bind failed: {r.stderr.strip()}")
 
 
 def ensure_incoming():
     # Where the peer's copies arrive, when that isn't the folder itself.
     for svc, s in cfg["services"].items():
         target, d = s["incoming"], data(svc)
-        if target and d and not is_mounted(target):
-            os.makedirs(target, exist_ok=True)
-            r = run("mount", "--bind", d, target)
-            log(f"{svc}: copies arrive in {target}" if r.returncode == 0 else f"{svc}: bind at {target} failed: {r.stderr.strip()}")
+        if target and d:
+            r = bind(d, target)
+            if r is not None:
+                log(f"{svc}: copies arrive in {target}" if r.returncode == 0 else f"{svc}: bind at {target} failed: {r.stderr.strip()}")
 
 
 def loop():
