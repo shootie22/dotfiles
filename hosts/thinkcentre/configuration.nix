@@ -88,6 +88,13 @@
 
   # Networking ----------------------------------------------------------------
   networking.hostName = "thinkcentre";
+  # Reach Gitea through Traefik over Nebula, not through Cloudflare, which
+  # rejects request bodies over 100 MB: the CI runner here pushes image layers
+  # larger than that (as mixi's does). Also keeps image pulls off Cloudflare.
+  networking.hosts = let mesh = (import ../../lib/nebula.nix).hosts; in {
+    ${mesh.thinkcentre.ip} = [ "git.radunenu.com" ];
+    ${mesh.fuji.ip} = [ "git.radunenu.com" ];
+  };
   networking.networkmanager.enable = true;
 
   # Infrastructure DNS must not depend on DHCP or Tailscale state.
