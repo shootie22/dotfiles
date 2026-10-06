@@ -111,10 +111,13 @@ in
       # The fixed registration address (infrastructure #21): k3s-api is every
       # API server's mesh address, from /etc/hosts, so joining works with any
       # one of them down and needs no DNS. The servers carry the name in
-      # their certificate (--tls-san=k3s-api).
+      # their certificate (--tls-san=k3s-api). An API server leaves itself
+      # out: joining fresh (after a reinstall), it would otherwise sometimes
+      # ask its own not-yet-joined server and never get in (found in
+      # tests/cnpg-across-sites.nix, 6 Oct).
       networking.hosts = lib.mkMerge (lib.mapAttrsToList
         (_: h: { ${h.ip} = [ "k3s-api" ]; })
-        (lib.filterAttrs (_: h: h.api or false) mesh.hosts));
+        (lib.filterAttrs (n: h: (h.api or false) && n != cfg.name) mesh.hosts));
 
       # The other direction: tailscale offers its peers every address a host
       # has, Nebula's included, and picked the path through Nebula between
