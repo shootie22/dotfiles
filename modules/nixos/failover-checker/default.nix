@@ -21,7 +21,8 @@ let
     cloudflare_zone = "radunenu.com";
     cloudflare_nameserver = "nola.ns.cloudflare.com";
     # The alert relay on the edge, over Nebula: not dependent on Headscale.
-    relay_url = "http://${(import ../../../lib/nebula.nix).hosts.edge.ip}:9190/alert";
+    # The edge's relay, then mixi's standby (infrastructure #156).
+    relay_urls = map (h: "http://${(import ../../../lib/nebula.nix).hosts.${h}.ip}:9190/alert") [ "edge" "mixi" ];
     desec_apex_zones = [ "byradu.com" "cubi.tube" "cubtube.lol" "kronorite.com" "radunenu.com" "yeetus.net" ];
   };
 in

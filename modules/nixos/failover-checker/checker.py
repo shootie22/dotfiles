@@ -175,14 +175,16 @@ def dry_run(state, msg):
 
 def notify(title, message, emergency=False, tag=None, resolves=False):
     """Tell the alert relay on the edge. Never let a failed notification stop a switch."""
-    try:
-        body = json.dumps({"title": title, "message": message, "emergency": emergency,
-                           "tag": tag, "resolves": resolves}).encode()
-        urllib.request.urlopen(urllib.request.Request(
-            CFG["relay_url"], data=body, method="POST",
-            headers={"Content-Type": "application/json"}), timeout=10)
-    except Exception as e:
-        log(f"notify failed: {e}")
+    body = json.dumps({"title": title, "message": message, "emergency": emergency,
+                       "tag": tag, "resolves": resolves}).encode()
+    for url in CFG["relay_urls"]:
+        try:
+            urllib.request.urlopen(urllib.request.Request(
+                url, data=body, method="POST",
+                headers={"Content-Type": "application/json"}), timeout=10)
+            return
+        except Exception as e:
+            log(f"notify via {url} failed: {e}")
 
 
 def switch(to_edge, state):

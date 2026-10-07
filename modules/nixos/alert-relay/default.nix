@@ -1,6 +1,7 @@
-# Alert relay on the edge (infrastructure repo, docs/ha/alerting.md): takes
-# alerts over the tailnet and sends each one once, through Pushover or, if
-# that fails, email straight to Mailfence.
+# Alert relay (infrastructure repo, docs/ha/alerting.md): takes alerts and
+# sends each one once, through Pushover or, if that fails, email straight to
+# Mailfence. The main one runs on the edge; mixi runs a standby that only
+# sends while the edge's doesn't answer (infrastructure #156).
 { config, lib, pkgs, ... }:
 
 let
@@ -12,19 +13,36 @@ let
     max_per_hour = 20;   # non-emergency cap, against alert storms
     email = "alerts@radunenu.com";
     mail_servers = [ "smtp1.mailfence.com" "smtp2.mailfence.com" ];
+    standby_for = cfg.standbyFor;
   };
+  # The Pushover keys are shared by both relays; the healthchecks.io ping is
+  # the edge's alone.
+  shared = name: { sopsFile = ../../../secrets/alert-relay.yaml; key = name; };
   secret = name: { sopsFile = ../../../secrets/edge.yaml; key = name; };
 in
 {
   options.dotfiles.alertRelay = {
     enable = lib.mkEnableOption "the alert relay";
     port = lib.mkOption { type = lib.types.port; default = 9190; };
+    standbyFor = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = "The main relay's /health URL; set, this relay only sends while that one doesn't answer.";
+    };
+    heartbeat = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Ping healthchecks.io every minute (the edge's check).";
+    };
   };
 
   config = lib.mkIf cfg.enable {
-    sops.secrets.relay_pushover_user_key = secret "pushover_user_key";
-    sops.secrets.relay_pushover_app_token = secret "pushover_app_token";
-    sops.secrets.relay_healthchecks_url = secret "healthchecks_relay_url";
+    sops.secrets = {
+      relay_pushover_user_key = shared "pushover_user_key";
+      relay_pushover_app_token = shared "pushover_app_token";
+    } // lib.optionalAttrs cfg.heartbeat {
+      relay_healthchecks_url = secret "healthchecks_relay_url";
+    };
 
     systemd.services.alert-relay = {
       description = "Alert relay: Pushover, then email";
@@ -39,8 +57,8 @@ in
         LoadCredential = [
           "pushover_user_key:${config.sops.secrets.relay_pushover_user_key.path}"
           "pushover_app_token:${config.sops.secrets.relay_pushover_app_token.path}"
-          "healthchecks_url:${config.sops.secrets.relay_healthchecks_url.path}"
-        ];
+        ] ++ lib.optional cfg.heartbeat
+          "healthchecks_url:${config.sops.secrets.relay_healthchecks_url.path}";
         NoNewPrivileges = true;
         ProtectSystem = "strict";
         ProtectHome = true;
@@ -48,7 +66,7 @@ in
       };
     };
 
-    # Alerts only from the tailnet.
+    # Alerts from the tailnet, and over Nebula (a trusted interface).
     networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ cfg.port ];
   };
 }

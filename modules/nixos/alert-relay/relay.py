@@ -9,6 +9,11 @@ POST /alert          {"title", "message", "key"?, "emergency"?: bool,
                      resolves set.
 POST /alertmanager   Alertmanager's webhook format. Alerts labelled
                      page="true" are emergencies.
+GET  /health         200 while the relay runs.
+
+A standby relay (standby_for set to the main relay's /health) gets the same
+alerts but only sends them on while the main one doesn't answer, so there's
+a way out when the edge is down without every alert arriving twice.
 
 Emergencies go out with Pushover's emergency priority (repeats until
 acknowledged, respects Do Not Disturb because Critical Alerts are off). If
@@ -149,7 +154,17 @@ def resolve(tag):
     threading.Thread(target=cancel, args=(tag,), daemon=True).start()
 
 
+def main_relay_up():
+    try:
+        with urllib.request.urlopen(CFG["standby_for"], timeout=3) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+
 def accept(title, message, key=None, emergency=False, tag=None, resolving=False):
+    if CFG.get("standby_for") and main_relay_up():
+        return
     now = time.time()
     key = key or title
     with lock:
@@ -170,6 +185,10 @@ def accept(title, message, key=None, emergency=False, tag=None, resolving=False)
 
 
 class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200 if self.path == "/health" else 404)
+        self.end_headers()
+
     def do_POST(self):
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))

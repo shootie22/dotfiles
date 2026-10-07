@@ -27,6 +27,10 @@ creation_rules:
   - path_regex: secrets/edge\.yaml$
     age: age1zmj70ksy0te2fy3qkfq20ednn6cha62eas0e8cc2qtjp4x6lk9ns046l8q,age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659
 
+  # Pushover keys for the alert relays: the edge's and mixi's standby
+  # (modules/nixos/alert-relay). Personal key so it can be edited here.
+  - path_regex: secrets/alert-relay\.yaml$
+    age: age1zmj70ksy0te2fy3qkfq20ednn6cha62eas0e8cc2qtjp4x6lk9ns046l8q,age1kq4c5jnjyv4d5vhtm8hvntwg0l2jcv640wvfaexgwz5ctwh9dg4qn9d2rp,age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659
   # Tokens for the failover checkers on the edge and mixi
   # (modules/nixos/failover-checker). Personal key so it can be edited here.
   - path_regex: secrets/failover\.yaml$

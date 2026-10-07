@@ -6,6 +6,7 @@
     ./hardware-configuration.nix
     ../../modules/nixos/k3s-tailnet-guard.nix
     ../../modules/nixos/k3s-dns.nix
+    ../../modules/nixos/alert-relay
     ../../modules/nixos/failover-checker
     ../../modules/nixos/server-housekeeping.nix
     ../../modules/nixos/comin.nix
@@ -186,6 +187,14 @@
   };
 
   # age sops setup ----------------------------------------------------------
+  # The standby alert relay: gets every alert too, sends only while the
+  # edge's relay doesn't answer (infrastructure #156).
+  dotfiles.alertRelay = {
+    enable = true;
+    standbyFor = "http://${(import ../../lib/nebula.nix).hosts.edge.ip}:9190/health";
+    heartbeat = false;
+  };
+
   # The DK vote for failover (infrastructure repo, docs/ha/failover.md).
   dotfiles.failoverChecker = {
     enable = true;
