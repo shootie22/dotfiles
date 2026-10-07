@@ -59,7 +59,33 @@ in
       frontend https
         bind :443
         bind :::443
+        # Read the name the browser asks for, to serve Element Web here.
+        tcp-request inspect-delay 5s
+        tcp-request content accept if { req.ssl_hello_type 1 }
+        use_backend element-tls if { req.ssl_sni -i c.nuke.zip }
         default_backend traefik-https
+
+      # Element Web, terminated here with the certificate cert-manager renews
+      # in the cluster (edge-certs below).
+      backend element-tls
+        server local 127.0.0.1:8443 send-proxy-v2
+
+      frontend element
+        mode http
+        option httplog
+        bind 127.0.0.1:8443 ssl crt ${certDir}/ alpn h2,http/1.1 accept-proxy
+        http-request set-header X-Forwarded-Proto https
+        default_backend element-web
+
+      # The local copy; if it's gone, the home sites' Traefiks within 2 s.
+      backend element-web
+        mode http
+        option httpchk
+        http-check send meth GET uri /version ver HTTP/1.1 hdr Host c.nuke.zip
+        http-check expect status 200
+        server local 127.0.0.1:8085 check
+        server fuji ${mesh.fuji.ip}:443 ssl verify none sni str(c.nuke.zip) check check-sni c.nuke.zip backup
+        server thinkcentre ${mesh.thinkcentre.ip}:443 ssl verify none sni str(c.nuke.zip) check check-sni c.nuke.zip backup
 
       backend traefik-http
         option httpchk
@@ -117,7 +143,7 @@ in
     description = "Copy Element Web's certificate from the cluster for HAProxy";
     after = [ "edge-certs-init.service" "k3s.service" ];
     wants = [ "edge-certs-init.service" ];
-    path = with pkgs; [ coreutils openssl jq systemd ];
+    path = with pkgs; [ coreutils diffutils openssl jq systemd ];
     serviceConfig.Type = "oneshot";
     script = ''
       pem=${certDir}/c.nuke.zip.pem
