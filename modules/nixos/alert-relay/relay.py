@@ -9,6 +9,10 @@ POST /alert          {"title", "message", "key"?, "emergency"?: bool,
                      resolves set.
 POST /alertmanager   Alertmanager's webhook format. Alerts labelled
                      page="true" are emergencies.
+GET  /events?after=N  The journal: every alert received and what happened to
+                     it (sent, which channel, duplicate, capped, held back as
+                     the standby, escalated), oldest first, for Hub
+                     (infrastructure #177). Kept 30 days.
 GET  /health         200 while the relay runs.
 
 A standby relay (standby_for set to the main relay's /health) gets the same
@@ -24,6 +28,7 @@ the alert resolves, its repeats are cancelled and it isn't escalated.
 import json
 import os
 import re
+import socket
 import smtplib
 import sys
 import threading
@@ -42,6 +47,83 @@ lock = threading.Lock()
 
 def log(msg):
     print(msg, flush=True)
+
+
+# The journal (infrastructure #177): every alert that comes in, and what
+# happened to it, appended to a file, so Hub's incident list matches what
+# reached the phone. Readable at GET /events?after=<seq>. Writing it can
+# never stop an alert: every error here is logged and swallowed.
+JOURNAL = os.path.join(os.environ.get("STATE_DIRECTORY", "/tmp"), "journal.jsonl")
+KEEP_DAYS = 30
+journal_lock = threading.Lock()
+journal_seq = 0
+HOST = socket.gethostname()
+ROLE = "standby" if CFG.get("standby_for") else "main"
+
+
+def journal_start():
+    """Find the last sequence number and drop entries older than KEEP_DAYS."""
+    global journal_seq
+    try:
+        if not os.path.exists(JOURNAL):
+            return
+        cutoff = time.time() - KEEP_DAYS * 86400
+        kept = []
+        with open(JOURNAL) as f:
+            for line in f:
+                try:
+                    e = json.loads(line)
+                except ValueError:
+                    continue
+                journal_seq = max(journal_seq, e.get("seq", 0))
+                if e.get("at", 0) >= cutoff:
+                    kept.append(line if line.endswith("\n") else line + "\n")
+        tmp = JOURNAL + ".tmp"
+        with open(tmp, "w") as f:
+            f.writelines(kept)
+        os.replace(tmp, JOURNAL)
+    except Exception as e:
+        log(f"journal: can't read {JOURNAL}: {e}")
+
+
+def journal(kind, **fields):
+    """Append one entry; returns its sequence number (0 when it failed)."""
+    global journal_seq
+    try:
+        with journal_lock:
+            journal_seq += 1
+            entry = {"seq": journal_seq, "at": time.time(), "relay": HOST, "role": ROLE, "kind": kind, **fields}
+            with open(JOURNAL, "a") as f:
+                f.write(json.dumps(entry, separators=(",", ":")) + "\n")
+            return journal_seq
+    except Exception as e:
+        log(f"journal: can't write: {e}")
+        return 0
+
+
+def journal_read(after, limit):
+    out = []
+    try:
+        with open(JOURNAL) as f:
+            for line in f:
+                try:
+                    e = json.loads(line)
+                except ValueError:
+                    continue
+                if e.get("seq", 0) > after:
+                    out.append(e)
+                    if len(out) >= limit:
+                        break
+    except FileNotFoundError:
+        pass
+    return out
+
+
+def journal_compact():
+    while True:
+        time.sleep(86400)
+        with journal_lock:
+            journal_start()
 
 
 def credential(name):
@@ -115,7 +197,7 @@ def cancel(tag):
         log(f"cancelling {tag} failed: {e}")
 
 
-def watch_receipt(receipt, title, message, tag=None):
+def watch_receipt(receipt, title, message, tag=None, ref=0):
     """If an emergency isn't acknowledged in time, try the next channels too."""
     time.sleep(CFG["ack_timeout"])
     with lock:
@@ -123,27 +205,33 @@ def watch_receipt(receipt, title, message, tag=None):
             return
     try:
         if acknowledged(receipt):
+            journal("acknowledged", ref=ref)
             return
     except Exception as e:
         log(f"receipt check failed ({e}), escalating anyway")
     log(f"not acknowledged after {CFG['ack_timeout']}s, escalating: {title}")
-    deliver(title, message, emergency=True, skip=("pushover",))
+    journal("escalated", ref=ref, after=CFG["ack_timeout"])
+    deliver(title, message, emergency=True, skip=("pushover",), ref=ref)
 
 
-def deliver(title, message, emergency=False, skip=(), tag=None):
+def deliver(title, message, emergency=False, skip=(), tag=None, ref=0):
+    errors = []
     for name, send in CHANNELS:
         if name in skip:
             continue
         try:
             receipt = send(title, message, emergency, tag)
             log(f"sent via {name}: {title}" + (f" (receipt {receipt})" if receipt else ""))
+            journal("delivered", ref=ref, via=name, emergency=emergency, failed_first=errors)
             if name == "pushover" and emergency and receipt:
-                threading.Thread(target=watch_receipt, args=(receipt, title, message, tag),
+                threading.Thread(target=watch_receipt, args=(receipt, title, message, tag, ref),
                                  daemon=True).start()
             return True
         except Exception as e:
             log(f"{name} failed ({e}), trying the next channel")
+            errors.append(f"{name}: {e}")
     log(f"every channel failed: {title}")
+    journal("failed", ref=ref, errors=errors)
     return False
 
 
@@ -151,6 +239,7 @@ def resolve(tag):
     """The alert behind an emergency is over: stop its repeats, don't escalate."""
     with lock:
         resolved.add(tag)
+    journal("cancelled", tag=tag)
     threading.Thread(target=cancel, args=(tag,), daemon=True).start()
 
 
@@ -162,31 +251,58 @@ def main_relay_up():
         return False
 
 
-def accept(title, message, key=None, emergency=False, tag=None, resolving=False):
+def accept(title, message, key=None, emergency=False, tag=None, resolving=False, meta=None):
+    """Decide whether to send, journal the decision, send if so."""
+    entry = {"title": title, "message": message, "key": key or title, "emergency": emergency,
+             "tag": tag, "resolves": resolving, **(meta or {})}
     if CFG.get("standby_for") and main_relay_up():
+        journal("received", decision="held", why="the main relay answers", **entry)
         return
     now = time.time()
     key = key or title
     with lock:
         if now - recent.get(key, 0) < CFG["dedup_window"]:
             log(f"duplicate within the window, dropped: {key}")
-            return
-        sent_times[:] = [t for t in sent_times if now - t < 3600]
-        # Emergencies, and the all-clear for one, always go out.
-        if len(sent_times) >= CFG["max_per_hour"] and not (emergency or resolving):
-            log(f"hourly cap reached, dropped: {title}")
-            return
-        recent[key] = now
-        sent_times.append(now)
-        if emergency:
-            resolved.discard(tag)
-    threading.Thread(target=deliver, args=(title, message, emergency, (), tag),
-                     daemon=True).start()
+            decision = "duplicate"
+        else:
+            sent_times[:] = [t for t in sent_times if now - t < 3600]
+            # Emergencies, and the all-clear for one, always go out.
+            if len(sent_times) >= CFG["max_per_hour"] and not (emergency or resolving):
+                log(f"hourly cap reached, dropped: {title}")
+                decision = "capped"
+            else:
+                recent[key] = now
+                sent_times.append(now)
+                if emergency:
+                    resolved.discard(tag)
+                decision = "send"
+    ref = journal("received", decision=decision, **entry)
+    if decision == "send":
+        threading.Thread(target=deliver, args=(title, message, emergency, (), tag, ref),
+                         daemon=True).start()
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        self.send_response(200 if self.path == "/health" else 404)
+        url = urllib.parse.urlsplit(self.path)
+        if url.path == "/events":
+            q = urllib.parse.parse_qs(url.query)
+            try:
+                after = int(q.get("after", ["0"])[0])
+                limit = max(1, min(int(q.get("limit", ["500"])[0]), 2000))
+            except ValueError:
+                self.send_response(400)
+                self.end_headers()
+                return
+            body = json.dumps({"relay": HOST, "role": ROLE, "last": journal_seq,
+                               "events": journal_read(after, limit)}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        self.send_response(200 if url.path == "/health" else 404)
         self.end_headers()
 
     def do_POST(self):
@@ -201,7 +317,8 @@ class Handler(BaseHTTPRequestHandler):
             if tag and body.get("resolves"):
                 resolve(tag)
             accept(body["title"], body["message"], body.get("key"), bool(body.get("emergency")),
-                   tag, resolving=bool(tag and body.get("resolves")))
+                   tag, resolving=bool(tag and body.get("resolves")),
+                   meta={"source": body.get("source") or self.client_address[0]})
         elif self.path == "/alertmanager":
             for a in body.get("alerts", []):
                 labels, notes = a.get("labels", {}), a.get("annotations", {})
@@ -220,7 +337,10 @@ class Handler(BaseHTTPRequestHandler):
                 if page and state == "resolved":
                     resolve(tag)
                 accept(title, message, key, page and state == "firing", tag if page else None,
-                       resolving=page and state == "resolved")
+                       resolving=page and state == "resolved",
+                       meta={"source": "alertmanager", "alertname": name, "status": state,
+                             "fingerprint": a.get("fingerprint", ""), "labels": labels,
+                             "startsAt": a.get("startsAt"), "endsAt": a.get("endsAt")})
         else:
             self.send_response(404)
             self.end_headers()
@@ -246,8 +366,10 @@ def heartbeat():
 
 def main():
     host, port = CFG["listen"].rsplit(":", 1)
+    journal_start()
+    threading.Thread(target=journal_compact, daemon=True).start()
     threading.Thread(target=heartbeat, daemon=True).start()
-    log(f"alert relay listening on {CFG['listen']}")
+    log(f"alert relay listening on {CFG['listen']}, journal {JOURNAL} at {journal_seq}")
     ThreadingHTTPServer((host, int(port)), Handler).serve_forever()
 
 
