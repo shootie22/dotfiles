@@ -9,12 +9,17 @@
 # Then Traefik itself, for a host that doesn't exist, so it gets Traefik's
 # 404 no matter which services are up. Over HTTPS that check uses the name as
 # SNI too, so anything other than Traefik answering on 443 fails it.
-{ config, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 let
   # Names the edge serves itself instead of passing on (infrastructure #160):
-  # Element Web, from its copy on the edge (a k3s pod on 127.0.0.1:8085).
+  # Element Web and Element Call, from their copies on the edge (k3s pods on
+  # 127.0.0.1:8085 and :8080). Name -> the cluster secret with its certificate.
   certDir = "/var/lib/edge-certs";
+  served = {
+    "c.nuke.zip" = "element-web/element-web-tls";
+    "call.nuke.zip" = "element-call/element-call-tls";
+  };
   # Over Nebula (lib/nebula.nix), not the tailnet: the way in when RO is down
   # mustn't depend on Headscale (infrastructure #153).
   mesh = (import ../../lib/nebula.nix).hosts;
@@ -65,11 +70,11 @@ in
         # Read the name the browser asks for, to serve Element Web here.
         tcp-request inspect-delay 5s
         tcp-request content accept if { req.ssl_hello_type 1 }
-        use_backend element-tls if { req.ssl_sni -i c.nuke.zip }
+        use_backend element-tls if { req.ssl_sni -i c.nuke.zip call.nuke.zip }
         default_backend traefik-https
 
-      # Element Web, terminated here with the certificate cert-manager renews
-      # in the cluster (edge-certs below).
+      # Element Web and Call, terminated here with the certificates
+      # cert-manager renews in the cluster (edge-certs below).
       backend element-tls
         server local 127.0.0.1:8443 send-proxy-v2
 
@@ -78,6 +83,7 @@ in
         option httplog
         bind 127.0.0.1:8443 ssl crt ${certDir}/ alpn h2,http/1.1 accept-proxy
         http-request set-header X-Forwarded-Proto https
+        use_backend element-call if { hdr(host),field(1,:) -i call.nuke.zip }
         default_backend element-web
 
       # The local copy; if it's gone, the home sites' Traefiks within 2 s.
@@ -89,6 +95,15 @@ in
         server local 127.0.0.1:8085 check
         server fuji ${mesh.fuji.ip}:443 ssl verify none sni str(c.nuke.zip) check check-sni c.nuke.zip backup
         server thinkcentre ${mesh.thinkcentre.ip}:443 ssl verify none sni str(c.nuke.zip) check check-sni c.nuke.zip backup
+
+      backend element-call
+        mode http
+        option httpchk
+        http-check send meth GET uri / ver HTTP/1.1 hdr Host call.nuke.zip
+        http-check expect status 200
+        server local 127.0.0.1:8080 check
+        server fuji ${mesh.fuji.ip}:443 ssl verify none sni str(call.nuke.zip) check check-sni call.nuke.zip backup
+        server thinkcentre ${mesh.thinkcentre.ip}:443 ssl verify none sni str(call.nuke.zip) check check-sni call.nuke.zip backup
 
       backend traefik-http
         option httpchk
@@ -134,12 +149,14 @@ in
     serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
     script = ''
       install -d -m 0750 -g haproxy ${certDir}
-      pem=${certDir}/c.nuke.zip.pem
-      [ -s "$pem" ] && exit 0
-      openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj /CN=c.nuke.zip \
-        -keyout "$pem.key" -out "$pem.crt" 2>/dev/null
-      cat "$pem.crt" "$pem.key" > "$pem"; rm -f "$pem.crt" "$pem.key"
-      chgrp haproxy "$pem"; chmod 0640 "$pem"
+      for name in ${lib.concatStringsSep " " (lib.attrNames served)}; do
+        pem=${certDir}/$name.pem
+        [ -s "$pem" ] && continue
+        openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=$name" \
+          -keyout "$pem.key" -out "$pem.crt" 2>/dev/null
+        cat "$pem.crt" "$pem.key" > "$pem"; rm -f "$pem.crt" "$pem.key"
+        chgrp haproxy "$pem"; chmod 0640 "$pem"
+      done
     '';
   };
   systemd.services.edge-certs = {
@@ -149,18 +166,26 @@ in
     path = with pkgs; [ coreutils diffutils openssl jq systemd ];
     serviceConfig.Type = "oneshot";
     script = ''
-      pem=${certDir}/c.nuke.zip.pem
-      secret=$(/run/current-system/sw/bin/k3s kubectl -n element-web get secret element-web-tls -o json 2>/dev/null) || {
-        echo "cluster not reachable, keeping the current certificate"; exit 0; }
       new=$(mktemp)
       trap 'rm -f "$new"' EXIT
-      { echo "$secret" | jq -r '.data["tls.crt"]' | base64 -d
-        echo "$secret" | jq -r '.data["tls.key"]' | base64 -d; } > "$new"
-      openssl x509 -noout -in "$new" 2>/dev/null || { echo "secret has no certificate"; exit 1; }
-      cmp -s "$new" "$pem" && exit 0
-      install -m 0640 -g haproxy "$new" "$pem"
-      echo "certificate updated: $(openssl x509 -noout -enddate -in "$pem")"
-      systemctl reload haproxy.service || true
+      changed=""
+      ${lib.concatStrings (lib.mapAttrsToList (name: secret: ''
+        pem=${certDir}/${name}.pem
+        if json=$(/run/current-system/sw/bin/k3s kubectl -n ${lib.head (lib.splitString "/" secret)} get secret ${lib.last (lib.splitString "/" secret)} -o json 2>/dev/null); then
+          { echo "$json" | jq -r '.data["tls.crt"]' | base64 -d
+            echo "$json" | jq -r '.data["tls.key"]' | base64 -d; } > "$new"
+          if ! openssl x509 -noout -in "$new" 2>/dev/null; then
+            echo "${name}: secret has no certificate"
+          elif ! cmp -s "$new" "$pem"; then
+            install -m 0640 -g haproxy "$new" "$pem"
+            echo "${name}: certificate updated, $(openssl x509 -noout -enddate -in "$pem")"
+            changed=1
+          fi
+        else
+          echo "${name}: cluster not reachable, keeping the current certificate"
+        fi
+      '') served)}
+      if [ -n "$changed" ]; then systemctl reload haproxy.service || true; fi
     '';
   };
   systemd.timers.edge-certs = {
