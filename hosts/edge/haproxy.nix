@@ -15,9 +15,12 @@ let
   # Over Nebula (lib/nebula.nix), not the tailnet: the way in when RO is down
   # mustn't depend on Headscale (infrastructure #153).
   mesh = (import ../../lib/nebula.nix).hosts;
+  # send-proxy-v2: Traefik learns the visitor's address from a PROXY header
+  # (infrastructure #95). The health checks stay plain, which Traefik accepts
+  # from the edge too.
   servers = ''
-        server fuji ${mesh.fuji.ip}:@PORT@ check @CHECK@
-        server thinkcentre ${mesh.thinkcentre.ip}:@PORT@ check backup @CHECK@
+        server fuji ${mesh.fuji.ip}:@PORT@ send-proxy-v2 check @CHECK@
+        server thinkcentre ${mesh.thinkcentre.ip}:@PORT@ send-proxy-v2 check backup @CHECK@
   '';
   backend = port: check: builtins.replaceStrings [ "@PORT@" "@CHECK@" ] [ (toString port) check ] servers;
 in
