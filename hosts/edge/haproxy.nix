@@ -19,6 +19,8 @@ let
   served = {
     "c.nuke.zip" = "element-web/element-web-tls";
     "call.nuke.zip" = "element-call/element-call-tls";
+    # The tailnet relay (derp.nix).
+    "derp.radunenu.com" = "headscale/derp-tls";
   };
   # Over Nebula (lib/nebula.nix), not the tailnet: the way in when RO is down
   # mustn't depend on Headscale (infrastructure #153).
@@ -70,7 +72,7 @@ in
         # Read the name the browser asks for, to serve Element Web here.
         tcp-request inspect-delay 5s
         tcp-request content accept if { req.ssl_hello_type 1 }
-        use_backend element-tls if { req.ssl_sni -i c.nuke.zip call.nuke.zip }
+        use_backend element-tls if { req.ssl_sni -i c.nuke.zip call.nuke.zip derp.radunenu.com }
         default_backend traefik-https
 
       # Element Web and Call, terminated here with the certificates
@@ -84,6 +86,7 @@ in
         bind 127.0.0.1:8443 ssl crt ${certDir}/ alpn h2,http/1.1 accept-proxy
         http-request set-header X-Forwarded-Proto https
         use_backend element-call if { hdr(host),field(1,:) -i call.nuke.zip }
+        use_backend derp if { hdr(host),field(1,:) -i derp.radunenu.com }
         default_backend element-web
 
       # The local copy; if it's gone, the home sites' Traefiks within 2 s.
@@ -95,6 +98,15 @@ in
         server local 127.0.0.1:8085 check
         server fuji ${mesh.fuji.ip}:443 ssl verify none sni str(c.nuke.zip) check check-sni c.nuke.zip backup
         server thinkcentre ${mesh.thinkcentre.ip}:443 ssl verify none sni str(c.nuke.zip) check check-sni c.nuke.zip backup
+
+      # The tailnet relay (derp.nix). Its connections are long-lived.
+      backend derp
+        mode http
+        timeout tunnel 2h
+        option httpchk
+        http-check send meth GET uri /generate_204 ver HTTP/1.1 hdr Host derp.radunenu.com
+        http-check expect status 204
+        server local 127.0.0.1:3340 check
 
       backend element-call
         mode http

@@ -12,6 +12,7 @@
     ../../modules/nixos/comin.nix
     ../../modules/nixos/nebula-mesh.nix
     ./haproxy.nix
+    ./derp.nix
     ../../modules/nixos/failover-checker
     ../../modules/nixos/game-relay.nix
     ../../modules/nixos/alert-relay
