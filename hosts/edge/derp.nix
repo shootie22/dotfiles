@@ -16,10 +16,12 @@
     after = [ "network-online.target" "tailscaled.service" ];
     wants = [ "network-online.target" ];
     serviceConfig = {
-      ExecStart = "${pkgs.tailscale.derper}/bin/derper -a :3340 -http-port -1 -stun-port 3478 -hostname derp.radunenu.com -verify-clients -home blank";
+      # -c: its own key, made on first start.
+      ExecStart = "${pkgs.tailscale.derper}/bin/derper -c /var/lib/derper/derper.key -a :3340 -http-port -1 -stun-port 3478 -hostname derp.radunenu.com -verify-clients -home blank";
       Restart = "always";
       RestartSec = 5;
       DynamicUser = true;
+      StateDirectory = "derper";
       NoNewPrivileges = true;
       ProtectSystem = "strict";
       ProtectHome = true;
