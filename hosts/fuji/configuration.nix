@@ -263,6 +263,13 @@
       # flannel's WireGuard inside Nebula, sized to fit it. External IPs stay
       # on: until an agent moves, flannel has to use its tailnet address.
       "--flannel-iface=nebula.mesh"
+      # etcd across the WAN (infrastructure #25): about 50 ms between RO and DK,
+      # so heartbeats every 250 ms and an election after 2.5 s, instead of the
+      # LAN defaults (100 ms, 1 s) that a short spike could trip. Metrics for
+      # Prometheus (#49).
+      "--etcd-arg=heartbeat-interval=250"
+      "--etcd-arg=election-timeout=2500"
+      "--etcd-expose-metrics"
       "--node-label=topology.kubernetes.io/zone=ro"
       "--node-label=db=true"
       "--flannel-external-ip"
