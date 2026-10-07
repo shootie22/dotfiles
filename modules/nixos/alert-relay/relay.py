@@ -9,11 +9,13 @@ POST /alertmanager   Alertmanager's webhook format. Alerts labelled
 
 Emergencies go out with Pushover's emergency priority (repeats until
 acknowledged, respects Do Not Disturb because Critical Alerts are off). If
-nobody acknowledges within ack_timeout, the next channel gets it too.
+nobody acknowledges within ack_timeout, the next channel gets it too. When
+the alert resolves, its repeats are cancelled and it isn't escalated.
 """
 
 import json
 import os
+import re
 import smtplib
 import sys
 import threading
@@ -26,6 +28,7 @@ CFG = json.load(open(sys.argv[1]))
 CRED_DIR = os.environ.get("CREDENTIALS_DIRECTORY", "")
 recent = {}          # dedup key -> time last sent
 sent_times = []      # for the hourly cap
+resolved = set()     # emergency tags whose alert has resolved since
 lock = threading.Lock()
 
 
@@ -44,7 +47,7 @@ def post(url, data, headers=None, timeout=10):
         return r.status, r.read()
 
 
-def pushover(title, message, emergency):
+def pushover(title, message, emergency, tag=None):
     fields = {
         "token": credential("pushover_app_token"),
         "user": credential("pushover_user_key"),
@@ -53,6 +56,8 @@ def pushover(title, message, emergency):
     }
     if emergency:
         fields.update(priority="2", retry="60", expire="3600")
+        if tag:
+            fields["tags"] = tag
     status, body = post("https://api.pushover.net/1/messages.json",
                         urllib.parse.urlencode(fields).encode())
     reply = json.loads(body)
@@ -61,7 +66,7 @@ def pushover(title, message, emergency):
     return reply.get("receipt")
 
 
-def email(title, message, emergency):
+def email(title, message, emergency, tag=None):
     """Deliver straight to Mailfence, like any mail server would. No login:
     the edge is allowed to send for radunenu.com through its SPF record."""
     from email.message import EmailMessage
@@ -92,9 +97,22 @@ def acknowledged(receipt):
         return json.load(r).get("acknowledged") == 1
 
 
-def watch_receipt(receipt, title, message):
+def cancel(tag):
+    """Stop the repeats of every emergency sent with this tag."""
+    try:
+        post(f"https://api.pushover.net/1/receipts/cancel_by_tag/{tag}.json",
+             urllib.parse.urlencode({"token": credential("pushover_app_token")}).encode())
+        log(f"cancelled the repeats of {tag}")
+    except Exception as e:
+        log(f"cancelling {tag} failed: {e}")
+
+
+def watch_receipt(receipt, title, message, tag=None):
     """If an emergency isn't acknowledged in time, try the next channels too."""
     time.sleep(CFG["ack_timeout"])
+    with lock:
+        if tag in resolved:
+            return
     try:
         if acknowledged(receipt):
             return
@@ -104,15 +122,15 @@ def watch_receipt(receipt, title, message):
     deliver(title, message, emergency=True, skip=("pushover",))
 
 
-def deliver(title, message, emergency=False, skip=()):
+def deliver(title, message, emergency=False, skip=(), tag=None):
     for name, send in CHANNELS:
         if name in skip:
             continue
         try:
-            receipt = send(title, message, emergency)
+            receipt = send(title, message, emergency, tag)
             log(f"sent via {name}: {title}")
             if name == "pushover" and emergency and receipt:
-                threading.Thread(target=watch_receipt, args=(receipt, title, message),
+                threading.Thread(target=watch_receipt, args=(receipt, title, message, tag),
                                  daemon=True).start()
             return True
         except Exception as e:
@@ -121,7 +139,7 @@ def deliver(title, message, emergency=False, skip=()):
     return False
 
 
-def accept(title, message, key=None, emergency=False):
+def accept(title, message, key=None, emergency=False, tag=None):
     now = time.time()
     key = key or title
     with lock:
@@ -134,7 +152,10 @@ def accept(title, message, key=None, emergency=False):
             return
         recent[key] = now
         sent_times.append(now)
-    threading.Thread(target=deliver, args=(title, message, emergency), daemon=True).start()
+        if emergency:
+            resolved.discard(tag)
+    threading.Thread(target=deliver, args=(title, message, emergency, (), tag),
+                     daemon=True).start()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -155,7 +176,14 @@ class Handler(BaseHTTPRequestHandler):
                 title = f"{name} {state}"
                 message = notes.get("summary") or notes.get("description") or name
                 key = f"{name}/{labels.get('instance', '')}/{state}"
-                accept(title, message, key, labels.get("page") == "true" and state == "firing")
+                page = labels.get("page") == "true"
+                # Pushover tags: letters, digits and a few marks only.
+                tag = re.sub(r"[^A-Za-z0-9_.-]", "_", f"{name}-{labels.get('instance', '')}")
+                if page and state == "resolved":
+                    with lock:
+                        resolved.add(tag)
+                    threading.Thread(target=cancel, args=(tag,), daemon=True).start()
+                accept(title, message, key, page and state == "firing", tag if page else None)
         else:
             self.send_response(404)
             self.end_headers()
