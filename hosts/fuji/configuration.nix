@@ -6,6 +6,7 @@
     ./hardware-configuration.nix
     ./raw-edge.nix
     ../../modules/nixos/k3s-tailnet-guard.nix
+    ../../modules/nixos/failover-checker
     ../../modules/nixos/k3s-dns.nix
     ../../modules/nixos/initrd-dhcp-handover.nix
     ../../modules/nixos/server-housekeeping.nix
@@ -201,6 +202,10 @@
   networking.firewall.interfaces.tailscale0.allowedUDPPorts = [ 51820 ];
 
   # Tailnet HTTPS to the private tools proxy (modules/nixos/tailnet-https.nix).
+  # One of three votes on whether Cloudflare's DNS is down (infrastructure
+  # #77). Dry run until it has been watched for a while.
+  dotfiles.nsChecker.enable = true;
+
   dotfiles.tailnetHttps = { enable = true; address = "100.64.0.1"; };
 
   # Locale ------------------------------------------------------------------

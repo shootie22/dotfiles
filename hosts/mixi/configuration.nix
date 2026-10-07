@@ -196,6 +196,10 @@
   };
 
   # The DK vote for failover (infrastructure repo, docs/ha/failover.md).
+  # One of three votes on whether Cloudflare's DNS is down (infrastructure
+  # #77). Dry run until it has been watched for a while.
+  dotfiles.nsChecker.enable = true;
+
   dotfiles.failoverChecker = {
     enable = true;
     dryRun = false;
