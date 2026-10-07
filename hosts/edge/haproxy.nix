@@ -80,6 +80,10 @@ in
       # The local copy; if it's gone, the home sites' Traefiks within 2 s.
       backend element-web
         mode http
+        # As in defaults, minus cutting sessions when a server goes down:
+        # requests here are short, and cutting them would also cut a request
+        # that is just being retried on the backup.
+        default-server inter 1s fastinter 500ms fall 2 rise 3 observe layer4 error-limit 1 on-error mark-down
         option httpchk
         http-check send meth GET uri /version ver HTTP/1.1 hdr Host c.nuke.zip
         http-check expect status 200
