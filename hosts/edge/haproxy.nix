@@ -2,10 +2,13 @@
 # first, the thinkcentre (DK) when fuji's Traefik doesn't answer. Nothing
 # points at the edge until failover switches ro.radunenu.com to it.
 #
-# Health checks ask Traefik itself for a host that doesn't exist, so they
-# get Traefik's 404 no matter which services are up. Over HTTPS the check
-# uses that name as SNI too, so anything other than Traefik answering on 443
-# fails it.
+# Health checks, two steps. First the node's site-failover status page:
+# it has to say the node reaches the cluster. A node that's cut off, or only
+# half back, has a Traefik that answers but can't reach the pods on the
+# other site (hs.radunenu.com gave 502 that way in the drill on 2026-10-07).
+# Then Traefik itself, for a host that doesn't exist, so it gets Traefik's
+# 404 no matter which services are up. Over HTTPS that check uses the name as
+# SNI too, so anything other than Traefik answering on 443 fails it.
 { config, ... }:
 
 let
@@ -48,11 +51,19 @@ in
 
       backend traefik-http
         option httpchk
+        http-check connect port 9112
+        http-check send meth GET uri /gitea
+        http-check expect string cluster=ok
+        http-check connect default
         http-check send meth GET uri / ver HTTP/1.1 hdr Host edge-check.invalid
         http-check expect status 404
       ${backend 80 ""}
       backend traefik-https
         option httpchk
+        http-check connect port 9112
+        http-check send meth GET uri /gitea
+        http-check expect string cluster=ok
+        http-check connect default
         http-check send meth GET uri / ver HTTP/1.1 hdr Host edge-check.invalid
         http-check expect status 404
       ${backend 443 "check-ssl check-sni edge-check.invalid verify none"}
