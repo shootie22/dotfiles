@@ -58,7 +58,9 @@ in
     ip=$(ssh "$mixi" 'for i in $(seq 1 254); do ping -c 1 -W 1 192.168.88.$i >/dev/null 2>&1 & done; wait; ip neigh' \
       | grep -i "$mac" | cut -d' ' -f1 | head -1)
     [ -n "$ip" ] || { echo "thinkcentre ($mac) not found on the DK LAN" >&2; exit 1; }
-    banner=$(ssh "$mixi" "timeout 5 bash -c 'exec 3<>/dev/tcp/$ip/2222; head -c 32 <&3'" 2>/dev/null)
+    # Say hello first: OpenSSH 10.5 waits for the client's version line before
+    # it sends its own (the drill on 2026-10-07 hung here).
+    banner=$(ssh "$mixi" "timeout 5 bash -c 'exec 3<>/dev/tcp/$ip/2222; printf \"SSH-2.0-probe\\r\\n\" >&3; head -c 32 <&3 | tr -d \"\\0\"'" 2>/dev/null)
     case "$banner" in
       *dropbear*) echo "thinkcentre at $ip, Debian's dropbear"; alias=thinkcentre-dropbear ;;
       SSH-*) echo "thinkcentre at $ip, NixOS initrd"; alias=thinkcentre-initrd; [ $# -gt 0 ] || set -- systemctl default ;;
