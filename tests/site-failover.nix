@@ -261,6 +261,9 @@ pkgs.testers.runNixOSTest {
         # The standby has the copy, but no /srv/ha/minecraft-hc: nothing could run on it.
         fuji.fail("test -e /srv/ha/minecraft-hc")
         thinkcentre.succeed("mountpoint -q /srv/ha/minecraft-hc")
+        # What Prometheus sees: which node runs it.
+        thinkcentre.wait_until_succeeds("grep -qx 'site_failover_active{service=\"minecraft-hc\"} 1' /var/lib/node-exporter-textfile/site_failover.prom", timeout=60)
+        fuji.wait_until_succeeds("grep -qx 'site_failover_active{service=\"minecraft-hc\"} 0' /var/lib/node-exporter-textfile/site_failover.prom", timeout=60)
         thinkcentre.succeed("echo deep > /srv/live/app/nested/x")
         thinkcentre.succeed("test \"$(cat /srv/ha/minecraft-hc/nested/x)\" = deep")
         thinkcentre.succeed("systemctl start standby-copy-minecraft-hc.service")

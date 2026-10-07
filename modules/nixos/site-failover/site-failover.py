@@ -238,6 +238,35 @@ def ensure_incoming():
                 log(f"{svc}: copies arrive in {target}" if r.returncode == 0 else f"{svc}: bind at {target} failed: {r.stderr.strip()}")
 
 
+METRICS = "/var/lib/node-exporter-textfile/site_failover.prom"
+
+
+def write_metrics():
+    # For Prometheus (node-exporter's textfile collector): which services this
+    # node runs, and whether it could reach the cluster. Alerts: a service run
+    # by no node, or by two; and a node that lost the cluster.
+    fresh = time.time() - state["api_ok_at"] < cfg["api_grace"]
+    lines = [
+        "# HELP site_failover_active Whether this node runs the service (holds the label and may run it).",
+        "# TYPE site_failover_active gauge",
+    ]
+    for svc in cfg["services"]:
+        lines.append(f'site_failover_active{{service="{svc}"}} {1 if allowed(svc) else 0}')
+    lines += [
+        "# HELP site_failover_cluster_reachable Whether this node reached the cluster recently.",
+        "# TYPE site_failover_cluster_reachable gauge",
+        f"site_failover_cluster_reachable {1 if fresh else 0}",
+    ]
+    try:
+        tmp = METRICS + ".tmp"
+        with open(tmp, "w") as f:
+            f.write("\n".join(lines) + "\n")
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, METRICS)
+    except OSError as e:
+        log(f"metrics: {e}")
+
+
 def loop():
     while True:
         try:
@@ -251,6 +280,7 @@ def loop():
                 open_(svc) if allowed(svc) else fence(svc)
             except Exception as e:
                 log(f"{svc}: {e}")
+        write_metrics()
         time.sleep(cfg["interval"])
 
 
