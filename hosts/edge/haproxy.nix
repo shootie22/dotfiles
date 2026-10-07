@@ -40,7 +40,13 @@ in
         # Long-lived connections (Headscale, websockets) stay open for hours.
         timeout client 2h
         timeout server 2h
-        default-server inter 3s fall 3 rise 2
+        # A node that stops answering is out within about 2 s, and its open
+        # connections are cut so clients reconnect to the other one. A
+        # connection that fails before the node is marked down is retried on
+        # the other node.
+        default-server inter 1s fastinter 500ms fall 2 rise 3 on-marked-down shutdown-sessions
+        retries 2
+        option redispatch
 
       frontend http
         bind :80
