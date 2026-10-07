@@ -149,9 +149,9 @@
   dotfiles.gameRelay.enable = true;
 
   # The edge's vote for failover (infrastructure repo, docs/ha/failover.md).
-  # Dry run: it only logs what it would do.
   dotfiles.failoverChecker = {
     enable = true;
+    dryRun = false;
     # mixi, over Nebula (not dependent on Headscale).
     peers = [ "http://10.99.0.4:9180/" ];
   };

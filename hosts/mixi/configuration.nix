@@ -186,10 +186,10 @@
   };
 
   # age sops setup ----------------------------------------------------------
-  # The DK vote for failover (infrastructure repo, docs/ha/failover.md), until
-  # the thinkcentre runs NixOS. Dry run: it only logs what it would do.
+  # The DK vote for failover (infrastructure repo, docs/ha/failover.md).
   dotfiles.failoverChecker = {
     enable = true;
+    dryRun = false;
     # The edge, over Nebula (not dependent on Headscale).
     peers = [ "http://10.99.0.1:9180/" ];
   };
