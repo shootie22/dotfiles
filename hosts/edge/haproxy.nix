@@ -21,9 +21,13 @@ let
   # send-proxy-v2: Traefik learns the visitor's address from a PROXY header
   # (infrastructure #95). The health checks stay plain, which Traefik accepts
   # from the edge too.
+  # on-marked-down shutdown-sessions: the passthrough connections are long
+  # (websockets, Headscale), so when a node goes down they're cut and the
+  # clients reconnect to the other one. Not for Element Web's short requests,
+  # where it would also cut a request being retried on the backup.
   servers = ''
-        server fuji ${mesh.fuji.ip}:@PORT@ send-proxy-v2 check @CHECK@
-        server thinkcentre ${mesh.thinkcentre.ip}:@PORT@ send-proxy-v2 check backup @CHECK@
+        server fuji ${mesh.fuji.ip}:@PORT@ send-proxy-v2 check on-marked-down shutdown-sessions @CHECK@
+        server thinkcentre ${mesh.thinkcentre.ip}:@PORT@ send-proxy-v2 check backup on-marked-down shutdown-sessions @CHECK@
   '';
   backend = port: check: builtins.replaceStrings [ "@PORT@" "@CHECK@" ] [ (toString port) check ] servers;
 in
@@ -43,11 +47,10 @@ in
         # Long-lived connections (Headscale, websockets) stay open for hours.
         timeout client 2h
         timeout server 2h
-        # A node that stops answering is out within about 2 s, and its open
-        # connections are cut so clients reconnect to the other one. A
-        # refused or failed connection marks it down at once, so the retry
-        # goes to the other node (or the backup) instead of failing.
-        default-server inter 1s fastinter 500ms fall 2 rise 3 on-marked-down shutdown-sessions observe layer4 error-limit 1 on-error mark-down
+        # A node that stops answering is out within about 2 s. A refused or
+        # failed connection marks it down at once, so the retry goes to the
+        # other node (or the backup) instead of failing.
+        default-server inter 1s fastinter 500ms fall 2 rise 3 observe layer4 error-limit 1 on-error mark-down
         retries 2
         option redispatch
 
@@ -80,10 +83,6 @@ in
       # The local copy; if it's gone, the home sites' Traefiks within 2 s.
       backend element-web
         mode http
-        # As in defaults, minus cutting sessions when a server goes down:
-        # requests here are short, and cutting them would also cut a request
-        # that is just being retried on the backup.
-        default-server inter 1s fastinter 500ms fall 2 rise 3 observe layer4 error-limit 1 on-error mark-down
         option httpchk
         http-check send meth GET uri /version ver HTTP/1.1 hdr Host c.nuke.zip
         http-check expect status 200
