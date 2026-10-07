@@ -131,7 +131,7 @@ def deliver(title, message, emergency=False, skip=(), tag=None):
             continue
         try:
             receipt = send(title, message, emergency, tag)
-            log(f"sent via {name}: {title}")
+            log(f"sent via {name}: {title}" + (f" (receipt {receipt})" if receipt else ""))
             if name == "pushover" and emergency and receipt:
                 threading.Thread(target=watch_receipt, args=(receipt, title, message, tag),
                                  daemon=True).start()
