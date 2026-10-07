@@ -186,7 +186,10 @@ def containers_using(path):
         try:
             with open(os.path.join(TASKS, cid, "config.json")) as f:
                 mounts = json.load(f).get("mounts", [])
-            if any(m.get("source") == path for m in mounts):
+            # The folder itself or anything in it: Audiobookshelf and Baikal
+            # mount subfolders, and were missed (drill on 2026-10-07).
+            src = lambda m: m.get("source") or ""
+            if any(src(m) == path or src(m).startswith(path + "/") for m in mounts):
                 with open(os.path.join(TASKS, cid, "init.pid")) as f:
                     found.append((cid, int(f.read().strip())))
         except (OSError, ValueError):
