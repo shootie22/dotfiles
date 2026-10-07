@@ -200,6 +200,9 @@
   # #77). Dry run until it has been watched for a while.
   dotfiles.nsChecker.enable = true;
 
+  # Moves Element Web to RO while the edge can't serve it (infrastructure #160).
+  dotfiles.frontChecker.enable = true;
+
   dotfiles.failoverChecker = {
     enable = true;
     dryRun = false;

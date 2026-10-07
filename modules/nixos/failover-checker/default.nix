@@ -3,6 +3,10 @@
 # failoverChecker: on the edge and mixi; when they all agree RO is down, it
 # points ro.radunenu.com at the edge, and back.
 #
+# frontChecker (infrastructure #160): on mixi and fuji; when the edge stops
+# serving Element Web for a minute, it points element.radunenu.com (which
+# c.nuke.zip follows) at RO's front door, and back after 10 healthy minutes.
+#
 # nsChecker (infrastructure #77): on the edge, mixi and fuji; when two of
 # them agree Cloudflare's DNS has been down for 45 minutes, it switches the
 # zones' nameservers at Porkbun to deSEC, and back after 6 healthy hours.
@@ -11,6 +15,28 @@
 let
   cfg = config.dotfiles.failoverChecker;
   ns = config.dotfiles.nsChecker;
+  front = config.dotfiles.frontChecker;
+  frontVoters = [ "mixi" "fuji" ];
+  frontSettings = {
+    name = config.networking.hostName;
+    voters = frontVoters;
+    peers = map (h: "http://${mesh.${h}.ip}:${toString front.port}/")
+      (lib.filter (h: h != config.networking.hostName) frontVoters);
+    dry_run = front.dryRun;
+    listen = "0.0.0.0:${toString front.port}";
+    interval = 10;
+    fail_after = 60;
+    back_after = 600;
+    min_interval = 600;
+    site = "c.nuke.zip";
+    record = "element.radunenu.com";
+    zone = "radunenu.com";
+    edge_name = "edge.radunenu.com";
+    edge_ip = "141.95.67.178";
+    ro_name = "noc-studios.go.ro";
+    cloudflare_nameserver = "nola.ns.cloudflare.com";
+    relay_urls = relayUrls;
+  };
   mesh = (import ../../../lib/nebula.nix).hosts;
   python = pkgs.python3.withPackages (ps: [ ps.dnspython ]);
   relayUrls = map (h: "http://${mesh.${h}.ip}:9190/alert") [ "edge" "mixi" ];
@@ -52,6 +78,16 @@ let
   };
 in
 {
+  options.dotfiles.frontChecker = {
+    enable = lib.mkEnableOption "the Element Web front checker (infrastructure #160)";
+    port = lib.mkOption { type = lib.types.port; default = 9182; };
+    dryRun = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Only log and report what would change.";
+    };
+  };
+
   options.dotfiles.nsChecker = {
     enable = lib.mkEnableOption "the nameserver checker (infrastructure #77)";
     port = lib.mkOption { type = lib.types.port; default = 9181; };
@@ -82,7 +118,32 @@ in
     };
   };
 
-  config = lib.mkMerge [ (lib.mkIf ns.enable {
+  config = lib.mkMerge [ (lib.mkIf front.enable {
+    sops.secrets.failover_cloudflare_token.sopsFile = ../../../secrets/failover.yaml;
+    sops.secrets.failover_desec_token.sopsFile = ../../../secrets/failover.yaml;
+
+    systemd.services.front-checker = {
+      description = "Element Web front checker: the edge or RO";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "network-online.target" ];
+      wants = [ "network-online.target" ];
+      serviceConfig = {
+        ExecStart = "${python}/bin/python3 ${./front-checker.py} ${pkgs.writeText "front-checker.json" (builtins.toJSON frontSettings)}";
+        Restart = "always";
+        RestartSec = 10;
+        DynamicUser = true;
+        StateDirectory = "front-checker";
+        LoadCredential = [
+          "cloudflare_token:${config.sops.secrets.failover_cloudflare_token.path}"
+          "desec_token:${config.sops.secrets.failover_desec_token.path}"
+        ];
+        NoNewPrivileges = true;
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        PrivateTmp = true;
+      };
+    };
+  }) (lib.mkIf ns.enable {
     sops.secrets.failover_porkbun_api_key = { sopsFile = ../../../secrets/failover.yaml; key = "porkbun_api_key"; };
     sops.secrets.failover_porkbun_secret_api_key = { sopsFile = ../../../secrets/failover.yaml; key = "porkbun_secret_api_key"; };
 
