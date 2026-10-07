@@ -45,9 +45,9 @@ in
         timeout server 2h
         # A node that stops answering is out within about 2 s, and its open
         # connections are cut so clients reconnect to the other one. A
-        # connection that fails before the node is marked down is retried on
-        # the other node.
-        default-server inter 1s fastinter 500ms fall 2 rise 3 on-marked-down shutdown-sessions
+        # refused or failed connection marks it down at once, so the retry
+        # goes to the other node (or the backup) instead of failing.
+        default-server inter 1s fastinter 500ms fall 2 rise 3 on-marked-down shutdown-sessions observe layer4 error-limit 1 on-error mark-down
         retries 2
         option redispatch
 
