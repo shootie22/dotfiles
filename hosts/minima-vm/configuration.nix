@@ -7,6 +7,7 @@
     ../../modules/nixos/k3s-dns.nix
     ../../modules/nixos/comin.nix
     ../../modules/nixos/nebula-mesh.nix
+    ../../modules/nixos/infra-facts.nix
   ];
 
   # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).

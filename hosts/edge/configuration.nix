@@ -11,6 +11,7 @@
     (import ./disko.nix { device = "/dev/sda"; })
     ../../modules/nixos/comin.nix
     ../../modules/nixos/nebula-mesh.nix
+    ../../modules/nixos/infra-facts.nix
     ./haproxy.nix
     ./derp.nix
     ../../modules/nixos/failover-checker

@@ -12,6 +12,7 @@
     ../../modules/nixos/server-housekeeping.nix
     ../../modules/nixos/comin.nix
     ../../modules/nixos/nebula-mesh.nix
+    ../../modules/nixos/infra-facts.nix
     ../../modules/nixos/edge-tunnel.nix
     ../../modules/nixos/weekly-update
     ../../modules/nixos/standby-copy.nix
