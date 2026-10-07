@@ -3,7 +3,10 @@
 takes it (Pushover, then email). Design: docs/ha/alerting.md in the
 infrastructure repo.
 
-POST /alert          {"title", "message", "key"?, "emergency"?: bool}
+POST /alert          {"title", "message", "key"?, "emergency"?: bool,
+                      "tag"?, "resolves"?: bool}: an emergency with a tag is
+                     cancelled by a later message with the same tag and
+                     resolves set.
 POST /alertmanager   Alertmanager's webhook format. Alerts labelled
                      page="true" are emergencies.
 
@@ -139,7 +142,14 @@ def deliver(title, message, emergency=False, skip=(), tag=None):
     return False
 
 
-def accept(title, message, key=None, emergency=False, tag=None):
+def resolve(tag):
+    """The alert behind an emergency is over: stop its repeats, don't escalate."""
+    with lock:
+        resolved.add(tag)
+    threading.Thread(target=cancel, args=(tag,), daemon=True).start()
+
+
+def accept(title, message, key=None, emergency=False, tag=None, resolving=False):
     now = time.time()
     key = key or title
     with lock:
@@ -147,7 +157,8 @@ def accept(title, message, key=None, emergency=False, tag=None):
             log(f"duplicate within the window, dropped: {key}")
             return
         sent_times[:] = [t for t in sent_times if now - t < 3600]
-        if len(sent_times) >= CFG["max_per_hour"] and not emergency:
+        # Emergencies, and the all-clear for one, always go out.
+        if len(sent_times) >= CFG["max_per_hour"] and not (emergency or resolving):
             log(f"hourly cap reached, dropped: {title}")
             return
         recent[key] = now
@@ -167,7 +178,11 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         if self.path == "/alert":
-            accept(body["title"], body["message"], body.get("key"), bool(body.get("emergency")))
+            tag = body.get("tag")
+            if tag and body.get("resolves"):
+                resolve(tag)
+            accept(body["title"], body["message"], body.get("key"), bool(body.get("emergency")),
+                   tag, resolving=bool(tag and body.get("resolves")))
         elif self.path == "/alertmanager":
             for a in body.get("alerts", []):
                 labels, notes = a.get("labels", {}), a.get("annotations", {})
@@ -175,15 +190,18 @@ class Handler(BaseHTTPRequestHandler):
                 state = "resolved" if a.get("status") == "resolved" else "firing"
                 title = f"{name} {state}"
                 message = notes.get("summary") or notes.get("description") or name
-                key = f"{name}/{labels.get('instance', '')}/{state}"
+                # The fingerprint tells apart alerts that share a name and
+                # instance (the node alerts all come from kube-state-metrics).
+                ident = a.get("fingerprint") or labels.get("instance", "")
+                key = f"{name}/{ident}/{state}"
                 page = labels.get("page") == "true"
-                # Pushover tags: letters, digits and a few marks only.
-                tag = re.sub(r"[^A-Za-z0-9_.-]", "_", f"{name}-{labels.get('instance', '')}")
+                # Pushover tags go into a URL path when cancelled: letters,
+                # digits, - and _ only (a dot there gave a 404).
+                tag = re.sub(r"[^A-Za-z0-9_-]", "_", f"{name}-{ident}")
                 if page and state == "resolved":
-                    with lock:
-                        resolved.add(tag)
-                    threading.Thread(target=cancel, args=(tag,), daemon=True).start()
-                accept(title, message, key, page and state == "firing", tag if page else None)
+                    resolve(tag)
+                accept(title, message, key, page and state == "firing", tag if page else None,
+                       resolving=page and state == "resolved")
         else:
             self.send_response(404)
             self.end_headers()

@@ -173,10 +173,11 @@ def dry_run(state, msg):
         state["dry_last"] = msg
 
 
-def notify(title, message, emergency=False):
+def notify(title, message, emergency=False, tag=None, resolves=False):
     """Tell the alert relay on the edge. Never let a failed notification stop a switch."""
     try:
-        body = json.dumps({"title": title, "message": message, "emergency": emergency}).encode()
+        body = json.dumps({"title": title, "message": message, "emergency": emergency,
+                           "tag": tag, "resolves": resolves}).encode()
         urllib.request.urlopen(urllib.request.Request(
             CFG["relay_url"], data=body, method="POST",
             headers={"Content-Type": "application/json"}), timeout=10)
@@ -200,9 +201,10 @@ def switch(to_edge, state):
     state.update(last_switch=time.time(), desec_apex_ip=apex_ip)
     save_state(state)
     if to_edge:
-        notify("RO is down", "Traffic now goes through the edge to DK. RO-only services are down until RO is back.", emergency=True)
+        notify("RO is down", "Traffic now goes through the edge to DK. RO-only services are down until RO is back.",
+               emergency=True, tag="ro-failover")
     else:
-        notify("RO is back", "Traffic goes to RO again.")
+        notify("RO is back", "Traffic goes to RO again.", tag="ro-failover", resolves=True)
 
 
 def decide(state):
