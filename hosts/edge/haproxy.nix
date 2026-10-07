@@ -9,9 +9,12 @@
 # Then Traefik itself, for a host that doesn't exist, so it gets Traefik's
 # 404 no matter which services are up. Over HTTPS that check uses the name as
 # SNI too, so anything other than Traefik answering on 443 fails it.
-{ config, ... }:
+{ config, pkgs, ... }:
 
 let
+  # Names the edge serves itself instead of passing on (infrastructure #160):
+  # Element Web, from its copy on the edge (a k3s pod on 127.0.0.1:8085).
+  certDir = "/var/lib/edge-certs";
   # Over Nebula (lib/nebula.nix), not the tailnet: the way in when RO is down
   # mustn't depend on Headscale (infrastructure #153).
   mesh = (import ../../lib/nebula.nix).hosts;
@@ -87,6 +90,53 @@ in
         # Prometheus on fuji scrapes this (edge proxy health per site).
         http-request use-service prometheus-exporter if { path /metrics }
     '';
+  };
+
+  # The c.nuke.zip certificate, copied from the cluster every 15 minutes.
+  # HAProxy won't start without a certificate for the element frontend, so a
+  # self-signed stand-in is made first if there's none yet; the real one
+  # replaces it on the first copy. If the cluster can't be reached, the last
+  # copy stays (renewed 30 days before it runs out).
+  systemd.services.edge-certs-init = {
+    description = "A stand-in certificate for HAProxy until the real one is copied";
+    wantedBy = [ "multi-user.target" "haproxy.service" ];
+    before = [ "haproxy.service" ];
+    path = with pkgs; [ coreutils openssl ];
+    serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+    script = ''
+      install -d -m 0750 -g haproxy ${certDir}
+      pem=${certDir}/c.nuke.zip.pem
+      [ -s "$pem" ] && exit 0
+      openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj /CN=c.nuke.zip \
+        -keyout "$pem.key" -out "$pem.crt" 2>/dev/null
+      cat "$pem.crt" "$pem.key" > "$pem"; rm -f "$pem.crt" "$pem.key"
+      chgrp haproxy "$pem"; chmod 0640 "$pem"
+    '';
+  };
+  systemd.services.edge-certs = {
+    description = "Copy Element Web's certificate from the cluster for HAProxy";
+    after = [ "edge-certs-init.service" "k3s.service" ];
+    wants = [ "edge-certs-init.service" ];
+    path = with pkgs; [ coreutils openssl jq systemd ];
+    serviceConfig.Type = "oneshot";
+    script = ''
+      pem=${certDir}/c.nuke.zip.pem
+      secret=$(/run/current-system/sw/bin/k3s kubectl -n element-web get secret element-web-tls -o json 2>/dev/null) || {
+        echo "cluster not reachable, keeping the current certificate"; exit 0; }
+      new=$(mktemp)
+      trap 'rm -f "$new"' EXIT
+      { echo "$secret" | jq -r '.data["tls.crt"]' | base64 -d
+        echo "$secret" | jq -r '.data["tls.key"]' | base64 -d; } > "$new"
+      openssl x509 -noout -in "$new" 2>/dev/null || { echo "secret has no certificate"; exit 1; }
+      cmp -s "$new" "$pem" && exit 0
+      install -m 0640 -g haproxy "$new" "$pem"
+      echo "certificate updated: $(openssl x509 -noout -enddate -in "$pem")"
+      systemctl reload haproxy.service || true
+    '';
+  };
+  systemd.timers.edge-certs = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = { OnBootSec = "1min"; OnUnitActiveSec = "15min"; };
   };
 
   # The NixOS module writes /etc/haproxy.cfg but doesn't reload HAProxy when
