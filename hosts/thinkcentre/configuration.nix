@@ -83,6 +83,8 @@
   dotfiles.standbyCopy.receive = { enable = true; dir = "/home/standby"; from = [ "fuji" ]; };
 
   # Boot: boot-safety.nix (systemd-boot, boot counting, watchdog, fallbacks).
+  # Debian is gone since 2026-10-07 (archived to Borg), so no fallback entry.
+  dotfiles.bootSafety.debianFallback = false;
 
   # Nix -----------------------------------------------------------------------
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
