@@ -1,8 +1,10 @@
 # What this host runs, written out from its own evaluated config as metrics
 # for node-exporter's textfile collector, so Hub (infrastructure repo,
 # docs/platform/design.md) knows each server's parts without anyone listing
-# them. It changes when the config does, and only exists where it's deployed.
-{ config, lib, pkgs, ... }:
+# them, its NixOS version, and every port its firewall lets in with the file
+# that opened it. It changes when the config does, and only exists where it's
+# deployed.
+{ config, options, lib, pkgs, ... }:
 
 let
   host = config.networking.hostName;
@@ -27,7 +29,40 @@ let
     game-relay = { enabled = on [ "dotfiles" "gameRelay" "enable" ]; port = ""; };
   };
 
-  facts = pkgs.writeText "infra_facts.prom" (''
+  # The firewall as evaluated: every open port, per interface ("*" for all
+  # of them), with the file that opened it. Files are paths in this repo, or
+  # in nixpkgs for ports a NixOS module opens by itself.
+  fw = options.networking.firewall;
+  rel = f:
+    let
+      m = builtins.match ".*-source/(.*)" (toString f);
+      p = if m == null then toString f else builtins.head m;
+    in
+    if lib.hasSuffix ".nix" p then p else p + "/default.nix"; # a folder module is its default.nix
+  repoOf = p: if lib.hasPrefix "nixos/" p || lib.hasPrefix "pkgs/" p then "nixpkgs" else "dotfiles";
+  plain = v: lib.isAttrs v && !(v ? _type);
+  ints = v: if lib.isList v then lib.filter lib.isInt v else [ ];
+  defsOf = iface: proto: d: map (p: { name = "${iface}|${proto}|${toString p}"; value = rel d.file; }) (ints d.value);
+  ifaceDefs = d: lib.optionals (plain d.value) (lib.concatLists (lib.mapAttrsToList
+    (iface: c: lib.optionals (plain c) (
+      defsOf iface "tcp" { inherit (d) file; value = c.allowedTCPPorts or [ ]; }
+      ++ defsOf iface "udp" { inherit (d) file; value = c.allowedUDPPorts or [ ]; }))
+    d.value));
+  where = lib.listToAttrs (
+    lib.concatMap (defsOf "*" "tcp") fw.allowedTCPPorts.definitionsWithLocations
+    ++ lib.concatMap (defsOf "*" "udp") fw.allowedUDPPorts.definitionsWithLocations
+    ++ lib.concatMap ifaceDefs fw.interfaces.definitionsWithLocations);
+  cfg = config.networking.firewall;
+  open = lib.optionals cfg.enable (
+    map (p: { iface = "*"; proto = "tcp"; port = p; }) cfg.allowedTCPPorts
+    ++ map (p: { iface = "*"; proto = "udp"; port = p; }) cfg.allowedUDPPorts
+    ++ lib.concatLists (lib.mapAttrsToList (iface: c:
+      map (p: { inherit iface; proto = "tcp"; port = p; }) c.allowedTCPPorts
+      ++ map (p: { inherit iface; proto = "udp"; port = p; }) c.allowedUDPPorts) cfg.interfaces));
+  portLine = o: let file = where."${o.iface}|${o.proto}|${toString o.port}" or ""; in
+    "infra_firewall_port${label { host = host; iface = o.iface; proto = o.proto; port = o.port; file = file; repo = if file == "" then "" else repoOf file; }} 1\n";
+
+  text = (''
     # HELP infra_host_info What this server is, from its NixOS config.
     # TYPE infra_host_info gauge
     infra_host_info${label {
@@ -41,13 +76,25 @@ let
     # TYPE infra_host_service gauge
   '' + lib.concatStrings (lib.mapAttrsToList (name: s: ''
     infra_host_service${label { host = host; service = name; port = s.port; }} 1
-  '') services));
+  '') services) + ''
+    # HELP infra_nixos_info The NixOS this server runs.
+    # TYPE infra_nixos_info gauge
+    infra_nixos_info${label { host = host; version = config.system.nixos.version; codename = config.system.nixos.codeName; revision = toString (config.system.nixos.revision or ""); }} 1
+    # HELP infra_firewall_port A port the firewall lets in, and the file that opened it.
+    # TYPE infra_firewall_port gauge
+  '' + lib.concatStrings (map portLine open));
+  facts = pkgs.writeText "infra_facts.prom" text;
 in
 {
+  # The facts as text, to read them without building anything:
+  #   nix eval --raw .#nixosConfigurations.<host>.config.dotfiles.infraFacts.text
+  options.dotfiles.infraFacts.text = lib.mkOption { type = lib.types.str; readOnly = true; internal = true; };
+  config.dotfiles.infraFacts.text = text;
+
   # The textfile collector reads every *.prom file in this folder. A real
   # copy, not a link: node-exporter runs in a container that sees the host
   # under /host/root, where a link into /nix/store would point nowhere.
-  system.activationScripts.infraFacts = ''
+  config.system.activationScripts.infraFacts = ''
     mkdir -p /var/lib/node-exporter-textfile
     install -m 0644 ${facts} /var/lib/node-exporter-textfile/.infra_facts.prom.tmp
     mv /var/lib/node-exporter-textfile/.infra_facts.prom.tmp /var/lib/node-exporter-textfile/infra_facts.prom
