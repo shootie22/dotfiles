@@ -17,6 +17,7 @@
     ../../modules/nixos/edge-tunnel.nix
     ../../modules/nixos/standby-copy.nix
     ../../modules/nixos/site-failover
+    ../../modules/nixos/data-delete.nix
     ../../modules/nixos/tailnet-https.nix
   ];
 
