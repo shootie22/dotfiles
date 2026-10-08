@@ -1,0 +1,44 @@
+# Every host's config has to evaluate before a change lands on main (the
+# ruleset requires this). Evaluation only, nothing is built: comin builds on
+# the hosts themselves. (infrastructure #185)
+name: Checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  hosts:
+    runs-on: ubuntu-latest
+    outputs:
+      names: ${{ steps.list.outputs.names }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: cachix/install-nix-action@v31
+      - id: list
+        run: echo "names=$(nix eval --json .#nixosConfigurations --apply builtins.attrNames)" >> "$GITHUB_OUTPUT"
+
+  eval:
+    needs: hosts
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        host: ${{ fromJSON(needs.hosts.outputs.names) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: cachix/install-nix-action@v31
+      - run: nix eval --raw .#nixosConfigurations.${{ matrix.host }}.config.system.build.toplevel.drvPath
+
+  # One name for the ruleset to require, whatever the hosts are.
+  hosts-evaluate:
+    needs: eval
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.eval.result }}" = success
