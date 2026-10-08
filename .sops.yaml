@@ -43,6 +43,12 @@ creation_rules:
   - path_regex: secrets/weekly-update\.yaml$
     age: age1qwuleu9k2gzgex43tyhhy80vgg9kym5dcdne32x4f0lw4xzsxy3spau58l,age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659
 
+  # Deploy key fuji uses to push the tofu state back to the infrastructure
+  # repo after applying DNS records (modules/nixos/tofu-apply). fuji plus the
+  # personal key.
+  - path_regex: secrets/tofu-apply\.yaml$
+    age: age1qwuleu9k2gzgex43tyhhy80vgg9kym5dcdne32x4f0lw4xzsxy3spau58l,age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659
+
   # The edge's SSH host key itself, for reinstalls (scripts/edge-install).
   # Personal key only: the edge never needs to read this file.
   - path_regex: secrets/edge-bootstrap\.yaml$

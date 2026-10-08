@@ -15,6 +15,7 @@
     ../../modules/nixos/infra-facts.nix
     ../../modules/nixos/edge-tunnel.nix
     ../../modules/nixos/weekly-update
+    ../../modules/nixos/tofu-apply
     ../../modules/nixos/standby-copy.nix
     ../../modules/nixos/site-failover
     ../../modules/nixos/tailnet-https.nix
