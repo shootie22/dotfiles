@@ -6,6 +6,7 @@
     ./hardware-configuration.nix
     ../../modules/nixos/initrd-dhcp-handover.nix
     ../../modules/nixos/dotfiles-sync.nix
+    ../../modules/nixos/game-streaming.nix
   ];
 
   # Keep ~/git/dotfiles in step with GitHub (fetch, fast-forward when clean).
@@ -192,6 +193,9 @@
     remotePlay.openFirewall = true;
   };
   programs.gamemode.enable = true;
+
+  # Sunshine, for Moonlight on nixpad over the tailnet (workstation-stream).
+  dotfiles.gameStreaming.enable = true;
 
   # Fonts -----------------------------------------------------------
   fonts.packages = with pkgs; [

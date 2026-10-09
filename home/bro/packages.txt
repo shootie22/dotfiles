@@ -13,6 +13,7 @@ vlc
 zellij
 wiremix
 parsec-bin
+moonlight-qt
 thunar
 mousepad
 kdePackages.ark
