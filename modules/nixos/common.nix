@@ -1,6 +1,6 @@
 # Base system config shared by every host: nix settings, unfree, fonts, and
 # the small set of CLI/system packages we always want.
-{ config, lib, pkgs, unstable ? pkgs, ... }:
+{ config, lib, pkgs, inputs, unstable ? pkgs, ... }:
 
 {
   nixpkgs.config.allowUnfree = true;
@@ -36,7 +36,7 @@
     fastfetch
 
     # Development
-    unstable.codex
+    inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.codex
     gitui
   ];
 
