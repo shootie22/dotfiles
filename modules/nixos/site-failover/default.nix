@@ -36,7 +36,7 @@ let
     ip=$(${k3s} kubectl -n ${m.namespace} get pod -l app=${m.app} \
       -o jsonpath='{.items[?(@.status.phase=="Running")].status.podIP}')
     if [ -z "$ip" ]; then echo "${m.app} isn't running, nothing to save"; exit 0; fi
-    MCRCON_PASS=$(${k3s} kubectl -n ${m.namespace} get secret ${m.secret} -o jsonpath='{.data.password}' | base64 -d)
+    MCRCON_PASS=$(${k3s} kubectl -n ${m.namespace} get secret ${m.secret} -o jsonpath='{.data.${m.key}}' | base64 -d)
     export MCRCON_PASS
     ${pkgs.mcrcon}/bin/mcrcon -H "$ip" -P 25575 ${commands}
   '';
@@ -122,6 +122,7 @@ in
                 namespace = lib.mkOption { type = lib.types.str; };
                 app = lib.mkOption { type = lib.types.str; description = "The pod's app label."; };
                 secret = lib.mkOption { type = lib.types.str; default = "minecraft-rcon"; };
+                key = lib.mkOption { type = lib.types.str; default = "password"; description = "The secret's key holding the RCON password."; };
               };
             });
           };
