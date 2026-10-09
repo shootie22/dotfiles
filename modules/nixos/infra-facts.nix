@@ -1,6 +1,6 @@
 # What this host runs, written out from its own evaluated config as metrics
-# for node-exporter's textfile collector, so Hub (infrastructure repo,
-# docs/platform/design.md) knows each server's parts without anyone listing
+# for node-exporter's textfile collector, so Hub (infra-hub,
+# docs/design.md) knows each server's parts without anyone listing
 # them, its NixOS version, and every port its firewall lets in with the file
 # that opened it. It changes when the config does, and only exists where it's
 # deployed.
