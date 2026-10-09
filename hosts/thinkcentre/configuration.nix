@@ -16,6 +16,7 @@
     ../../modules/nixos/infra-facts.nix
     ../../modules/nixos/edge-tunnel.nix
     ../../modules/nixos/standby-copy.nix
+    ../../modules/nixos/borg-metrics.nix
     ../../modules/nixos/site-failover
     ../../modules/nixos/data-delete.nix
     ../../modules/nixos/tailnet-https.nix
@@ -301,6 +302,9 @@
 
   # Same repository and archive names as the Debian job, so pruning carries on
   # with the existing archives. Now all of /home.
+  # Hub's backups view reads when it last ran (infra-hub #16).
+  dotfiles.borgMetrics.jobs = [ "thinkcentre" ];
+
   services.borgbackup.jobs.thinkcentre = {
     paths = [ "/home" ];
     exclude = [

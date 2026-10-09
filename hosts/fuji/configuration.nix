@@ -17,6 +17,7 @@
     ../../modules/nixos/weekly-update
     ../../modules/nixos/tofu-apply
     ../../modules/nixos/standby-copy.nix
+    ../../modules/nixos/borg-metrics.nix
     ../../modules/nixos/site-failover
     ../../modules/nixos/data-delete.nix
     ../../modules/nixos/tailnet-https.nix
@@ -353,6 +354,9 @@
   };
 
   # borg backup setup ------------------------------------------------------
+  # Hub's backups view reads when it last ran (infra-hub #16).
+  dotfiles.borgMetrics.jobs = [ "k3s" ];
+
     services.borgbackup.jobs.k3s = {
     paths = [
       "/var/lib/rancher/k3s/backup-staging/storage"
