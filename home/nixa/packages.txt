@@ -50,3 +50,4 @@ sops
 age
 jq
 dnsutils
+tea
