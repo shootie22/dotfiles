@@ -6,13 +6,8 @@
 # or setup-* actions, which install into the runner's home.
 #
 # The runner is registered to radu's repos only, not the whole instance. It
-# stays off until the one-time registration below writes .runner.
-#
-#   Get a token: git.radunenu.com > radu's Settings > Actions > Runners
-#   On the Mac:
-#     sudo -u _gitea-runner -H sh -c 'cd /var/lib/gitea-runner && act_runner register \
-#       --no-interactive --instance https://git.radunenu.com --token <token> \
-#       --name macminim4 --labels macos-arm64:host'
+# stays off until `sudo gitea-runner-register` writes .runner; that asks for
+# a token from git.radunenu.com > radu's Settings > Actions > Runners.
 { lib, pkgs, ... }:
 
 let
@@ -36,6 +31,18 @@ let
     };
     host.workdir_parent = "${home}/work";
   };
+
+  runner = lib.getExe' pkgs.gitea-actions-runner "gitea-runner";
+
+  register = pkgs.writeShellScriptBin "gitea-runner-register" ''
+    set -eu
+    [ "$(id -u)" = 0 ] || { echo "run with sudo" >&2; exit 1; }
+    read -rsp "Runner token: " token; echo
+    cd ${home}
+    printf '%s' "$token" | sudo -u ${user} -H ${runner} register --no-interactive \
+      --config ${config} --instance https://git.radunenu.com \
+      --token-file /dev/stdin --name macminim4 --labels macos-arm64:host
+  '';
 in
 {
   users.knownUsers = [ user ];
@@ -53,11 +60,9 @@ in
     install -d -m 0700 -o ${user} -g ${user} ${home}
   '';
 
-  # For the one-time register command.
-  environment.systemPackages = [ pkgs.gitea-actions-runner ];
+  environment.systemPackages = [ register ];
 
-  launchd.daemons.gitea-runner.command =
-    "${pkgs.gitea-actions-runner}/bin/act_runner daemon --config ${config}";
+  launchd.daemons.gitea-runner.command = "${runner} daemon --config ${config}";
   launchd.daemons.gitea-runner.serviceConfig = {
     Label = label;
     UserName = user;
