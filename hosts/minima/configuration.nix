@@ -4,6 +4,7 @@
   imports = [
     ./lima-vm.nix
     ./vm-backup.nix
+    ./gitea-runner.nix
   ];
 
   nixpkgs.hostPlatform = "aarch64-darwin";
