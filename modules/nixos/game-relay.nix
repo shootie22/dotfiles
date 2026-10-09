@@ -23,6 +23,7 @@ let
     { port = 5520;  proto = "udp"; name = "Hytale"; service = "hytale"; }
     { port = 7777;  proto = "udp"; name = "Crosty"; service = "crosty"; }
     { port = 24567; proto = "udp"; name = "Bopl 2D"; service = "bopl2d"; }
+    { port = 25566; proto = "tcp"; name = "hub-test java"; service = "hub-test"; } # hub: hub-test
   ];
   portsOf = proto: map (p: p.port) (lib.filter (p: p.proto == proto) ports);
   services = lib.unique (lib.filter (s: s != null) (map (p: p.service) ports));

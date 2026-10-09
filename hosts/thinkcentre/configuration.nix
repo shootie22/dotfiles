@@ -75,6 +75,8 @@
     hytale = { data = "/home/main/game_servers/hytale"; peer = "fuji"; initial = true; };
     headscale = { data = "/home/standby/fuji/headscale"; peer = "fuji"; sqlite = [ "db.sqlite" ]; };
     legacy-web = { data = "/home/standby/fuji/legacy-web"; peer = "fuji"; };
+    # hub: hub-test
+    hub-test = { data = "/home/main/services/hub-test"; peer = "fuji"; initial = true; minecraft = { namespace = "hub-test"; app = "hub-test"; secret = "hub-test-env"; key = "RCON_PASSWORD"; }; };
   };
 
   # Tailnet HTTPS to the private tools proxy (modules/nixos/tailnet-https.nix),

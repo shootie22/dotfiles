@@ -82,6 +82,8 @@
       peer = "thinkcentre";
       initial = true;
     };
+    # hub: hub-test
+    hub-test = { data = "/srv/standby/thinkcentre/hub-test"; peer = "thinkcentre"; minecraft = { namespace = "hub-test"; app = "hub-test"; secret = "hub-test-env"; key = "RCON_PASSWORD"; }; };
   };
 
   # The receiving side for DK's copies (infrastructure #142).
