@@ -6,6 +6,7 @@
 meli
 unstable.iamb
 bitwarden-cli
+bitwarden-desktop
 file
 mpv
 swayimg
