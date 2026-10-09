@@ -154,6 +154,14 @@ in
       onlyWhenActive = svc;
     }) (lib.filterAttrs (_: s: !s.stateless) cfg.services);
 
+    # A new service's folder on the node it starts on, so site-failover has
+    # something to bind and the first claim happens (it waits for the folder
+    # to exist). "-" for mode and owner: a folder that's there already is
+    # left exactly as it is. Patterns (local-path volumes) are made by
+    # Kubernetes, not here.
+    systemd.tmpfiles.rules = lib.mapAttrsToList (_: s: "d ${s.data} - - - -")
+      (lib.filterAttrs (_: s: s.initial && !s.stateless && s.data != "" && !(lib.hasInfix "*" s.data)) cfg.services);
+
     systemd.services.site-failover = {
       description = "Site failover for services with files";
       wantedBy = [ "multi-user.target" ];
