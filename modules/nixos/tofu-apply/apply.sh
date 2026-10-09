@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tofu applier (infrastructure #189). Every few minutes: if main's tofu/
+# tofu applier (infra-hub #48). Every few minutes: if main's tofu/
 # changed since the last apply, plan, and apply only when the plan is exactly
 # the DNS records the change added, changed or removed. Anything else is left
 # alone and reported through the relay, once per commit. The new state is

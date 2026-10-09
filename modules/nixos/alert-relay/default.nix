@@ -54,7 +54,7 @@ in
         Restart = "always";
         RestartSec = 5;
         DynamicUser = true;
-        # The journal (infrastructure #177): /var/lib/alert-relay.
+        # The journal (infra-hub #36): /var/lib/alert-relay.
         StateDirectory = "alert-relay";
         LoadCredential = [
           "pushover_user_key:${config.sops.secrets.relay_pushover_user_key.path}"

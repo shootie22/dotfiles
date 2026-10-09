@@ -1,4 +1,4 @@
-# tofu applier (infrastructure #189): applies new DNS records from the
+# tofu applier (infra-hub #48): applies new DNS records from the
 # infrastructure repo's main on its own, so a deploy from Hub doesn't wait for
 # someone to run scripts/tofu apply. On fuji because fuji's age key already
 # decrypts tofu/secrets.sops.yaml; the Gitea runners run every repo's CI with

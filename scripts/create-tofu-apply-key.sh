@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Makes the deploy key fuji's tofu applier pushes the state with
-# (modules/nixos/tofu-apply, infrastructure #189): a new SSH key, its
+# (modules/nixos/tofu-apply, infra-hub #48): a new SSH key, its
 # private half encrypted into secrets/tofu-apply.yaml (fuji + personal key),
 # its public half added to the infrastructure repo as a deploy key with
 # write access, and the repo's main ruleset told to let deploy keys through.

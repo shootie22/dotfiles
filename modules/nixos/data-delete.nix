@@ -1,4 +1,4 @@
-# Deleting a removed service's files (infrastructure #190). Hub removes a
+# Deleting a removed service's files (infra-hub #49). Hub removes a
 # service first and keeps its data; deleting the data is a separate step,
 # confirmed by typing the service's name, that opens a PR adding its folders
 # here. A oneshot deletes each one that still exists. Only folders under the

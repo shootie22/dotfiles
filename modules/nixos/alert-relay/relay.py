@@ -12,7 +12,7 @@ POST /alertmanager   Alertmanager's webhook format. Alerts labelled
 GET  /events?after=N  The journal: every alert received and what happened to
                      it (sent, which channel, duplicate, capped, held back as
                      the standby, escalated), oldest first, for Hub
-                     (infrastructure #177). Kept 30 days.
+                     (infra-hub #36). Kept 30 days.
 GET  /health         200 while the relay runs.
 
 A standby relay (standby_for set to the main relay's /health) gets the same
@@ -49,7 +49,7 @@ def log(msg):
     print(msg, flush=True)
 
 
-# The journal (infrastructure #177): every alert that comes in, and what
+# The journal (infra-hub #36): every alert that comes in, and what
 # happened to it, appended to a file, so Hub's incident list matches what
 # reached the phone. Readable at GET /events?after=<seq>. Writing it can
 # never stop an alert: every error here is logged and swallowed.
