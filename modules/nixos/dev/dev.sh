@@ -21,8 +21,8 @@ MicroVM, mounted at the same path. Nothing else on the host is visible.
   dev allowed            list grants that apply here
   dev stop               stop this folder's VM (disconnects all sessions)
 
-Running dev again in the same folder joins the running VM; it stops when
-the last session exits. Guest TCP ports >= 1024 are forwarded to the same
+Running dev again in the same folder joins the running VM; it stops 5
+minutes after the last session exits (DEV_LINGER=<seconds> to change). Guest TCP ports >= 1024 are forwarded to the same
 port on the host's localhost while it is free.
 
 Files: ~/.config/dev/env   KEY=VALUE pairs exported in the VM (agent tokens)
@@ -91,6 +91,13 @@ grants_for() {
   ' "$allow_file" | sort -t $'\t' -k2
 }
 
+# Everything a VM is launched with, to detect a running VM that is stale.
+launch_config() {
+  printf 'net=%s\n' "$2"
+  grants_for "$1"
+  [ ! -f "$env_file" ] || sha256sum <"$env_file"
+}
+
 cmd_allow() {
   local project="$1" mode=rw scope path; shift
   scope="$project"
@@ -120,10 +127,6 @@ cmd_allow() {
       log "allowed $path ($mode)"
     fi
   done
-  project_paths "$project"
-  if [ -e "$rt/ready" ]; then
-    log "the running VM keeps its current mounts; exit all sessions (or dev stop) to apply"
-  fi
 }
 
 cmd_deny() {
@@ -189,6 +192,7 @@ supervise() {
 
   echo $$ >"$rt/supervisor.pid"
   printf '%s\n' "$net" >"$rt/net"
+  launch_config "$project" "$net" >"$rt/config"
   cd "$state"
   rm -rf host nix-rw.img ./*.sock
 
@@ -314,10 +318,19 @@ supervise() {
 
   touch "$rt/ready"
 
+  # Stay up for DEV_LINGER seconds after the last session leaves, so the next
+  # `dev <cmd>` connects instantly instead of booting.
+  local linger="${DEV_LINGER:-300}" idle_since=""
   exec 8>"$rt/sessions.lock"
   while kill -0 "$vm_pid" 2>/dev/null; do
     if flock -n -x 8; then
-      break
+      idle_since="${idle_since:-$SECONDS}"
+      if [ $((SECONDS - idle_since)) -ge "$linger" ]; then
+        break
+      fi
+      flock -u 8
+    else
+      idle_since=""
     fi
     sleep 0.5
   done
@@ -386,15 +399,43 @@ flock -s 8
 
 exec 7>"$rt/boot.lock"
 flock -x 7
-if [ -e "$rt/ready" ] && kill -0 "$(cat "$rt/supervisor.pid" 2>/dev/null)" 2>/dev/null; then
-  running_net="$(cat "$rt/net" 2>/dev/null || echo 1)"
-  if [ "$running_net" != "$net" ]; then
-    if [ "$running_net" = 0 ]; then
-      die "this folder's VM is running without network; exit its sessions (or dev stop) first"
+
+vm_running() {
+  [ -e "$rt/ready" ] && kill -0 "$(cat "$rt/supervisor.pid" 2>/dev/null)" 2>/dev/null
+}
+
+# The running VM was started with a different network mode, grants or env
+# file. If nobody else is using it (it is only lingering), restart it.
+wanted_config="$(launch_config "$project" "$net")"
+if vm_running && [ "$wanted_config" != "$(cat "$rt/config" 2>/dev/null)" ]; then
+  idle=0
+  for _ in 1 2 3; do
+    # Upgrading our shared lock succeeds only if no other session holds one.
+    if flock -n -x 8; then idle=1; break; fi
+    sleep 0.2
+  done
+  if [ "$idle" = 1 ]; then
+    old_pid="$(cat "$rt/supervisor.pid")"
+    kill "$old_pid" 2>/dev/null || true
+    while kill -0 "$old_pid" 2>/dev/null; do sleep 0.1; done
+    flock -s 8
+  elif [ "$(cat "$rt/net")" != "$net" ]; then
+    if [ "$net" = 0 ]; then
+      die "this folder's VM is in use with network; exit its other sessions (or dev stop) first"
     fi
-    die "this folder's VM is running with network; exit its sessions (or dev stop) first"
+    die "this folder's VM is in use without network; exit its other sessions (or dev stop) first"
+  else
+    log "grants or env changed; they apply once this folder's other sessions exit"
   fi
+fi
+
+if vm_running; then
+  :
 else
+  # QEMU would otherwise boot with a silently dead network device.
+  if [ "$net" = 1 ] && [ ! -S /run/dev-net/passt.sock ]; then
+    die "the network backend (/run/dev-net/passt.sock) is missing; switch to the NixOS config with modules.dev, or use --nonet"
+  fi
   rm -f "$rt/ready"
   setsid bash "${BASH_SOURCE[0]}" __supervise "$project" "$net" \
     </dev/null >"$state/supervisor.log" 2>&1 7>&- 8>&- &

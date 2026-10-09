@@ -203,6 +203,12 @@
           modules.dev = {
             enable = true;
             user = "nixa";
+            # 22c/44t, 64 GB. RAM and disk are only used as the guest
+            # touches them; RAM is returned when the VM stops.
+            cpus = 44;
+            memoryMB = 16384;
+            homeSizeMB = 131072;
+            storeOverlaySizeMB = 32768;
           };
         }
         chaotic.nixosModules.default

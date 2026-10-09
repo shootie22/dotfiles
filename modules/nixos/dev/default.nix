@@ -107,8 +107,12 @@ in
 
     systemd.services.dev-net-egress = {
       description = "Confine development MicroVM traffic to the public internet";
-      wantedBy = [ "multi-user.target" ];
-      before = [ "dev-net.socket" ];
+      # Early-boot unit: the socket below requires it, and sockets start
+      # before basic.target, which ordinary services are ordered after.
+      unitConfig.DefaultDependencies = false;
+      wantedBy = [ "sockets.target" ];
+      before = [ "dev-net.socket" "sockets.target" "shutdown.target" ];
+      conflicts = [ "shutdown.target" ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;

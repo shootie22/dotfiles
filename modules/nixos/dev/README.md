@@ -31,6 +31,24 @@ dev stop                stop this folder's VM now
   file. A change applies on your next `dev`: an idle VM restarts with it, and
   one still in use by other sessions picks it up once they exit.
 
+## Inside the VM
+
+- **Containers:** `docker` and `docker compose` work through rootless Podman.
+  Images and volumes live in the project's VM home. Published ports are
+  forwarded to the host like any other port.
+- **Prebuilt binaries** (Playwright/Puppeteer browsers, Electron, Prisma,
+  binary npm/pip wheels) find common libraries through nix-ld.
+- **File watching:** edits made on the host don't raise file-change events in
+  the guest, so `CHOKIDAR_USEPOLLING` and `WATCHPACK_POLLING` are set. Most
+  Node dev servers then poll. If one still misses host edits, enable polling in
+  its config (e.g. Vite `server.watch.usePolling`).
+- **Size:** `modules.dev.cpus`, `memoryMB`, `homeSizeMB` and
+  `storeOverlaySizeMB` per host (see `flake.nix`). RAM and disk are used only as
+  the guest touches them. RAM is returned only when the VM stops, and an
+  existing `home.img` keeps its old size.
+- **No root, no GPU, no nested VMs.** Anything outside the project and
+  `/home/dev` (including `/tmp`, which is in RAM) is wiped when the VM stops.
+
 ## Agents
 
 Put credentials meant for VMs in `~/.config/dev/env` (`KEY=VALUE` lines). They

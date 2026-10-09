@@ -58,10 +58,6 @@ inputs.nixpkgs-nixpad.lib.nixosSystem {
       systemd.services."serial-getty@ttyS0".enable = false;
       systemd.services."autovt@".enable = false;
       systemd.oomd.enable = false;
-      systemd.services.dbgtmp = {
-        wantedBy = [ "multi-user.target" ];
-        script = "sleep 2; journalctl -b -o short-monotonic --no-pager > /run/dbg.txt; dmesg > /run/dmesg.txt; chmod 644 /run/dbg.txt /run/dmesg.txt";
-      };
 
       # microvm.nix registers the store closure in postBootCommands, before
       # systemd starts. Only in-guest nix needs it, so do it in the background
@@ -127,12 +123,80 @@ inputs.nixpkgs-nixpad.lib.nixosSystem {
         home = "/home/dev";
         createHome = false;
         shell = pkgs.bashInteractive;
+        # Rootless Podman: a uid range for container users, and a user
+        # manager that outlives individual SSH sessions so containers do too.
+        # (The uid ranges are written to /etc below: userborn does not
+        # generate /etc/subuid.)
+        linger = true;
       };
+      # A mode makes these real files: newuidmap refuses symlinks.
+      environment.etc."subuid" = { text = "dev:100000:65536\n"; mode = "0644"; };
+      environment.etc."subgid" = { text = "dev:100000:65536\n"; mode = "0644"; };
       systemd.tmpfiles.rules = [ "d /home/dev 0700 dev dev -" ];
+
+      # Docker-compatible containers without root: `docker` and
+      # `docker compose` talk to the dev user's Podman socket. Images and
+      # volumes live in the persistent home.
+      virtualisation.podman = {
+        enable = true;
+        dockerCompat = true;
+        defaultNetwork.settings.dns_enabled = true;
+      };
+      systemd.user.sockets.podman.wantedBy = [ "sockets.target" ];
 
       nix.settings.experimental-features = [ "nix-command" "flakes" ];
       nixpkgs.config.allowUnfree = true;
-      programs.nix-ld.enable = true;
+      # Prebuilt binaries that expect a conventional distro (Playwright and
+      # Puppeteer browsers, Electron, Prisma engines, binary npm/pip wheels)
+      # find their libraries through nix-ld.
+      programs.nix-ld = {
+        enable = true;
+        libraries = with pkgs; [
+          stdenv.cc.cc
+          zlib
+          zstd
+          bzip2
+          xz
+          openssl
+          curl
+          icu
+          libuuid
+          libxml2
+          krb5
+          expat
+          glib
+          nss
+          nspr
+          dbus
+          systemd
+          alsa-lib
+          cups
+          libdrm
+          libgbm
+          libGL
+          libxkbcommon
+          fontconfig
+          freetype
+          pango
+          cairo
+          atk
+          at-spi2-atk
+          at-spi2-core
+          gtk3
+          libsecret
+          libnotify
+          libx11
+          libxcomposite
+          libxdamage
+          libxext
+          libxfixes
+          libxrandr
+          libxcb
+          libxshmfence
+        ];
+      };
+      # Headless browsers need fonts for rendering and screenshots.
+      fonts.enableDefaultPackages = true;
       programs.bash.completion.enable = true;
       documentation.enable = false;
 
@@ -172,6 +236,7 @@ inputs.nixpkgs-nixpad.lib.nixosSystem {
         lsof
         strace
         tree
+        docker-compose
         kitty.terminfo
       ]) ++ (with inputs.llm-agents.packages.${system}; [
         claude-code
@@ -189,6 +254,12 @@ inputs.nixpkgs-nixpad.lib.nixosSystem {
         export GIT_CONFIG_GLOBAL=/run/dev-host/gitconfig
         export DISABLE_AUTOUPDATER=1
         export DEV=1
+        export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"
+        # File changes made on the host do not raise inotify events in the
+        # guest, so dev servers poll instead (chokidar: Vite and most Node
+        # tools; watchpack: webpack/Next.js).
+        export CHOKIDAR_USEPOLLING=1
+        export WATCHPACK_POLLING=true
       '';
 
       environment.interactiveShellInit = ''
@@ -237,6 +308,33 @@ inputs.nixpkgs-nixpad.lib.nixosSystem {
           ];
         };
       };
+
+      # A rootless virtiofsd cannot use file handles, so it holds one host fd
+      # for every inode the guest has cached, up to its 524288 limit. The guest
+      # sees the host's whole /nix/store and only evicts cached inodes under
+      # memory pressure, so one walk of the store would exhaust the daemon and
+      # every later file open fails with ENFILE. Dropping unused dentries and
+      # inodes makes the guest send FORGET, which releases the host fds.
+      systemd.services.dev-inode-reclaim = {
+        description = "Release cached virtiofs inodes";
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig.Restart = "always";
+        script = ''
+          while sleep 3; do
+            read -r inodes _ < /proc/sys/fs/inode-nr
+            if [ "$inodes" -gt 150000 ]; then
+              echo 2 > /proc/sys/vm/drop_caches
+            fi
+          done
+        '';
+      };
+
+      # Codex's shared background server expects the official installer's
+      # package layout and refuses to start from the Nix package.
+      environment.etc."codex/config.toml".text = ''
+        [features]
+        daemon_auto_start = false
+      '';
 
       # Mount the project and any granted folders at the same paths as on the
       # host, protect git's executable configuration, then signal readiness.
@@ -312,6 +410,13 @@ inputs.nixpkgs-nixpad.lib.nixosSystem {
         '');
 
         shares = [
+          {
+            tag = "ro-store";
+            source = "/nix/store";
+            mountPoint = "/nix/.ro-store";
+            proto = "virtiofs";
+            readOnly = true;
+          }
           {
             # Launch metadata written by dev.sh: SSH key, mount list, env.
             tag = "dev-host";
