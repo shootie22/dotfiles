@@ -211,6 +211,17 @@
             storeOverlaySizeMB = 32768;
           };
         }
+        # A CI runner while the workstation is on: one throwaway VM per job
+        # (modules/nixos/ci-runner-vm, infrastructure ci-runner).
+        ./modules/nixos/ci-runner-vm
+        {
+          dotfiles.ciRunnerVm = {
+            enable = true;
+            cpus = 16;
+            memoryMB = 16384;
+            labels = [ "linux-amd64" "linux-amd64-workstation" ];
+          };
+        }
         chaotic.nixosModules.default
         noctalia.nixosModules.default
 
