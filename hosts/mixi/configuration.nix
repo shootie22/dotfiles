@@ -14,10 +14,15 @@
     ../../modules/nixos/infra-facts.nix
     ../../modules/nixos/edge-tunnel.nix
     ../../modules/nixos/initrd-dhcp-handover.nix
+    ../../modules/nixos/kata.nix
   ];
 
   # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
   dotfiles.nebulaMesh.enable = true;
+
+  # CI jobs run in Kata VMs (modules/nixos/kata.nix, infrastructure
+  # kubernetes/services/ci-runner).
+  dotfiles.kata = { enable = true; rootlessVmm = true; };
 
   # Deployed by comin from this repo. No automatic kernel reboots: the disk
   # has to be unlocked by hand after a reboot (infrastructure #136).

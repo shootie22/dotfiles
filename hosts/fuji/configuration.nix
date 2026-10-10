@@ -19,12 +19,17 @@
     ../../modules/nixos/standby-copy.nix
     ../../modules/nixos/borg-metrics.nix
     ../../modules/nixos/site-failover
+    ../../modules/nixos/kata.nix
     ../../modules/nixos/data-delete.nix
     ../../modules/nixos/tailnet-https.nix
   ];
 
   # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
   dotfiles.nebulaMesh.enable = true;
+
+  # CI jobs run in Kata VMs (modules/nixos/kata.nix, infrastructure
+  # kubernetes/services/ci-runner).
+  dotfiles.kata = { enable = true; rootlessVmm = true; };
 
   # Services with files that move between here and the thinkcentre when a
   # site is gone (site-failover, infrastructure decisions 6 Oct). DK's copies
