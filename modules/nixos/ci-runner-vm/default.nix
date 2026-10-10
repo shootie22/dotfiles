@@ -163,6 +163,9 @@ in
 
     systemd.services.ci-runner-vm = {
       description = "Gitea Actions runner VM (one job per boot)";
+      # Waits quietly for a token instead of failing every 10 seconds;
+      # ci-runner-vm-set-token starts it.
+      unitConfig.ConditionPathExists = "${ctl}/token";
       wantedBy = [ "multi-user.target" ];
       requires = [ "ci-vm-net.socket" ];
       after = [ "network-online.target" "ci-vm-net.socket" ];
