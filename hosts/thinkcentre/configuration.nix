@@ -20,7 +20,12 @@
     ../../modules/nixos/site-failover
     ../../modules/nixos/data-delete.nix
     ../../modules/nixos/tailnet-https.nix
+    ../../modules/nixos/kata.nix
   ];
+
+  # CI jobs run in Kata VMs (modules/nixos/kata.nix, infrastructure
+  # kubernetes/services/ci-runner).
+  dotfiles.kata.enable = true;
 
   # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
   dotfiles.nebulaMesh.enable = true;
