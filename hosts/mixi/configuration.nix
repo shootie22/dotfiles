@@ -129,7 +129,7 @@
   # Users --------------------------------------------------------------------
   users.users.mixa = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" "docker" ];
+    extraGroups = [ "wheel" "networkmanager" ];
     openssh.authorizedKeys.keys = builtins.attrValues (import ../../lib/admin-ssh-keys.nix);
   };
 
@@ -156,7 +156,8 @@
     };
   };
 
-  virtualisation.docker.enable = true;
+  # No host Docker: CI jobs run in Kata VMs (ci-runner in the infrastructure
+  # repo), and the old runner's socket gave its jobs root on this machine.
 
   # tailscale ----------------------------------------------------------------
   # Infrastructure DNS must not depend on Tailscale state, same as the
