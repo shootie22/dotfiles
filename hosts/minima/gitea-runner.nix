@@ -76,6 +76,10 @@ let
       (subpath "/private${ctl}")
       (subpath "/Library/Keychains")
       (subpath "/private/var/db/dslocal"))
+    ; pf doesn't see loopback, and Lima forwards the minima VM's ports
+    ; (kubelet, k3s, comin) to localhost: jobs get only the runner's cache.
+    (deny network-outbound (remote ip "localhost:*"))
+    (allow network-outbound (remote ip "localhost:8088"))
     (deny process-exec
       (literal "/usr/bin/sudo")
       (literal "/usr/bin/su")
