@@ -86,8 +86,13 @@ in
     # containerd reads the template only when k3s starts.
     systemd.services.k3s.restartTriggers = [ containerdTemplate ];
 
-    # Kata adds and removes the per-VM QEMU users with shadow's tools.
-    systemd.services.k3s.path = lib.mkIf cfg.rootlessVmm [ pkgs.shadow ];
+    # Kata adds and removes the per-VM QEMU users with useradd/userdel, which
+    # it only looks for in /usr/sbin, /sbin and /bin.
+    systemd.tmpfiles.settings."10-kata-rootless" = lib.mkIf cfg.rootlessVmm {
+      "/usr/sbin/useradd"."L+".argument = "${pkgs.shadow}/bin/useradd";
+      "/usr/sbin/userdel"."L+".argument = "${pkgs.shadow}/bin/userdel";
+      "/usr/sbin/nologin"."L+".argument = "${pkgs.shadow}/bin/nologin";
+    };
 
     environment.systemPackages = [ kata ];
   };
