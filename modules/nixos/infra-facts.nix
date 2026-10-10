@@ -66,6 +66,9 @@ let
   # on (not NixOS's defaults), with its package, version and description,
   # and the file that turned it on: Hub's Tech page (infra-hub). Read from
   # the evaluated options, so nothing here lists them.
+  # Files of this repo, not of nixpkgs or another flake input (whose paths
+  # look alike once the store prefix is cut).
+  own = d: lib.hasPrefix (toString ../..) (toString d.file);
   techOf = group:
     let
       opts = options.${group} or { };
@@ -75,7 +78,7 @@ let
           # Only what one of our files sets, read from the definitions:
           # touching the value of a renamed option aborts the evaluation,
           # and tryEval can't catch that.
-          ours = lib.filter (d: repoOf (rel d.file) == "dotfiles") (o.enable.definitionsWithLocations or [ ]);
+          ours = lib.filter own (o.enable.definitionsWithLocations or [ ]);
           r = builtins.tryEval (
             if ours != [ ] && config.${group}.${n}.enable == true then
               let
@@ -96,9 +99,14 @@ let
     in
     lib.concatLists (lib.mapAttrsToList one opts);
   pkgTech = option: pkg: file: { inherit option file; pname = pkg.pname or (lib.getName pkg); version = pkg.version or (lib.getVersion pkg); description = pkg.meta.description or ""; };
-  # Turned on by having entries rather than an enable: the first of our
-  # files that adds one.
-  setBy = opt: lib.findFirst (d: repoOf (rel d.file) == "dotfiles") null (opt.definitionsWithLocations or [ ]);
+  # Turned on by having entries rather than an enable: the host's own file
+  # if it adds one, else the first of our modules that does.
+  setBy = opt:
+    let
+      ds = lib.filter own (opt.definitionsWithLocations or [ ]);
+      hostFirst = lib.filter (d: lib.hasInfix "/hosts/" (toString d.file)) ds ++ ds;
+    in
+    if hostFirst == [ ] then null else lib.head hostFirst;
   fromSet = option: opt: value: pkg:
     let d = setBy opt; in lib.optional (d != null && value != { }) (pkgTech option pkg (rel d.file));
   tech = lib.concatMap techOf [ "services" "virtualisation" "programs" ]
