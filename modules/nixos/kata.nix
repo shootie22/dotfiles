@@ -26,6 +26,7 @@ let
     src=${kata}/share/defaults/kata-containers/configuration-qemu.toml
     daemon=$(sed -n 's/^virtio_fs_daemon *= *"\(.*\)"/\1/p' $src)
     sed \
+      -e "s|^rootless = .*|rootless = ${lib.boolToString cfg.rootlessVmm}|" \
       -e 's|^enable_annotations = .*|enable_annotations = []|' \
       -e 's|^seccompsandbox = .*|seccompsandbox = "on,obsolete=deny,spawn=deny,resourcecontrol=deny"|' \
       -e 's|^sandbox_cgroup_only = .*|sandbox_cgroup_only = true|' \
@@ -61,6 +62,14 @@ in
 {
   options.dotfiles.kata = {
     enable = lib.mkEnableOption "the Kata Containers runtime for k3s";
+    rootlessVmm = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Run QEMU as a throwaway unprivileged user per VM (Kata creates it
+        with useradd), so a guest that escapes QEMU lands as nobody.
+      '';
+    };
     baseMemory = lib.mkOption {
       type = lib.types.int;
       default = 512;
@@ -76,6 +85,9 @@ in
 
     # containerd reads the template only when k3s starts.
     systemd.services.k3s.restartTriggers = [ containerdTemplate ];
+
+    # Kata adds and removes the per-VM QEMU users with shadow's tools.
+    systemd.services.k3s.path = lib.mkIf cfg.rootlessVmm [ pkgs.shadow ];
 
     environment.systemPackages = [ kata ];
   };

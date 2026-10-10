@@ -25,7 +25,7 @@
 
   # CI jobs run in Kata VMs (modules/nixos/kata.nix, infrastructure
   # kubernetes/services/ci-runner).
-  dotfiles.kata.enable = true;
+  dotfiles.kata = { enable = true; rootlessVmm = true; };
 
   # The servers' own overlay, next to tailscale (lib/nebula.nix, infrastructure #141).
   dotfiles.nebulaMesh.enable = true;
