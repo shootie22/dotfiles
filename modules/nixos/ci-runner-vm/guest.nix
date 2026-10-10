@@ -48,7 +48,9 @@ inputs.nixpkgs-nixpad.lib.nixosSystem {
           enable = true;
           wait-online.enable = false;
           networks."10-uplink" = {
-            matchConfig.Type = "ether";
+            # By name: Type = ether would also take Docker's veths and pull
+            # them off its bridges.
+            matchConfig.Name = "enp*";
             networkConfig.DHCP = "ipv4";
             dhcpV4Config = {
               UseDNS = false;
