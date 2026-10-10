@@ -36,6 +36,15 @@ let
       -e 's|^disable_guest_seccomp = .*|disable_guest_seccomp = false|' \
       -e "s|^valid_virtio_fs_daemon_paths *=.*|valid_virtio_fs_daemon_paths = [\"$daemon\"]|" \
       $src > $out
+    # arm64 boots through UEFI, and the package names firmware it doesn't
+    # ship; QEMU's own edk2 build is the same thing.
+    if grep -q '^firmware = ".*AAVMF' $out; then
+      qemu=$(sed -n 's/^path = "\(.*\)"/\1/p' $out)
+      sed -i \
+        -e "s|^firmware = .*|firmware = \"''${qemu%/bin/*}/share/qemu/edk2-aarch64-code.fd\"|" \
+        -e 's|^firmware_volume = .*|firmware_volume = ""|' \
+        $out
+    fi
     for want in 'enable_annotations = \[\]' 'sandbox_cgroup_only = true' \
         'static_sandbox_resource_mgmt = true' 'seccompsandbox = "on' \
         'disable_guest_seccomp = false' "valid_virtio_fs_daemon_paths = \[\"/nix/store/"; do
