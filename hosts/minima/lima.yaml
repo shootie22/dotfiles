@@ -28,10 +28,18 @@ networks:
 - socket: /var/run/socket_vmnet.bridged.en0
   macAddress: "52:55:55:4d:4e:01"
 
+# No automatic forwards: nothing on the Mac uses them (the cluster reaches the
+# VM over the LAN, Nebula and the tailnet), and they put the kubelet, k3s and
+# comin on the Mac's localhost. SSH (limactl shell, used by minima-vm stop
+# and the backup) is separate and can't be turned off here. The first rule
+# also covers ports bound to 0.0.0.0, :: and ::1; the second any other guest
+# address.
 portForwards:
-- proto: udp
-  guestPort: 68
-  guestIP: 0.0.0.0
+- guestIP: 127.0.0.1
+  proto: any
+  ignore: true
+- guestIP: 0.0.0.0
+  proto: any
   ignore: true
 
 containerd:
