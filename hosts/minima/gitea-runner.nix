@@ -95,7 +95,10 @@ let
     clean() {
       pkill -9 -u ${user} 2>/dev/null
       sleep 1
-      rm -rf ${home}
+      # macOS keeps a few Library folders its own daemons create (even root
+      # gets "Operation not permitted"); everything else in the home goes.
+      find ${home} -mindepth 1 -maxdepth 1 ! -name Library -exec rm -rf {} + 2>/dev/null
+      find ${home}/Library -mindepth 1 -delete 2>/dev/null
       install -d -m 0700 -o ${user} -g ${user} ${home}
       find /private/tmp /private/var/tmp /private/var/folders -mindepth 1 -user ${user} -delete 2>/dev/null
     }
@@ -103,9 +106,11 @@ let
       if [ ! -s ${ctl}/token ]; then sleep 60; continue; fi
       clean
       cd ${home}
-      if ! sudo -u ${user} -H ${runner} register --no-interactive --ephemeral \
+      # Piped: on macOS, opening /dev/stdin on a redirected file reopens the
+      # file as the runner user, who can't read it.
+      if ! cat ${ctl}/token | sudo -u ${user} -H ${runner} register --no-interactive --ephemeral \
           --config ${config} --instance https://git.radunenu.com \
-          --token-file /dev/stdin --name minima-mac --labels macos-arm64:host < ${ctl}/token; then
+          --token-file /dev/stdin --name minima-mac --labels macos-arm64:host; then
         sleep 60; continue
       fi
       sudo -u ${user} -H --preserve-env=PATH /usr/sbin/taskpolicy -b \
