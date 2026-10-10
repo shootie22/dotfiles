@@ -157,7 +157,7 @@
   };
 
   # No host Docker: CI jobs run in Kata VMs (ci-runner in the infrastructure
-  # repo), and the old runner's socket gave its jobs root on this machine.
+  # repo).
 
   # tailscale ----------------------------------------------------------------
   # Infrastructure DNS must not depend on Tailscale state, same as the
