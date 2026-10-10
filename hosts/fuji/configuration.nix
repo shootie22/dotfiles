@@ -199,6 +199,8 @@
     22
     80
     443
+    # Git over SSH, forwarded by the RO router (Traefik's gitssh).
+    2222
     8443
   ];
 

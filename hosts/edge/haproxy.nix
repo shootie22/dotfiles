@@ -135,6 +135,18 @@ in
         http-check send meth GET uri / ver HTTP/1.1 hdr Host edge-check.invalid
         http-check expect status 404
       ${backend 443 "check-ssl check-sni edge-check.invalid verify none"}
+      # Git over SSH (ssh.git.radunenu.com), on to Traefik's gitssh
+      # entrypoint. Each node follows its HTTPS check: checking 2222 itself
+      # would open an SSH connection to Gitea every second.
+      frontend gitssh
+        bind :2222
+        bind :::2222
+        default_backend traefik-gitssh
+
+      backend traefik-gitssh
+        server fuji ${mesh.fuji.ip}:2222 send-proxy-v2 track traefik-https/fuji on-marked-down shutdown-sessions
+        server thinkcentre ${mesh.thinkcentre.ip}:2222 send-proxy-v2 track traefik-https/thinkcentre backup on-marked-down shutdown-sessions
+
       frontend stats
         # Firewall only opens 8404 on the tailnet. Not bound to the tailnet
         # address itself, so HAProxy starts even before Tailscale is up.
@@ -209,7 +221,7 @@ in
   # it changes, so config changes only took effect after a reboot.
   systemd.services.haproxy.reloadTriggers = [ config.environment.etc."haproxy.cfg".source ];
 
-  networking.firewall.allowedTCPPorts = [ 80 443 ];
+  networking.firewall.allowedTCPPorts = [ 80 443 2222 ];
   # The stats page only on the tailnet.
   networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 8404 ];
 }
