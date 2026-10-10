@@ -105,7 +105,7 @@ let
       cd ${home}
       if ! sudo -u ${user} -H ${runner} register --no-interactive --ephemeral \
           --config ${config} --instance https://git.radunenu.com \
-          --token-file /dev/stdin --name macminim4 --labels macos-arm64:host < ${ctl}/token; then
+          --token-file /dev/stdin --name minima-mac --labels macos-arm64:host < ${ctl}/token; then
         sleep 60; continue
       fi
       sudo -u ${user} -H --preserve-env=PATH /usr/sbin/taskpolicy -b \
