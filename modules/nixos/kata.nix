@@ -22,7 +22,7 @@ let
   #   RuntimeClass overhead.
   # - valid_virtio_fs_daemon_paths: the package points virtio_fs_daemon at
   #   virtiofsd but leaves QEMU's path in the allow list, which Kata rejects.
-  kataConfig = pkgs.runCommand "kata-configuration.toml" { } ''
+  kataConfigBase = pkgs.runCommand "kata-configuration.toml" { } ''
     src=${kata}/share/defaults/kata-containers/configuration-qemu.toml
     daemon=$(sed -n 's/^virtio_fs_daemon *= *"\(.*\)"/\1/p' $src)
     sed \
@@ -36,21 +36,26 @@ let
       -e 's|^disable_guest_seccomp = .*|disable_guest_seccomp = false|' \
       -e "s|^valid_virtio_fs_daemon_paths *=.*|valid_virtio_fs_daemon_paths = [\"$daemon\"]|" \
       $src > $out
-    # arm64 boots through UEFI, and the package names firmware it doesn't
-    # ship; QEMU's own edk2 build is the same thing.
-    if grep -q '^firmware = ".*AAVMF' $out; then
-      qemu=$(sed -n 's/^path = "\(.*\)"/\1/p' $out)
-      sed -i \
-        -e "s|^firmware = .*|firmware = \"''${qemu%/bin/*}/share/qemu/edk2-aarch64-code.fd\"|" \
-        -e 's|^firmware_volume = .*|firmware_volume = ""|' \
-        $out
-    fi
     for want in 'enable_annotations = \[\]' 'sandbox_cgroup_only = true' \
         'static_sandbox_resource_mgmt = true' 'seccompsandbox = "on' \
         'disable_guest_seccomp = false' "valid_virtio_fs_daemon_paths = \[\"/nix/store/"; do
       grep -q "^$want" $out || { echo "kata config: no line '$want'" >&2; exit 1; }
     done
   '';
+
+  # arm64 boots through UEFI, and the package names firmware it doesn't ship;
+  # QEMU's own edk2 build is the same thing.
+  kataConfig =
+    if pkgs.stdenv.hostPlatform.isAarch64 then
+      pkgs.runCommand "kata-configuration-arm64.toml" { } ''
+        qemu=$(sed -n 's/^path = "\(.*\)"/\1/p' ${kataConfigBase})
+        sed \
+          -e "s|^firmware = .*|firmware = \"''${qemu%/bin/*}/share/qemu/edk2-aarch64-code.fd\"|" \
+          -e 's|^firmware_volume = .*|firmware_volume = ""|' \
+          ${kataConfigBase} > $out
+      ''
+    else
+      kataConfigBase;
 
   # k3s writes containerd's config from its own template ("base"); this adds
   # the kata runtime after it. No pod_annotations, so no io.katacontainers.*
