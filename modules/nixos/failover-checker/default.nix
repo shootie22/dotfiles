@@ -93,7 +93,7 @@ in
     port = lib.mkOption { type = lib.types.port; default = 9181; };
     dryRun = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Only log and report what would change.";
     };
   };
