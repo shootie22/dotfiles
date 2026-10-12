@@ -113,7 +113,10 @@
       "--etcd-arg=heartbeat-interval=250"
       "--etcd-arg=election-timeout=2500"
       "--etcd-expose-metrics"
-      "--node-label=topology.kubernetes.io/zone=edge"
+      # Its own zone, named for where it is (Germany). Only spreading uses
+      # the zone; the edge's pods are pinned by hostname. k3s sets it when
+      # the node first registers.
+      "--node-label=topology.kubernetes.io/zone=de"
       "--flannel-external-ip"
       "--disable-apiserver"
       "--disable-controller-manager"
