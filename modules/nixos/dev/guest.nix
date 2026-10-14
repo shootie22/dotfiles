@@ -329,6 +329,24 @@ inputs.nixpkgs-nixpad.lib.nixosSystem {
         '';
       };
 
+      # Agents check free space with `df /home` or `df /`, which both land on
+      # the small in-RAM root and make the VM look nearly full.
+      environment.etc."claude-code/CLAUDE.md".text = ''
+        # Dev VM storage
+
+        You are in a disposable MicroVM. `/`, `/home`, `/tmp` and anything
+        else not listed below is a RAM tmpfs, wiped when the VM stops; its
+        small size says nothing about the disk space you have. Check:
+
+        - `df -h /home/dev`: persistent home (caches, toolchains, containers),
+          ${toString (cfg.homeSizeMB / 1024)} GiB
+        - `df -h "$PWD"`: the project, on the host's disk (build output goes here)
+        - `df -h /nix/store`: writable store overlay,
+          ${toString (cfg.storeOverlaySizeMB / 1024)} GiB, reset on every boot
+
+        RAM is ${toString (cfg.memoryMB / 1024)} GiB across ${toString cfg.cpus} CPUs.
+      '';
+
       # Codex's shared background server expects the official installer's
       # package layout and refuses to start from the Nix package.
       environment.etc."codex/config.toml".text = ''
