@@ -8,6 +8,12 @@
 #
 # Repo: /Volumes/Expansion/borg_repos/minima-vm (repokey-blake2), passphrase
 # in ~/.config/borg/minima-vm.passphrase; keep a copy of it off this Mac.
+#
+# macOS doesn't let a launchd job write to an external drive, but it does let
+# sshd's sessions (as the other Macs' and servers' backups arrive). So the job
+# goes through ssh to this Mac itself: the drive is written by `borg serve`
+# under sshd. Its key is made here on activation and never leaves the Mac;
+# authorized_keys lets it only run borg serve on this one repo, from this Mac.
 { pkgs, ... }:
 
 let
@@ -15,17 +21,20 @@ let
   home = "/Users/${user}";
   borg = "/opt/homebrew/bin/borg";
   limactl = "/opt/homebrew/bin/limactl";
+  repo = "/Volumes/Expansion/borg_repos/minima-vm";
+  key = "${home}/.ssh/minima-vm-backup";
 
   backup = pkgs.writeShellScript "minima-vm-backup" ''
     set -euo pipefail
-    export BORG_REPO=/Volumes/Expansion/borg_repos/minima-vm
+    export BORG_REPO=ssh://${user}@localhost${repo}
+    export BORG_RSH="ssh -i ${key} -o IdentitiesOnly=yes -o BatchMode=yes -o UserKnownHostsFile=${key}.known_hosts -o StrictHostKeyChecking=yes"
     export BORG_PASSCOMMAND="cat ${home}/.config/borg/minima-vm.passphrase"
     vmdir=${home}/.lima/minima
     clone=$vmdir/disk.backup-clone
 
     log() { echo "$(date '+%F %T') $*"; }
 
-    [ -d "$BORG_REPO" ] || { log "backup drive not mounted: $BORG_REPO"; exit 1; }
+    [ -d ${repo} ] || { log "backup drive not mounted: ${repo}"; exit 1; }
 
     rm -f "$clone"
     trap 'rm -f "$clone"' EXIT
@@ -64,5 +73,23 @@ in
   system.activationScripts.postActivation.text = ''
     defaults write /Library/Preferences/SystemConfiguration/autodiskmount \
       AutomountDisksWithoutUserLogin -bool true
+
+    # The backup's ssh key and what it may do: borg serve on its repo, only
+    # from this Mac, nothing else (no shell, forwarding or pty). Other lines in
+    # authorized_keys stay; this one is rewritten each time.
+    install -d -m 0700 -o ${user} -g staff ${home}/.ssh
+    if [ ! -s ${key} ]; then
+      sudo -u ${user} ssh-keygen -q -t ed25519 -N "" -C minima-vm-backup -f ${key}
+    fi
+    ak=${home}/.ssh/authorized_keys
+    touch "$ak"
+    { grep -v ' minima-vm-backup$' "$ak" || true
+      echo "restrict,from=\"127.0.0.1,::1\",command=\"${borg} serve --restrict-to-repository ${repo}\" $(cat ${key}.pub)"
+    } > "$ak.new"
+    install -m 0600 -o ${user} -g staff "$ak.new" "$ak"
+    rm -f "$ak.new"
+    # Pinned to this Mac's own host key, so nothing else can pose as it.
+    echo "localhost $(cut -d' ' -f1,2 /etc/ssh/ssh_host_ed25519_key.pub)" > ${key}.known_hosts
+    chown ${user}:staff ${key}.known_hosts
   '';
 }
