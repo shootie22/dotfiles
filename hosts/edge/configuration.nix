@@ -50,7 +50,10 @@
   # Public ports are opened explicitly as the edge gets jobs. SSH only for now.
   networking.firewall = {
     enable = true;
-    allowedTCPPorts = [ 22 ];
+    # 50881: the standby LiveKit's media over TCP (infrastructure
+    # kubernetes/services/matrix/livekit.yaml); not LiveKit's default ports.
+    allowedTCPPorts = [ 22 50881 ];
+    allowedUDPPorts = [ 50882 ];
   };
 
   # SSH -------------------------------------------------------------------
