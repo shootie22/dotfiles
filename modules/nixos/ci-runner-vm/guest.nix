@@ -14,6 +14,14 @@ inputs.nixpkgs-nixpad.lib.nixosSystem {
     inputs.microvm.nixosModules.microvm
     ({ lib, pkgs, ... }:
       let
+        # Gitea through the edge's public address instead of Cloudflare, which
+        # rejects request bodies over 100 MB (image layers, release files).
+        # The edge passes HTTPS straight on to Traefik, so the certificate is
+        # the real one, and it's still the public internet, which is all this
+        # VM may reach. Same idea as mixi's hosts entry, minus the mesh.
+        edgeIp = builtins.head (lib.splitString ":" (builtins.head (import ../../../lib/nebula.nix).hosts.edge.reach));
+        giteaNames = [ "git.yeetus.net" "git.radunenu.com" ];
+
         runnerConfig = (pkgs.formats.yaml { }).generate "gitea-runner.yaml" {
           log.level = "info";
           runner = {
@@ -30,6 +38,9 @@ inputs.nixpkgs-nixpad.lib.nixosSystem {
             # (root in a throwaway VM), never the workstation's.
             valid_volumes = [ ];
             privileged = false;
+            # Job containers don't read the VM's /etc/hosts (release uploads
+            # run in one).
+            options = lib.concatMapStringsSep " " (n: "--add-host=${n}:${edgeIp}") giteaNames;
           };
         };
       in
@@ -42,6 +53,8 @@ inputs.nixpkgs-nixpad.lib.nixosSystem {
           # to the public internet); a guest firewall would add nothing.
           firewall.enable = false;
           nameservers = [ "1.1.1.1" "9.9.9.9" ];
+          # The runner itself and Docker's pushes (the daemon runs here).
+          hosts.${edgeIp} = giteaNames;
         };
         services.resolved.enable = false;
         systemd.network = {
