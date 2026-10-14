@@ -44,16 +44,13 @@ let
   settings = {
     node = config.networking.hostName;
     k3s = [ "${config.services.k3s.package}/bin/k3s" ];
-    # For switching a CNPG primary over (`cnpg` below), with k3s's admin
-    # kubeconfig: both nodes of a pair are k3s servers.
-    cnpg_cli = [ "${pkgs.kubectl-cnpg}/bin/kubectl-cnpg" "--kubeconfig" "/etc/rancher/k3s/k3s.yaml" ];
     inherit (cfg) port interval;
     # Read-only status: localhost, and the mesh for the game relay.
     listen = [ "127.0.0.1" mesh.hosts.${config.networking.hostName}.ip ];
     fail_after = cfg.failAfter;
     api_grace = cfg.apiGrace;
     services = lib.mapAttrs (svc: s: {
-      inherit (s) peer initial data stateless cnpg;
+      inherit (s) peer initial data stateless;
       incoming = if !s.stateless && incoming svc != s.data then incoming svc else null;
     }) cfg.services;
   };
@@ -97,25 +94,6 @@ in
           };
           sqlite = lib.mkOption { type = lib.types.listOf lib.types.str; default = [ ]; };
           exclude = lib.mkOption { type = lib.types.listOf lib.types.str; default = [ ]; };
-          copyEvery = lib.mkOption {
-            type = lib.types.nullOr lib.types.str;
-            default = null;
-            description = "OnCalendar for the copy instead of every 10 minutes, e.g. \"minutely\" (then without the random delay).";
-          };
-          cnpg = lib.mkOption {
-            default = null;
-            description = ''
-              CNPG clusters whose primary follows the service: while this node runs
-              it, a primary in the other site is switched over to the instance here
-              (once both are healthy), so the service never queries across the WAN.
-            '';
-            type = lib.types.nullOr (lib.types.submodule {
-              options = {
-                namespace = lib.mkOption { type = lib.types.str; };
-                clusters = lib.mkOption { type = lib.types.listOf lib.types.str; };
-              };
-            });
-          };
           preCopy = lib.mkOption {
             type = lib.types.nullOr lib.types.lines;
             default = null;
@@ -163,10 +141,6 @@ in
       source = "/srv/ha/${svc}";
       to = s.peer;
       inherit (s) sqlite;
-    } // lib.optionalAttrs (s.copyEvery != null) {
-      interval = s.copyEvery;
-      randomDelay = 0;
-    } // {
       # A part being written lives in tmp_* until it's renamed into place.
       exclude = s.exclude ++ lib.optional (s.clickhouse != null) "tmp_*";
       preCopy =

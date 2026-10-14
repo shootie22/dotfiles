@@ -18,12 +18,6 @@ both nodes and does three things:
 - open: when this node may run the service, /srv/ha/<service> is a bind of
   the service's folder here.
 
-- follow: for a service with `cnpg` clusters (Matrix), while this node runs
-  it, a primary in the other site is switched over to the instance here, so
-  the service never queries its database across the WAN. Only once the
-  cluster is healthy and the primary has been elsewhere for FOLLOW_AFTER
-  seconds, and at most once every PROMOTE_EVERY seconds.
-
 GET /<service> says what this node thinks: on localhost for checks by hand,
 and on the mesh address for the game relay (modules/nixos/game-relay.nix),
 which sends players to whichever node holds the label.
@@ -247,78 +241,6 @@ def ensure_incoming():
                 log(f"{svc}: copies arrive in {target}" if r.returncode == 0 else f"{svc}: bind at {target} failed: {r.stderr.strip()}")
 
 
-# A primary that has just moved (CNPG's own failover, or a switchover in
-# progress) is left alone this long before following it.
-FOLLOW_AFTER = 60
-# A switchover pauses writes for a few seconds; never more than one per
-# cluster in this long, whatever flaps.
-PROMOTE_EVERY = 600
-CHECK_EVERY = 15
-# (service, cluster) -> since when the primary has been elsewhere, the last
-# switchover, and whether it's elsewhere now (for the metric).
-follow = {}
-follow_checked = {"at": 0.0}
-
-
-def pod_ready(pod):
-    return any(c["type"] == "Ready" and c["status"] == "True"
-               for c in pod.get("status", {}).get("conditions", []))
-
-
-def follow_db():
-    if time.time() - follow_checked["at"] < CHECK_EVERY:
-        return
-    follow_checked["at"] = time.time()
-    for svc, s in cfg["services"].items():
-        c = s.get("cnpg")
-        if not c:
-            continue
-        for cluster in c["clusters"]:
-            st = follow.setdefault((svc, cluster), {"since": None, "last": 0.0, "elsewhere": False})
-            if not allowed(svc):
-                # The other node runs the service; it does the following.
-                st.update(since=None, elsewhere=False)
-                continue
-            if state["holders"].get(svc) != [NODE]:
-                # Two holders (a label set by hand without taking the other
-                # off): both would switch the primary to themselves, in turn.
-                # Never; a human sorts out the labels first.
-                if st["since"] is not None or not st.get("warned"):
-                    log(f"{svc}: held by {state['holders'].get(svc)}, not only by this node; not moving {cluster}")
-                st.update(since=None, warned=True)
-                continue
-            st["warned"] = False
-            r = kubectl("-n", c["namespace"], "get", "cluster", cluster, "-o", "json")
-            p = kubectl("-n", c["namespace"], "get", "pods", "-l", f"cnpg.io/cluster={cluster},cnpg.io/podRole=instance", "-o", "json")
-            if r.returncode != 0 or p.returncode != 0:
-                continue
-            status = json.loads(r.stdout).get("status", {})
-            pods = json.loads(p.stdout)["items"]
-            primary = status.get("currentPrimary")
-            where = next((x["spec"].get("nodeName") for x in pods if x["metadata"]["name"] == primary), None)
-            here = [x["metadata"]["name"] for x in pods
-                    if x["spec"].get("nodeName") == NODE and pod_ready(x) and x["metadata"]["name"] != primary]
-            st["elsewhere"] = where != NODE
-            if not st["elsewhere"] or not here:
-                st["since"] = None
-                continue
-            # Nothing while CNPG is busy: a failover or switchover underway,
-            # an instance not ready, replication not caught up.
-            if status.get("phase") != "Cluster in healthy state" or status.get("targetPrimary") != primary:
-                continue
-            now = time.time()
-            if st["since"] is None:
-                st["since"] = now
-                log(f"{svc}: {cluster}'s primary {primary} is on {where}, not here; switching over in {FOLLOW_AFTER} s if it stays")
-                continue
-            if now - st["since"] < FOLLOW_AFTER or now - st["last"] < PROMOTE_EVERY:
-                continue
-            st["last"], st["since"] = now, None
-            r = run(*cfg["cnpg_cli"], "-n", c["namespace"], "promote", cluster, here[0], timeout=30)
-            log(f"{svc}: {cluster}: switchover to {here[0]} " +
-                ("started" if r.returncode == 0 else f"failed: {(r.stderr or r.stdout).strip()}"))
-
-
 METRICS = "/var/lib/node-exporter-textfile/site_failover.prom"
 
 
@@ -338,13 +260,6 @@ def write_metrics():
         "# TYPE site_failover_cluster_reachable gauge",
         f"site_failover_cluster_reachable {1 if fresh else 0}",
     ]
-    if follow:
-        lines += [
-            "# HELP site_failover_db_elsewhere Whether a database that follows a service this node runs has its primary on another node.",
-            "# TYPE site_failover_db_elsewhere gauge",
-        ]
-        for (svc, cluster), st in follow.items():
-            lines.append(f'site_failover_db_elsewhere{{service="{svc}",cluster="{cluster}"}} {1 if st["elsewhere"] else 0}')
     try:
         tmp = METRICS + ".tmp"
         with open(tmp, "w") as f:
@@ -368,10 +283,6 @@ def loop():
                 open_(svc) if allowed(svc) else fence(svc)
             except Exception as e:
                 log(f"{svc}: {e}")
-        try:
-            follow_db()
-        except Exception as e:
-            log(f"following databases: {e}")
         write_metrics()
         time.sleep(cfg["interval"])
 
