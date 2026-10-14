@@ -19,8 +19,10 @@
 #   7. the primary follows a service (site-failover's `cnpg`, Matrix): the
 #      service's label goes to the replica's node, and the primary is
 #      switched over there by itself
-#   8. synchronous replication with dataDurability: preferred (Matrix's
-#      databases): the replica's machine crashes and writes carry on
+#   8. synchronous replication with dataDurability: preferred: the replica's
+#      machine crashes and writes carry on, but only once CNPG notices (about
+#      216 s on 2026-10-14). That pause is why Matrix stayed asynchronous
+#      (infrastructure decisions, 2026-10-14).
 # Times are printed; they go into the journal (#33).
 { pkgs, k3sPackage }:
 
