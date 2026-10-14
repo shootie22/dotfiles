@@ -1,4 +1,4 @@
-{ ... }:
+{ lib, pkgs, ... }:
 
 {
   imports = [
@@ -42,12 +42,15 @@
     ];
   };
 
+  # The same Starship prompt as the Linux machines (home/shared), for zsh.
+  environment.systemPackages = [ pkgs.starship ];
+  environment.variables.STARSHIP_CONFIG = toString
+    ((pkgs.formats.toml { }).generate "starship.toml"
+      (import ../../home/shared/starship-settings.nix { inherit lib; }));
+
   programs.zsh = {
     enable = true;
-    promptInit = ''
-      autoload -U colors && colors
-      PROMPT='%F{cyan}%n%f@%F{green}%m%f:%F{blue}%~%f %# '
-    '';
+    promptInit = ''eval "$(${lib.getExe pkgs.starship} init zsh)"'';
   };
 
   # nix-darwin compatibility version; don't change after initial setup.
