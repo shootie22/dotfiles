@@ -37,18 +37,6 @@
   dotfiles.siteFailover.services = {
     # The Matrix bot's session and encryption keys (moved off minima, #150).
     steamhappy = { data = "/home/fuji/services/steamhappy"; peer = "thinkcentre"; initial = true; };
-    # yeetus.net's Synapse: its media, copied every minute instead of every 10
-    # (uploads never change once written, so each copy only sends what's
-    # new). Other servers' media and URL previews are caches. Its Postgres
-    # primary follows it here (infrastructure docs/matrix/architecture.md).
-    matrix = {
-      data = "/home/fuji/services/matrix";
-      peer = "thinkcentre";
-      initial = true;
-      copyEvery = "minutely";
-      exclude = [ "/media/remote_content" "/media/remote_thumbnail" "/media/url_cache" "/media/url_cache_thumbnails" ];
-      cnpg = { namespace = "matrix"; clusters = [ "synapse-db" "mas-db" ]; };
-    };
     # Stateless game servers: only the label moves (and the relay with it).
     bopl2d = { stateless = true; peer = "thinkcentre"; };
     crosty = { stateless = true; peer = "thinkcentre"; };
@@ -214,24 +202,12 @@
     # Git over SSH, forwarded by the RO router (Traefik's gitssh).
     2022
     8443
-    # LiveKit's media over TCP, when UDP doesn't get through (see below).
-    50881
   ];
 
   # Pods need to reach the Kubernetes API, including through the
   # kubernetes.default ClusterIP. Keep access limited to the API rather than
   # trusting the CNI interfaces and exposing every host service to workloads.
-  networking.firewall.interfaces.cni0.allowedTCPPorts = [
-    6443
-    # LiveKit on the host network (infrastructure kubernetes/services/matrix/
-    # livekit.yaml): signalling for Traefik here, metrics for Prometheus here.
-    # From the thinkcentre and the edge they come over Nebula (trusted).
-    7880
-    6789
-  ];
-  # LiveKit's media, forwarded by the RO router (50881/tcp, 50882/udp).
-  # Deliberately not LiveKit's default ports.
-  networking.firewall.interfaces.eno1.allowedUDPPorts = [ 50882 ];
+  networking.firewall.interfaces.cni0.allowedTCPPorts = [ 6443 ];
   networking.firewall.interfaces.flannel-wg.allowedTCPPorts = [ 6443 ];
 
   # Flannel uses the node external addresses on Tailscale for its native
