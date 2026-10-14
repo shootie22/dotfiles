@@ -37,6 +37,14 @@
   dotfiles.siteFailover.services = {
     # The Matrix bot's session and encryption keys (moved off minima, #150).
     steamhappy = { data = "/home/standby/fuji/steamhappy"; peer = "fuji"; };
+    # yeetus.net's Synapse, the standby for fuji (see fuji's configuration).
+    matrix = {
+      data = "/home/standby/fuji/matrix";
+      peer = "fuji";
+      copyEvery = "minutely";
+      exclude = [ "/media/remote_content" "/media/remote_thumbnail" "/media/url_cache" "/media/url_cache_thumbnails" ];
+      cnpg = { namespace = "matrix"; clusters = [ "synapse-db" "mas-db" ]; };
+    };
     # Stateless game servers: only the label moves (and the relay with it).
     bopl2d = { stateless = true; peer = "fuji"; initial = true; };
     crosty = { stateless = true; peer = "fuji"; initial = true; };

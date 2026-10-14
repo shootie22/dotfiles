@@ -16,6 +16,11 @@
 #      (here RO, with the edge) keeps a primary, the cut-off one stops taking
 #      writes, so there are never two; after the cut heals it rejoins
 #   6. the dump job: pg_dump from the replica into a folder Borg backs up
+#   7. the primary follows a service (site-failover's `cnpg`, Matrix): the
+#      service's label goes to the replica's node, and the primary is
+#      switched over there by itself
+#   8. synchronous replication with dataDurability: preferred (Matrix's
+#      databases): the replica's machine crashes and writes carry on
 # Times are printed; they go into the journal (#33).
 { pkgs, k3sPackage }:
 
@@ -110,6 +115,18 @@ let
               hostPath: { path: /var/lib/pg-dumps, type: Directory }
   '';
 
+  # Stand-in for sops-nix (as in tests/site-failover.nix); the service here
+  # is stateless, so nothing is copied and no key is needed.
+  sopsStub = {
+    options.sops.secrets = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.submodule {
+        freeformType = lib.types.attrs;
+        options.path = lib.mkOption { type = lib.types.str; default = "/etc/standby-copy-key"; };
+      });
+      default = { };
+    };
+  };
+
   etcdctl = pkgs.writeShellScriptBin "etcdctl-k3s" ''
     d=/var/lib/rancher/k3s/server/tls/etcd
     exec ${pkgs.etcd}/bin/etcdctl --endpoints https://127.0.0.1:2379 \
@@ -176,8 +193,10 @@ let
   ];
   zone = { fuji = "ro"; thinkcentre = "dk"; edge = "edge"; };
 
+  peerOf = { fuji = "thinkcentre"; thinkcentre = "fuji"; };
   k3sNode = name: { config, nodes, ... }: {
-    imports = [ (nebulaNode name) ];
+    imports = [ (nebulaNode name) ] ++ lib.optionals (name != "edge")
+      [ ../modules/nixos/standby-copy.nix ../modules/nixos/site-failover sopsStub ];
     virtualisation = { memorySize = 3072; cores = 2; diskSize = 8192; };
     virtualisation.vlans = [ siteVlan.${name} ];
     networking.firewall.enable = false;
@@ -204,6 +223,18 @@ let
     # Where the dump job writes (Borg backs it up); owned by the postgres
     # image's user, as the real host config will do.
     systemd.tmpfiles.rules = [ "d /var/lib/pg-dumps 0700 26 26 -" ];
+  } // lib.optionalAttrs (name != "edge") {
+    # A service whose database follows it, like Matrix (step 7). Stateless:
+    # only its label matters here. Nobody holds it until the test sets it.
+    dotfiles.standbyCopy = {
+      publicKeys = { fuji = "ssh-ed25519 PLACEHOLDER"; thinkcentre = "ssh-ed25519 PLACEHOLDER"; };
+      receive = { enable = true; dir = "/srv/standby"; from = [ ]; };
+    };
+    dotfiles.siteFailover.services.app = {
+      stateless = true;
+      peer = peerOf.${name};
+      cnpg = { namespace = "default"; clusters = [ "pg" ]; };
+    };
   };
 in
 pkgs.testers.runNixOSTest {
@@ -340,5 +371,61 @@ pkgs.testers.runNixOSTest {
             print(a.execute("kubectl logs job/pg-dump 2>&1; kubectl describe job pg-dump | tail -5")[1])
         fuji.succeed("test -s /var/lib/pg-dumps/app.dump")
         print(fuji.succeed("ls -l /var/lib/pg-dumps"))
+
+    with subtest("7. the primary follows the service to the replica's node"):
+        a = api()
+        a.wait_until_succeeds("kubectl get cluster pg -o jsonpath={.status.readyInstances} | grep -x 2", timeout=600)
+        p = primary(a)
+        here = "thinkcentre" if where(p, a) == "fuji" else "fuji"
+        node = fuji if here == "fuji" else thinkcentre
+        rows = sql("select count(*) from t", via=a)
+        # Whoever holds the label now (site-failover gave it to fuji while
+        # the thinkcentre was cut off in step 5): two holders must never move
+        # the database.
+        a.succeed("kubectl label node fuji thinkcentre ha.radunenu.com/app=active --overwrite")
+        time.sleep(100)
+        assert where(primary(a), a) != here, "the primary moved with two label holders"
+        node.succeed("journalctl -u site-failover | grep -q 'not only by this node'")
+        # Moved the way the runbook does: off every node, onto the new one.
+        t0 = time.time()
+        a.succeed("kubectl label node fuji thinkcentre ha.radunenu.com/app-")
+        a.succeed(f"kubectl label node {here} ha.radunenu.com/app=active")
+        # site-failover waits a minute of the primary staying elsewhere, then
+        # switches over.
+        node.wait_until_succeeds(
+            f"p=$(kubectl get cluster pg -o jsonpath={{.status.currentPrimary}}) && "
+            f"[ \"$(kubectl get pod $p -o jsonpath={{.spec.nodeName}})\" = {here} ]", timeout=420)
+        wait_writable(node)
+        print(f"TIME primary followed the service to {here} after ~{time.time() - t0:.0f} s")
+        print(node.succeed("journalctl -u site-failover | grep -i 'switch' || true"))
+        node.wait_until_succeeds(
+            "grep -qx 'site_failover_db_elsewhere{service=\"app\",cluster=\"pg\"} 0' "
+            "/var/lib/node-exporter-textfile/site_failover.prom", timeout=120)
+        assert int(sql("select count(*) from t", via=node)) >= int(rows), "rows lost in the switchover"
+        # No second switchover: the primary stays put.
+        time.sleep(90)
+        assert where(primary(node), node) == here, "the primary moved again"
+
+    with subtest("8. synchronous, dataDurability preferred: the replica's machine crashes, writes carry on"):
+        a = api()
+        a.succeed("kubectl patch cluster pg --type merge -p "
+                  "'{\"spec\":{\"postgresql\":{\"synchronous\":{\"method\":\"any\",\"number\":1,\"dataDurability\":\"preferred\"}}}}'")
+        a.wait_until_succeeds("[ -n \"$(kubectl exec $(kubectl get cluster pg -o jsonpath={.status.currentPrimary}) -c postgres -- "
+                              "psql -U postgres -tAc 'show synchronous_standby_names')\" ]", timeout=300)
+        print("synchronous_standby_names:", sql("show synchronous_standby_names", via=a))
+        p = primary(a)
+        survivor_name = where(p, a)
+        survivor = fuji if survivor_name == "fuji" else thinkcentre
+        victim = thinkcentre if survivor is fuji else fuji
+        t0 = time.time()
+        victim.crash()
+        # Writes on the primary must not hang waiting for the lost standby.
+        survivor.wait_until_succeeds(
+            f"timeout 10 kubectl exec {p} -c postgres -- psql -U postgres -d app -tAc "
+            f"\"insert into t values (now()) returning 1\"", timeout=300)
+        print(f"TIME replica's machine gone: writes on {survivor_name} work again after ~{time.time() - t0:.0f} s")
+        victim.start()
+        survivor.wait_until_succeeds("kubectl get cluster pg -o jsonpath={.status.readyInstances} | grep -x 2", timeout=900)
+        print("replica back:", survivor.succeed("kubectl get pods -l cnpg.io/cluster=pg -L cnpg.io/instanceRole -o wide"))
   '';
 }
