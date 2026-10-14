@@ -15,7 +15,8 @@
 #   loop's own folder; writes only in the job user's home and temp folders.
 # - pf: the job user can't open connections to private, LAN, tailnet or
 #   link-local addresses, only the public internet (Gitea included) and the
-#   runner's own cache on localhost.
+#   runner's own cache on localhost. The loop loads these rules before every
+#   registration and takes no job while they fail to load.
 # - Background QoS (taskpolicy -b): builds get the leftover CPU and I/O, so
 #   they don't slow the minima VM down.
 #
@@ -96,6 +97,12 @@ let
 
   loop = pkgs.writeShellScript "gitea-runner-loop" ''
     set -u
+    # macOS's /etc/pf.conf loads every com.apple/* anchor; this adds one and
+    # turns pf on (it's off by default, and the stock rules pass everything).
+    fence() {
+      /sbin/pfctl -a com.apple/250.gitea-runner -f ${pfRules} 2>/dev/null || return
+      /sbin/pfctl -s info 2>/dev/null | grep -q '^Status: Enabled' || /sbin/pfctl -E 2>/dev/null
+    }
     clean() {
       pkill -9 -u ${user} 2>/dev/null
       sleep 1
@@ -108,6 +115,10 @@ let
     }
     while true; do
       if [ ! -s ${ctl}/token ]; then sleep 60; continue; fi
+      if ! fence; then
+        echo "$(date '+%F %T') pf rules didn't load; no jobs until they do"
+        sleep 60; continue
+      fi
       clean
       cd ${home}
       # Piped: on macOS, opening /dev/stdin on a redirected file reopens the
@@ -152,9 +163,11 @@ in
   environment.systemPackages = [ setToken ];
 
   # The loop runs as root (it registers and cleans up); jobs run as the user.
+  # `command` (not ProgramArguments) waits for the /nix/store volume to mount;
+  # at boot, launchd gives up for good on a program it can't find yet.
+  launchd.daemons.gitea-runner.command = "${loop}";
   launchd.daemons.gitea-runner.serviceConfig = {
     Label = label;
-    ProgramArguments = [ "${loop}" ];
     RunAtLoad = true;
     KeepAlive = true;
     ThrottleInterval = 30;
@@ -166,19 +179,5 @@ in
     };
     StandardOutPath = "${ctl}/runner.log";
     StandardErrorPath = "${ctl}/runner.log";
-  };
-
-  # macOS's /etc/pf.conf loads every com.apple/* anchor; this adds one and
-  # turns pf on (it's off by default, and the stock rules pass everything).
-  launchd.daemons.gitea-runner-pf.serviceConfig = {
-    Label = "org.nixos.gitea-runner-pf";
-    ProgramArguments = [
-      "/bin/sh"
-      "-c"
-      "/sbin/pfctl -a com.apple/250.gitea-runner -f ${pfRules} && /sbin/pfctl -E"
-    ];
-    RunAtLoad = true;
-    StandardOutPath = "${ctl}/pf.log";
-    StandardErrorPath = "${ctl}/pf.log";
   };
 }
