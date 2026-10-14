@@ -2,12 +2,15 @@
 # One origin per line, e.g. https://github.com
 # Add entries with:  cookie-allow <url-or-domain>
 
+https://auth.yeetus.net
 https://chatgpt.com
 https://claude.ai
 https://github.com
 https://git.radunenu.com
+https://git.yeetus.net
 https://google.com
 https://icloud.com
 https://steampowered.com
 https://tidal.com
+https://yeetus.net
 https://youtube.com
