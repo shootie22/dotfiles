@@ -174,6 +174,12 @@
       k3sPackage = nixosConfigurations.fuji.config.services.k3s.package;
     };
 
+    # A deploy that cuts a host off gets rolled back by itself
+    # (infrastructure incident 2026-10-14; tests/switch-guard.nix).
+    checks.x86_64-linux.switch-guard = import ./tests/switch-guard.nix {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+    };
+
     # The failover checker's view of RO: Traefik answering isn't enough, fuji
     # must reach the cluster too (infrastructure incident 2026-10-14;
     # tests/failover-checker.py). No VMs, a few seconds.

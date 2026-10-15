@@ -9,6 +9,10 @@ let
   cfg = config.dotfiles.comin;
 in
 {
+  # Wherever comin deploys, a deploy that cuts the host off gets rolled back
+  # by itself (switch-guard.nix; infrastructure incident 2026-10-14).
+  imports = [ ./switch-guard.nix ];
+
   options.dotfiles.comin.rebootAt = lib.mkOption {
     type = lib.types.nullOr lib.types.str;
     default = "*-*-* 04:00:00 Europe/Bucharest";
@@ -20,6 +24,8 @@ in
   };
 
   config = {
+    dotfiles.switchGuard.enable = lib.mkDefault true;
+
     services.comin = {
       enable = true;
       remotes = [{
