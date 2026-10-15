@@ -156,6 +156,11 @@ in
           source = lib.mkOption { type = lib.types.str; };
           to = lib.mkOption { type = lib.types.enum (lib.attrNames mesh.hosts); };
           interval = lib.mkOption { type = lib.types.str; default = "*:0/10"; };
+          randomDelay = lib.mkOption {
+            type = lib.types.int;
+            default = 60;
+            description = "Seconds of random delay before each run (spreads the jobs out). 0 for a job that runs every minute.";
+          };
           sqlite = lib.mkOption {
             type = lib.types.listOf lib.types.str;
             default = [ ];
@@ -216,7 +221,7 @@ in
           wantedBy = [ "timers.target" ];
           timerConfig = {
             OnCalendar = job.interval;
-            RandomizedDelaySec = 60;
+            RandomizedDelaySec = job.randomDelay;
             Persistent = false;
           };
         }) cfg.send;
