@@ -10,8 +10,10 @@ let
 in
 {
   # Wherever comin deploys, a deploy that cuts the host off gets rolled back
-  # by itself (switch-guard.nix; infrastructure incident 2026-10-14).
-  imports = [ ./switch-guard.nix ];
+  # by itself (switch-guard.nix), and hosts with upstream hosts deploy a
+  # commit only after those have run it healthy (deploy-stages)
+  # (infrastructure incident 2026-10-14).
+  imports = [ ./switch-guard.nix ./deploy-stages ];
 
   options.dotfiles.comin.rebootAt = lib.mkOption {
     type = lib.types.nullOr lib.types.str;
