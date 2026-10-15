@@ -180,6 +180,18 @@
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
     };
 
+    # Staged deploys: the gate that lets a later host deploy a commit only
+    # after its upstream hosts have run it (tests/deploy-gate.sh). No VMs.
+    checks.x86_64-linux.deploy-gate =
+      let pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      in pkgs.runCommand "deploy-gate-test" {
+        nativeBuildInputs = with pkgs; [ bash python3 jq curl coreutils gnugrep ];
+        GATE_SCRIPT = ./modules/nixos/deploy-stages/gate.sh;
+      } ''
+        bash ${./tests/deploy-gate.sh}
+        touch $out
+      '';
+
     # The failover checker's view of RO: Traefik answering isn't enough, fuji
     # must reach the cluster too (infrastructure incident 2026-10-14;
     # tests/failover-checker.py). No VMs, a few seconds.

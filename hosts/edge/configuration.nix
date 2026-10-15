@@ -183,5 +183,8 @@
 
   users.motd = "edge: deployed by comin from github.com/shootie22/dotfiles. Change it there, not here.\n";
 
+  # Staged deploys (modules/nixos/deploy-stages): the front door and etcd's third vote: last, after fuji has run a commit for 30 minutes.
+  dotfiles.deployStages.upstream = [ "fuji" ];
+
   system.stateVersion = "26.05";
 }

@@ -164,5 +164,8 @@
     after = [ "tailscaled.service" ];
   };
 
+  # Staged deploys (modules/nixos/deploy-stages): RO: after both DK hosts have run a commit for 30 minutes.
+  dotfiles.deployStages.upstream = [ "thinkcentre" "mixi" ];
+
   system.stateVersion = "26.05";
 }
