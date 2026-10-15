@@ -68,6 +68,14 @@ let
     min_interval = 3600;
     ro_name = "ro.radunenu.com";
     ro_dynamic_name = "noc-studios.go.ro";
+    # RO only counts as up if fuji, the node behind RO's port forwards, also
+    # reaches the cluster: its site-failover status page, the same check the
+    # edge's HAProxy makes (infrastructure incident 2026-10-14, where fuji's
+    # Traefik kept answering while fuji was cut off). thinkcentre's page
+    # tells whether this checker can read the mesh at all; if not, fuji's
+    # page not answering proves nothing and only Traefik counts.
+    ro_cluster_status = "http://${mesh.fuji.ip}:9112/gitea";
+    mesh_reference_status = "http://${mesh.thinkcentre.ip}:9112/gitea";
     edge_name = "edge.radunenu.com";
     edge_ip = "141.95.67.178";
     cloudflare_zone = "radunenu.com";
