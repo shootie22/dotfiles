@@ -82,16 +82,60 @@ def network_ok():
     return True
 
 
+def cluster_status(url):
+    """'ok' or 'lost' from a node's site-failover status page, None if it
+    doesn't answer. The page answers 503 when the node may not run the
+    service, but still says whether it reaches the cluster."""
+    try:
+        with urllib.request.urlopen(url, timeout=4) as r:
+            body = r.read().decode(errors="replace")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")
+    except Exception:
+        return None
+    if "cluster=ok" in body:
+        return "ok"
+    if "cluster=lost" in body:
+        return "lost"
+    return None
+
+
+def ro_health(traefik_ok, ro_cluster, mesh_reference):
+    """Whether RO can serve, and why not.
+
+    Traefik answering isn't enough: on 2026-10-14 fuji's Traefik kept
+    answering while fuji was cut off from the cluster, so every request
+    through RO failed and nothing failed over. fuji also has to say it
+    reaches the cluster. If its status page doesn't answer, that only counts
+    when this checker can read another node's page over the mesh; otherwise
+    the mesh is the problem here, and Traefik alone decides."""
+    if not traefik_ok:
+        return False, "Traefik doesn't answer"
+    if ro_cluster == "lost":
+        return False, "fuji has lost the cluster"
+    if ro_cluster is None and mesh_reference is not None:
+        return False, "fuji's status page doesn't answer over the mesh"
+    return True, ""
+
+
 def probe():
     self_ok = network_ok()
-    ro_ok = None
+    ro_ok, why = None, ""
     if self_ok:
         ip = resolve_a(CFG["ro_dynamic_name"])
-        ro_ok = bool(ip) and traefik_answers(ip)
+        traefik_ok = bool(ip) and traefik_answers(ip)
+        ro_cluster = mesh_reference = None
+        if traefik_ok and CFG.get("ro_cluster_status"):
+            ro_cluster = cluster_status(CFG["ro_cluster_status"])
+            if ro_cluster is None:
+                mesh_reference = cluster_status(CFG["mesh_reference_status"])
+        ro_ok, why = ro_health(traefik_ok, ro_cluster if CFG.get("ro_cluster_status") else "ok", mesh_reference)
     with view_lock:
         if ro_ok != view["ro_ok"]:
             view["since"] = time.time()
-        view.update(self_ok=self_ok, ro_ok=ro_ok, ts=time.time())
+            if ro_ok is False:
+                log(f"RO looks down from here: {why}")
+        view.update(self_ok=self_ok, ro_ok=ro_ok, why=why, ts=time.time())
 
 
 class Handler(BaseHTTPRequestHandler):

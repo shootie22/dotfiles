@@ -174,6 +174,19 @@
       k3sPackage = nixosConfigurations.fuji.config.services.k3s.package;
     };
 
+    # The failover checker's view of RO: Traefik answering isn't enough, fuji
+    # must reach the cluster too (infrastructure incident 2026-10-14;
+    # tests/failover-checker.py). No VMs, a few seconds.
+    checks.x86_64-linux.failover-checker =
+      let pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      in pkgs.runCommand "failover-checker-test" {
+        nativeBuildInputs = [ (pkgs.python3.withPackages (ps: [ ps.dnspython ])) ];
+        CHECKER = ./modules/nixos/failover-checker/checker.py;
+      } ''
+        python3 ${./tests/failover-checker.py}
+        touch $out
+      '';
+
     nixosConfigurations.mixi = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
       modules = [
