@@ -214,12 +214,24 @@
     # Git over SSH, forwarded by the RO router (Traefik's gitssh).
     2022
     8443
+    # LiveKit's media over TCP, when UDP doesn't get through (see below).
+    50881
   ];
 
   # Pods need to reach the Kubernetes API, including through the
   # kubernetes.default ClusterIP. Keep access limited to the API rather than
   # trusting the CNI interfaces and exposing every host service to workloads.
-  networking.firewall.interfaces.cni0.allowedTCPPorts = [ 6443 ];
+  networking.firewall.interfaces.cni0.allowedTCPPorts = [
+    6443
+    # LiveKit on the host network (infrastructure kubernetes/services/matrix/
+    # livekit.yaml): signalling for Traefik here, metrics for Prometheus here.
+    # From the other nodes they come over Nebula (trusted).
+    7880
+    6789
+  ];
+  # LiveKit's media, forwarded by the RO router (50881/tcp, 50882/udp).
+  # Deliberately not LiveKit's default ports.
+  networking.firewall.interfaces.eno1.allowedUDPPorts = [ 50882 ];
   networking.firewall.interfaces.flannel-wg.allowedTCPPorts = [ 6443 ];
 
   # Flannel uses the node external addresses on Tailscale for its native
