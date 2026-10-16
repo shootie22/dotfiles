@@ -194,6 +194,13 @@
   };
   programs.gamemode.enable = true;
 
+  # AppImages run directly (binfmt → appimage-run), so Cubitrix in
+  # ~/Applications can update itself and restart.
+  programs.appimage = {
+    enable = true;
+    binfmt = true;
+  };
+
   # Sunshine, for Moonlight on nixpad over the tailnet (workstation-stream).
   dotfiles.gameStreaming.enable = true;
 
