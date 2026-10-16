@@ -53,6 +53,8 @@
     # flake input rather than nixpkgs, so it cannot live in packages.txt.
     inputs.ai-usagebar.packages.${pkgs.stdenv.hostPlatform.system}.default
     inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.codex
+    # Claude Desktop (chat, Cowork, Claude Code), repackaged from Anthropic's APT repo.
+    inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.claude-desktop
 
     (writeShellApplication {
       name = "screenrecord-toggle";
