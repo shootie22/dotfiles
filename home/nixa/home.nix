@@ -54,7 +54,11 @@
     inputs.ai-usagebar.packages.${pkgs.stdenv.hostPlatform.system}.default
     inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.codex
     # Claude Desktop (chat, Cowork, Claude Code), repackaged from Anthropic's APT repo.
-    inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.claude-desktop
+    # Electron doesn't recognise XDG_CURRENT_DESKTOP=Hyprland and falls back to no
+    # keyring, so the sign-in isn't kept; point it at gnome-keyring explicitly.
+    (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.claude-desktop.override {
+      commandLineArgs = "--password-store=gnome-libsecret";
+    })
 
     (writeShellApplication {
       name = "screenrecord-toggle";
