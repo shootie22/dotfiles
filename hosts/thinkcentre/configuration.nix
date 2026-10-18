@@ -89,6 +89,8 @@
     hytale = { data = "/home/main/game_servers/hytale"; peer = "fuji"; initial = true; };
     headscale = { data = "/home/standby/fuji/headscale"; peer = "fuji"; sqlite = [ "db.sqlite" ]; };
     legacy-web = { data = "/home/standby/fuji/legacy-web"; peer = "fuji"; };
+    # hub: crosty-hc
+    crosty-hc = { data = "/home/main/services/crosty-hc"; peer = "fuji"; initial = true; minecraft = { namespace = "crosty-hc"; app = "crosty-hc"; secret = "crosty-hc-env"; key = "RCON_PASSWORD"; }; };
     # hub: hub-test
     hub-test = { data = "/home/main/services/hub-test"; peer = "fuji"; initial = true; minecraft = { namespace = "hub-test"; app = "hub-test"; secret = "hub-test-env"; key = "RCON_PASSWORD"; }; };
   };

@@ -100,6 +100,8 @@
       peer = "thinkcentre";
       initial = true;
     };
+    # hub: crosty-hc
+    crosty-hc = { data = "/srv/standby/thinkcentre/crosty-hc"; peer = "thinkcentre"; minecraft = { namespace = "crosty-hc"; app = "crosty-hc"; secret = "crosty-hc-env"; key = "RCON_PASSWORD"; }; };
     # hub: hub-test
     hub-test = { data = "/srv/standby/thinkcentre/hub-test"; peer = "thinkcentre"; minecraft = { namespace = "hub-test"; app = "hub-test"; secret = "hub-test-env"; key = "RCON_PASSWORD"; }; };
   };
