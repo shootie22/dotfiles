@@ -58,10 +58,15 @@ let
   # says (whichever answers). Unknown keeps the last answer.
   update = pkgs.writeShellScript "game-relay-targets" ''
     set -u
-    PATH=${lib.makeBinPath [ pkgs.curl pkgs.gnused pkgs.coreutils pkgs.diffutils ]}
+    PATH=${lib.makeBinPath [ pkgs.curl pkgs.gnused pkgs.gnugrep pkgs.coreutils pkgs.diffutils ]}
     [ -e ${targetsFile} ] || install -m 0644 ${defaults} ${targetsFile}
     new=$(mktemp)
     cp ${targetsFile} "$new"
+    # The file outlives a switch, so a port added since it was written has no
+    # line, and nginx sends that port nowhere. Start those from the default.
+    ${lib.concatMapStrings (p: ''
+      grep -q '^  ${toString p.port} ' "$new" || sed -i 's/^}$/  ${toString p.port} ${default};\n}/' "$new"
+    '') ports}
     ${lib.concatMapStrings (svc: ''
       holder=""
       for ip in ${mesh.fuji.ip} ${mesh.thinkcentre.ip}; do
