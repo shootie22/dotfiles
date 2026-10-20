@@ -48,6 +48,13 @@ hl.config({
         touchpad     = { natural_scroll = false },
     },
 
+    -- Keep swiping past the neighbouring workspace in one gesture, but stop at
+    -- the last open workspace instead of spawning new empty ones.
+    gestures = {
+        workspace_swipe_forever    = true,
+        workspace_swipe_create_new = false,
+    },
+
     misc = {
         disable_hyprland_logo   = true,
         force_default_wallpaper = 0,
@@ -61,6 +68,9 @@ hl.device({
     accel_profile = "flat",
     sensitivity = 0.5,
 })
+
+-- Three-finger horizontal swipe switches workspace.
+hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 
 -- Border colours from Noctalia's palette (regenerated + reloaded on theme change).
 pcall(dofile, os.getenv("HOME") .. "/.config/hypr/noctalia-colors.lua")
