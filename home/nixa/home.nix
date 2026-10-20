@@ -276,6 +276,10 @@
       theme.source = "custom";
       theme.custom_palette = "Halloween";
 
+      # External monitor brightness over DDC/CI (needs ddcutil + i2c access,
+      # set up in the host config).
+      brightness.enable_ddcutil = true;
+
       shell = {
         corner_radius_scale = 0.0;    # square corners everywhere
         font_family = "Inter";

@@ -11,3 +11,4 @@
 
 git                      # required for flake rebuilds
 wget
+ddcutil                  # external monitor brightness (Noctalia)
