@@ -212,11 +212,15 @@
     nerd-fonts.jetbrains-mono
   ];
 
+  # DDC/CI over i2c so Noctalia can set the external monitor's brightness
+  # (loads i2c-dev and creates the i2c group).
+  hardware.i2c.enable = true;
+
   # Users -----------------------------------------------------------
   users.users.nixa = {
     isNormalUser = true;
     description = "nixa";
-    extraGroups = [ "networkmanager" "wheel" "libvirtd" ];
+    extraGroups = [ "networkmanager" "wheel" "libvirtd" "i2c" ];
     # The admin devices only, like every other machine. Remote unlock goes
     # through mixi as a jump host with an admin key (infrastructure #106), so
     # no server holds a key for this machine.
