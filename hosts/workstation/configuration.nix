@@ -7,6 +7,7 @@
     ../../modules/nixos/initrd-dhcp-handover.nix
     ../../modules/nixos/dotfiles-sync.nix
     ../../modules/nixos/game-streaming.nix
+    ../../modules/nixos/gc.nix
   ];
 
   # Keep ~/git/dotfiles in step with GitHub (fetch, fast-forward when clean).

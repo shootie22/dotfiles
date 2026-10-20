@@ -67,6 +67,7 @@ in
       # Include the results of the hardware scan.
       ./hardware-configuration.nix
       ../../modules/nixos/dotfiles-sync.nix
+      ../../modules/nixos/gc.nix
 
       # Shared modules (see ../../modules/nixos/)
       ../../modules/nixos/common.nix
