@@ -10,9 +10,11 @@
 #   the folder exists.
 # - The copy (standby-copy.nix) goes from whichever node is active to the
 #   other, every 10 minutes, and lands straight in the other node's folder.
-# - site-failover.py moves the label when the active node is gone, and
-#   fences: /srv/ha/<service> only exists while this node may run it, so a
-#   node cut off from the cluster stops the service by itself.
+# - site-failover.py moves the label when the active node is gone, or up but
+#   unable to run the service (its pods stuck Pending there), and fences:
+#   /srv/ha/<service> only exists while this node may run it, so a node cut
+#   off from the cluster stops the service by itself. A node running a
+#   service refuses the peer's copies of it (standby-copy.nix).
 { config, lib, pkgs, ... }:
 
 let
@@ -52,9 +54,12 @@ let
     listen = [ "127.0.0.1" mesh.hosts.${config.networking.hostName}.ip ];
     fail_after = cfg.failAfter;
     api_grace = cfg.apiGrace;
+    unfit_after = cfg.unfitAfter;
+    hold_down = cfg.holdDown;
     services = lib.mapAttrs (svc: s: {
       inherit (s) peer initial data stateless cnpg;
       incoming = if !s.stateless && incoming svc != s.data then incoming svc else null;
+      receive = incoming svc;
     }) cfg.services;
   };
   configFile = pkgs.writeText "site-failover.json" (builtins.toJSON settings);
@@ -69,6 +74,16 @@ in
       type = lib.types.int;
       default = 10;
       description = "Seconds after the cluster marks the active node not Ready (itself about 50 s after it goes quiet) before taking over.";
+    };
+    unfitAfter = lib.mkOption {
+      type = lib.types.int;
+      default = 120;
+      description = "Seconds a service's pod has to be stuck Pending on a node that's up (unschedulable there, e.g. under disk pressure) before the other node takes over. Ten minutes more for a pod that's on the node but hasn't started, which may be pulling its image.";
+    };
+    holdDown = lib.mkOption {
+      type = lib.types.int;
+      default = 1800;
+      description = "Seconds after a service moved before it's moved again for being stuck (not for a node that's gone), so one that can run nowhere doesn't bounce.";
     };
     apiGrace = lib.mkOption {
       type = lib.types.int;

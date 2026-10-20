@@ -10,7 +10,9 @@
 # receive:     this host takes copies from the hosts in `from`. They log in as
 #              `standby`, from their mesh address only, and can't do anything
 #              but write into their own folder (rrsync, through one sudo rule
-#              so owners and modes survive).
+#              so owners and modes survive). A copy of a service that runs on
+#              this host (site-failover's /run/site-failover/active/<job>) is
+#              refused: the folder is the live one.
 #
 # Every job leaves standby_copy_last_success_timestamp_seconds for
 # node-exporter's textfile collector; Prometheus alerts when it gets old.
@@ -31,6 +33,13 @@ let
       ${pkgs.util-linux}/bin/mountpoint -q ${cfg.receive.requireMount} || {
         echo "${cfg.receive.requireMount} is not mounted" >&2; exit 1; }
     ''}
+    # The job is the destination, rsync's last argument ("<job>/").
+    job=''${SSH_ORIGINAL_COMMAND##* }
+    job=''${job%%/*}
+    if [ -n "$job" ] && [ -e /run/site-failover/active/"$job" ]; then
+      echo "$job runs on this host; not taking a copy over its live folder" >&2
+      exit 1
+    fi
     install -d -m 0700 ${cfg.receive.dir} ${cfg.receive.dir}/"$sender"
     # -no-lock: several jobs from one sender run at once, each into its own
     # folder.

@@ -14,6 +14,10 @@
 #   5. fuji gets cut off: it stops the service itself, and the thinkcentre
 #      (with the edge, so etcd's majority) takes over; never both at once
 #   6. the cut heals: fuji is the standby, nothing ran twice
+#   7. the thinkcentre's disk fills up (2026-10-20): it stays Ready, kubelet
+#      evicts the service and can't place it again; fuji takes over, and the
+#      thinkcentre's copies can't land on fuji's live folder
+#   8. the disk is freed: the thinkcentre is the standby and gets fuji's copies
 # Times are printed.
 { pkgs, k3sPackage }:
 
@@ -103,7 +107,7 @@ let
     virtualisation = { memorySize = 3072; cores = 2; diskSize = 8192; };
     virtualisation.vlans = [ siteVlan.${name} ];
     networking.firewall.enable = false;
-    environment.systemPackages = [ pkgs.kubectl pkgs.jq pkgs.iptables pkgs.curl etcdctl ];
+    environment.systemPackages = [ pkgs.kubectl pkgs.jq pkgs.iptables pkgs.curl pkgs.rsync etcdctl ];
     environment.sessionVariables.KUBECONFIG = "/etc/rancher/k3s/k3s.yaml";
     networking.defaultGateway = lib.mkIf (name != "edge")
       (addr nodes.${if name == "fuji" then "rorouter" else "dkrouter"} "eth1");
@@ -126,7 +130,8 @@ let
 
   # fuji and the thinkcentre: the pair the service moves between.
   pairNode = name: peer: data: {
-    imports = [ (k3sNode name) ../modules/nixos/standby-copy.nix ../modules/nixos/site-failover sopsStub ];
+    imports = [ (k3sNode name) ../modules/nixos/standby-copy.nix ../modules/nixos/site-failover
+      ../modules/nixos/k3s-eviction.nix sopsStub ];
     services.openssh = {
       enable = true;
       authorizedKeysInHomedir = false;
@@ -139,6 +144,8 @@ let
       send.minecraft-hc.interval = lib.mkForce "*:*:0/20";
     };
     dotfiles.siteFailover.services.minecraft-hc = { inherit data peer; initial = name == "thinkcentre"; };
+    # Minutes on the real servers.
+    dotfiles.siteFailover = { unfitAfter = 20; holdDown = 30; };
     # A stateless one: only the label (and the relay) should move.
     dotfiles.siteFailover.services.bopl2d = { stateless = true; inherit peer; initial = name == "thinkcentre"; };
     systemd.tmpfiles.rules = lib.optional (name == "thinkcentre") "d /srv/live/app 0755 root root -";
@@ -349,5 +356,51 @@ pkgs.testers.runNixOSTest {
                 runs.append([node, l.split()[1], l.split()[1]])
             runs[-1][2] = l.split()[1]
         print("writers in order:", runs)
+
+    with subtest("7. the thinkcentre's disk fills up: fuji takes over, though it's Ready"):
+        thinkcentre.succeed("systemctl start standby-copy-minecraft-hc.service")
+        t0 = time.time()
+        # Under kubelet's 5% (k3s-eviction.nix), as the CI pod's disk did.
+        thinkcentre.succeed(
+            "s=$(df --output=size -B1 /var/lib/kubelet | tail -1); a=$(df --output=avail -B1 /var/lib/kubelet | tail -1); "
+            "fallocate -l $((a - s * 3 / 100)) /var/fill")
+        thinkcentre.wait_until_succeeds(
+            "kubectl get node thinkcentre -o jsonpath='{.status.conditions[?(@.type==\"DiskPressure\")].status}' | grep -x True", timeout=300)
+        print(f"TIME disk: DiskPressure after ~{time.time() - t0:.0f} s")
+        fuji.wait_until_succeeds("kubectl get nodes -l ha.radunenu.com/minecraft-hc=active -o name | grep -x node/fuji", timeout=600)
+        print(f"TIME disk: fuji has the label after ~{time.time() - t0:.0f} s")
+        # It never stopped being Ready: that alone used to keep the label there.
+        fuji.succeed("kubectl get node thinkcentre | grep -w Ready")
+        fuji.succeed("journalctl -u site-failover | grep 'taken over from thinkcentre: .*stuck Pending.*DiskPressure'")
+        fuji.wait_until_succeeds("test -e /srv/ha/minecraft-hc/n", timeout=120)
+        n0 = count(fuji, "/srv/ha/minecraft-hc")
+        fuji.wait_until_succeeds(f"test \"$(cat /srv/ha/minecraft-hc/n)\" -gt {n0 + 3}", timeout=600)
+        print(f"TIME disk: the service runs on fuji after ~{time.time() - t0:.0f} s")
+        assert not running_on(thinkcentre)
+        thinkcentre.wait_until_fails("test -e /srv/ha/minecraft-hc", timeout=60)
+        # fuji refuses copies over its live folder: the thinkcentre's job
+        # steps aside, and a copy pushed by hand bounces.
+        fuji.succeed("test -e /run/site-failover/active/minecraft-hc")
+        thinkcentre.fail("test -e /run/site-failover/active/minecraft-hc")
+        thinkcentre.succeed("systemctl start standby-copy-minecraft-hc.service")
+        thinkcentre.succeed("journalctl -u standby-copy-minecraft-hc | tail -5 | grep -q 'not the active node'")
+        thinkcentre.succeed("mkdir -p /tmp/stale && echo 1 > /tmp/stale/n")
+        out = thinkcentre.fail(
+            "rsync -a -e 'ssh -i /etc/standby-copy-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null' "
+            "/tmp/stale/ standby@10.99.0.2:minecraft-hc/ 2>&1")
+        assert "not taking a copy over its live folder" in out, out
+        assert count(fuji, "/srv/ha/minecraft-hc") > n0, "fuji's live folder was written over"
+
+    with subtest("8. the disk is freed: the thinkcentre is the standby"):
+        thinkcentre.succeed("rm /var/fill")
+        fuji.wait_until_succeeds(
+            "kubectl get node thinkcentre -o jsonpath='{.status.conditions[?(@.type==\"DiskPressure\")].status}' | grep -x False", timeout=600)
+        time.sleep(30)
+        assert holder(fuji) == "fuji", holder(fuji)
+        assert not running_on(thinkcentre)
+        fuji.succeed("systemctl start standby-copy-minecraft-hc.service")
+        n = count(fuji, "/srv/ha/minecraft-hc")
+        thinkcentre.succeed(f"test \"$(cat /srv/live/app/n)\" -ge {n - 2}")
+        print("the thinkcentre has fuji's copy again:", count(thinkcentre, "/srv/live/app"))
   '';
 }

@@ -12,6 +12,7 @@
     ../../modules/nixos/comin.nix
     ../../modules/nixos/nebula-mesh.nix
     ../../modules/nixos/infra-facts.nix
+    ../../modules/nixos/k3s-eviction.nix
     ./haproxy.nix
     ./derp.nix
     ../../modules/nixos/failover-checker
