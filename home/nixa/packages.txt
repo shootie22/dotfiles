@@ -51,3 +51,7 @@ age
 jq
 dnsutils
 tea
+prism
+prismlauncher
+joplin-desktop
+gh

@@ -272,6 +272,9 @@
     systemd.enable = true;            # started with the graphical session
     settings = {
       theme.mode = "dark";
+      # Halloween/autumn orange palette (./noctalia/palettes/Halloween.json).
+      theme.source = "custom";
+      theme.custom_palette = "Halloween";
 
       shell = {
         corner_radius_scale = 0.0;    # square corners everywhere
@@ -378,4 +381,5 @@
   # Hyprland — hand-written Lua config + Noctalia colour template ---------
   xdg.configFile."hypr/hyprland.lua".source = ./hypr/hyprland.lua;
   xdg.configFile."noctalia/templates/hyprland.lua".source = ./noctalia/templates/hyprland.lua;
+  xdg.configFile."noctalia/palettes/Halloween.json".source = ./noctalia/palettes/Halloween.json;
 }
