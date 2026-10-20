@@ -55,6 +55,13 @@ hl.config({
     },
 })
 
+-- Wacom tablet input as touchpad. Settings:
+hl.device({
+    name = "wacom-intuos-pt-s-finger",
+    accel_profile = "flat",
+    sensitivity = 0.5,
+})
+
 -- Border colours from Noctalia's palette (regenerated + reloaded on theme change).
 pcall(dofile, os.getenv("HOME") .. "/.config/hypr/noctalia-colors.lua")
 
