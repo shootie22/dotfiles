@@ -6,6 +6,7 @@
     ./hardware-configuration.nix
     ../../modules/nixos/k3s-tailnet-guard.nix
     ../../modules/nixos/k3s-dns.nix
+    ../../modules/nixos/k3s-eviction.nix
     ../../modules/nixos/alert-relay
     ../../modules/nixos/failover-checker
     ../../modules/nixos/server-housekeeping.nix

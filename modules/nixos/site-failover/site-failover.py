@@ -9,6 +9,15 @@ both nodes and does three things:
   label, if a whole copy of the service's folder has arrived here. Only the
   node taking over writes the label, through the cluster's API, so a node
   that's cut off can't.
+  Also when the holder is up but can't run the service: a workload of the
+  service has no pod running and one has been stuck Pending there for
+  `unfit_after` seconds, unschedulable or never getting its containers
+  started (the thinkcentre's disk under kubelet's eviction threshold on
+  2026-10-20: Ready all along, every pod evicted, nothing moved). Not for a
+  pod that can't pull its image (it couldn't on this node either) or one
+  that crashes once started. At most once per `hold_down` seconds per
+  service, so one that can run nowhere doesn't bounce, and never onto a
+  node under pressure itself.
 - fence: /srv/ha/<service> exists only while this node may run the service:
   it holds the label and reached the cluster in the last `api_grace` seconds.
   Otherwise any container using the folder is killed (found through the
@@ -16,7 +25,10 @@ both nodes and does three things:
   the folder goes away, so kubelet can't restart it. A node that's cut
   off stops by itself, before the other site takes over.
 - open: when this node may run the service, /srv/ha/<service> is a bind of
-  the service's folder here.
+  the service's folder here, and /run/site-failover/active/<service> exists:
+  standby-copy.nix refuses the peer's copies of a service that runs here, so
+  an old holder that's still up can't write over the live folder. Copies
+  under way when this node takes over are stopped.
 
 - follow: for a service with `cnpg` clusters (Matrix), while this node runs
   it, a primary in the other site is switched over to the instance here, so
@@ -43,7 +55,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 cfg = json.load(open(sys.argv[1]))
 NODE = cfg["node"]
 PREFIX = "ha.radunenu.com/"
+ACTIVE_DIR = "/run/site-failover/active"
 state = {"api_ok_at": 0.0, "labels": {}, "holders": {}}
+# svc -> (holders, when they last changed), as seen from here; the hold-down
+# counts from it.
+seen = {}
+# (svc, reason) -> when it was last logged.
+warned = {}
 
 
 def log(msg):
@@ -125,7 +143,132 @@ def ready(node):
     return False, 0.0
 
 
-def claim(svc, old):
+PRESSURE = ("DiskPressure", "MemoryPressure", "PIDPressure")
+
+
+def pressure(node):
+    return [c["type"] for c in node["status"].get("conditions", [])
+            if c["type"] in PRESSURE and c["status"] == "True"]
+
+
+def ts(s):
+    return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+
+
+# Waiting reasons the other node would hit just the same.
+NOT_THE_NODE = ("ErrImagePull", "ImagePullBackOff", "InvalidImageName", "CreateContainerConfigError")
+# A pod on its node but not started yet may just be pulling a big image
+# (that shows as ContainerCreating too), so it gets this much longer.
+START_GRACE = 600
+
+
+def stuck_since(pod):
+    """Since when a Pending pod has been stuck on its node; None if it isn't."""
+    st = pod.get("status", {})
+    sched = next((c for c in st.get("conditions", []) if c["type"] == "PodScheduled"), None)
+    if sched is None:
+        return None
+    if sched["status"] == "False":
+        return ts(sched["lastTransitionTime"]) if sched.get("reason") == "Unschedulable" else None
+    waiting = [c.get("state", {}).get("waiting", {}).get("reason")
+               for c in st.get("initContainerStatuses", []) + st.get("containerStatuses", [])]
+    if any(w in NOT_THE_NODE for w in waiting):
+        return None
+    return ts(sched["lastTransitionTime"]) + START_GRACE
+
+
+def workload(pod):
+    # Pods of one Deployment or StatefulSet share their labels, apart from
+    # the revision. A Job's (Send's cleanup) don't count: they come and go.
+    if any(o.get("kind") == "Job" for o in pod["metadata"].get("ownerReferences", [])):
+        return None
+    skip = ("pod-template-hash", "controller-revision-hash", "statefulset.kubernetes.io/pod-name", "apps.kubernetes.io/pod-index")
+    labels = {k: v for k, v in pod["metadata"].get("labels", {}).items() if k not in skip}
+    return (pod["metadata"]["namespace"], tuple(sorted(labels.items())))
+
+
+def tied_to(pod, svc):
+    # The workload picks its node by the label (nodeSelector or affinity).
+    return f'"{PREFIX}{svc}"' in json.dumps(pod["spec"])
+
+
+class Pods:
+    """The cluster's Pending pods, fetched at most once a round; Running ones
+    only for a namespace where a Pending one of a service turns up."""
+
+    def __init__(self):
+        self.pending, self.running = None, {}
+
+    def get(self, *selector):
+        r = kubectl("get", "pods", *selector, "-o", "json")
+        if r.returncode != 0:
+            raise RuntimeError(f"listing pods: {r.stderr.strip()}")
+        return json.loads(r.stdout)["items"]
+
+    def pending_of(self, svc):
+        if self.pending is None:
+            self.pending = self.get("-A", "--field-selector=status.phase=Pending")
+        return [p for p in self.pending if tied_to(p, svc) and workload(p)]
+
+    def running_in(self, ns):
+        if ns not in self.running:
+            self.running[ns] = {workload(p) for p in self.get("-n", ns, "--field-selector=status.phase=Running")}
+        return self.running[ns]
+
+
+def unfit(svc, holder, pods):
+    """What shows `holder` can't run svc, and since when; None if nothing."""
+    worst = None
+    for p in pods.pending_of(svc):
+        if p["spec"].get("nodeName") not in (None, holder):
+            continue
+        since = stuck_since(p)
+        if since is None or workload(p) in pods.running_in(p["metadata"]["namespace"]):
+            continue
+        if worst is None or since < worst[1]:
+            worst = (f"{p['metadata']['namespace']}/{p['metadata']['name']} stuck Pending", since)
+    return worst
+
+
+def warn(svc, reason, msg):
+    # The same reason once every 10 minutes, not every round.
+    if time.time() - warned.get((svc, reason), 0) > 600:
+        log(f"{svc}: {msg}")
+        warned[(svc, reason)] = time.time()
+
+
+def mark(svc, on):
+    path = os.path.join(ACTIVE_DIR, svc)
+    if on and not os.path.exists(path):
+        os.makedirs(ACTIVE_DIR, exist_ok=True)
+        open(path, "w").close()
+    elif not on and os.path.exists(path):
+        os.remove(path)
+
+
+def stop_incoming(svc):
+    # A copy from the old holder that started before the label moved would
+    # go on writing into what is now the live folder. rrsync runs rsync in
+    # the sender's folder (<receive dir>/<peer>), on <service>/.
+    s = cfg["services"][svc]
+    base = os.path.dirname(s["receive"])
+    for pid in filter(str.isdigit, os.listdir("/proc")):
+        try:
+            with open(f"/proc/{pid}/cmdline", "rb") as f:
+                argv = f.read().decode(errors="replace").split("\0")
+            if "--server" not in argv or not os.path.basename(argv[0]).startswith("rsync"):
+                continue
+            if os.readlink(f"/proc/{pid}/cwd") != base:
+                continue
+            if not any(a.rstrip("/") == svc or a.startswith(svc + "/") for a in argv):
+                continue
+            os.kill(int(pid), signal.SIGKILL)
+            log(f"{svc}: stopped a copy from {s['peer']} that was still under way (pid {pid})")
+        except (OSError, ValueError):
+            continue
+
+
+def claim(svc, old, why=None):
     key = PREFIX + svc
     # The old holder's label goes first: never two holders. If the second
     # step fails, the next round finds no holder and claims again.
@@ -136,7 +279,12 @@ def claim(svc, old):
             return
     r = kubectl("label", "node", NODE, f"{key}=active", "--overwrite")
     if r.returncode == 0:
-        log(f"{svc}: now active here" + (f", taken over from {old}" if old else ""))
+        log(f"{svc}: now active here" + (f", taken over from {old}" if old else "") + (f": {why}" if why else ""))
+        if not stateless(svc):
+            # The old holder's copies are refused from now on, and any under
+            # way stopped: the folder here is the live one.
+            mark(svc, True)
+            stop_incoming(svc)
     else:
         log(f"{svc}: couldn't label this node: {r.stderr.strip()}")
 
@@ -153,11 +301,16 @@ def tick():
     state["labels"] = me["metadata"].get("labels", {})
     if not ready(me)[0]:
         return
+    pods = Pods()
 
     for svc, s in cfg["services"].items():
         key = PREFIX + svc
         holders = [n for n, x in nodes.items() if x["metadata"].get("labels", {}).get(key) == "active"]
         state["holders"][svc] = holders
+        if svc not in seen:
+            seen[svc] = (holders, 0.0)  # not a move: a restart of this daemon
+        elif seen[svc][0] != holders:
+            seen[svc] = (holders, time.time())
         if NODE in holders or data(svc) is None:
             continue
         peer = nodes.get(s["peer"])
@@ -174,6 +327,22 @@ def tick():
                 claim(svc, s["peer"])
             else:
                 log(f"{svc}: {s['peer']} is gone but no whole copy ever arrived here; not taking over")
+        elif peer_ok:
+            bad = unfit(svc, s["peer"], pods)
+            if bad is None or time.time() - bad[1] < cfg["unfit_after"]:
+                continue
+            why = f"{bad[0]} on {s['peer']} for {time.time() - bad[1]:.0f} s"
+            if pressure(peer):
+                why += f", {s['peer']} under {'/'.join(pressure(peer))}"
+            moved = time.time() - seen[svc][1]
+            if pressure(me):
+                warn(svc, "pressure", f"{why}; not taking over, this node is under {'/'.join(pressure(me))} too")
+            elif moved < cfg["hold_down"]:
+                warn(svc, "hold", f"{why}; not taking over, it moved {moved:.0f} s ago (hold-down {cfg['hold_down']} s)")
+            elif not has_copy(svc):
+                warn(svc, "copy", f"{why}; not taking over, no whole copy ever arrived here")
+            else:
+                claim(svc, s["peer"], why)
 
 
 TASKS = "/run/k3s/containerd/io.containerd.runtime.v2.task/k8s.io"
@@ -206,6 +375,7 @@ def containers_using(path):
 def fence(svc):
     if stateless(svc):
         return
+    mark(svc, False)
     path = ha_path(svc)
     for cid, pid in containers_using(path):
         try:
@@ -231,6 +401,7 @@ def fence(svc):
 def open_(svc):
     if stateless(svc):
         return
+    mark(svc, True)
     path = ha_path(svc)
     r = bind(data(svc), path)
     if r is not None:

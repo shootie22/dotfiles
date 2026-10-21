@@ -9,6 +9,7 @@
     ./boot-safety.nix
     ../../modules/nixos/k3s-tailnet-guard.nix
     ../../modules/nixos/k3s-dns.nix
+    ../../modules/nixos/k3s-eviction.nix
     ../../modules/nixos/initrd-dhcp-handover.nix
     ../../modules/nixos/server-housekeeping.nix
     ../../modules/nixos/comin.nix
