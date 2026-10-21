@@ -18,6 +18,8 @@
 #      evicts the service and can't place it again; fuji takes over, and the
 #      thinkcentre's copies can't land on fuji's live folder
 #   8. the disk is freed: the thinkcentre is the standby and gets fuji's copies
+#   9. quiet hours: the service goes home to the thinkcentre by itself, with
+#      a last copy, so the counter carries on without losing a write
 # Times are printed.
 { pkgs, k3sPackage }:
 
@@ -145,7 +147,9 @@ let
     };
     dotfiles.siteFailover.services.minecraft-hc = { inherit data peer; initial = name == "thinkcentre"; };
     # Minutes on the real servers.
-    dotfiles.siteFailover = { unfitAfter = 20; holdDown = 30; };
+    dotfiles.siteFailover = { unfitAfter = 20; holdDown = 30; homeFitFor = 30; handoverTimeout = 300;
+      # Never, so steps 1-8 stay where they land; step 9 opens it.
+      homeWindow = "00:00-00:00"; };
     # A stateless one: only the label (and the relay) should move.
     dotfiles.siteFailover.services.bopl2d = { stateless = true; inherit peer; initial = name == "thinkcentre"; };
     systemd.tmpfiles.rules = lib.optional (name == "thinkcentre") "d /srv/live/app 0755 root root -";
@@ -266,7 +270,7 @@ pkgs.testers.runNixOSTest {
         thinkcentre.wait_until_succeeds("test \"$(cat /srv/live/app/n)\" -gt 5", timeout=300)
         fuji.wait_until_succeeds("test -e /srv/standby/thinkcentre/minecraft-hc/.standby-copy-ok", timeout=300)
         # The standby has the copy, but no /srv/ha/minecraft-hc: nothing could run on it.
-        fuji.fail("test -e /srv/ha/minecraft-hc")
+        fuji.fail("test -d /srv/ha/minecraft-hc")
         thinkcentre.succeed("mountpoint -q /srv/ha/minecraft-hc")
         # What Prometheus sees: which node runs it.
         thinkcentre.wait_until_succeeds("grep -qx 'site_failover_active{service=\"minecraft-hc\"} 1' /var/lib/node-exporter-textfile/site_failover.prom", timeout=60)
@@ -308,7 +312,7 @@ pkgs.testers.runNixOSTest {
         time.sleep(30)
         assert holder(fuji) == "fuji", holder(fuji)
         assert not running_on(thinkcentre)
-        thinkcentre.fail("test -e /srv/ha/minecraft-hc")
+        thinkcentre.fail("test -d /srv/ha/minecraft-hc")
         thinkcentre.succeed("curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9112/minecraft-hc | grep -x 503")
         thinkcentre.succeed("curl -s http://127.0.0.1:9112/minecraft-hc | grep -q 'holder=fuji$'")
         # fuji's copies now land in the thinkcentre's folder.
@@ -345,7 +349,7 @@ pkgs.testers.runNixOSTest {
         thinkcentre.succeed("systemctl start standby-copy-minecraft-hc.service")
         n = count(thinkcentre, "/srv/live/app")
         fuji.succeed(f"test \"$(cat {FUJI}/n)\" -ge {n - 2}")
-        fuji.fail("test -e /srv/ha/minecraft-hc")
+        fuji.fail("test -d /srv/ha/minecraft-hc")
         # Who wrote, in order: the copy's lost minutes show as a step back
         # in the count at each takeover.
         lines = thinkcentre.succeed("cat /srv/live/app/log").splitlines()
@@ -377,7 +381,7 @@ pkgs.testers.runNixOSTest {
         fuji.wait_until_succeeds(f"test \"$(cat /srv/ha/minecraft-hc/n)\" -gt {n0 + 3}", timeout=600)
         print(f"TIME disk: the service runs on fuji after ~{time.time() - t0:.0f} s")
         assert not running_on(thinkcentre)
-        thinkcentre.wait_until_fails("test -e /srv/ha/minecraft-hc", timeout=60)
+        thinkcentre.wait_until_fails("test -d /srv/ha/minecraft-hc", timeout=60)
         # fuji refuses copies over its live folder: the thinkcentre's job
         # steps aside, and a copy pushed by hand bounces.
         fuji.succeed("test -e /run/site-failover/active/minecraft-hc")
@@ -402,5 +406,40 @@ pkgs.testers.runNixOSTest {
         n = count(fuji, "/srv/ha/minecraft-hc")
         thinkcentre.succeed(f"test \"$(cat /srv/live/app/n)\" -ge {n - 2}")
         print("the thinkcentre has fuji's copy again:", count(thinkcentre, "/srv/live/app"))
+
+    with subtest("9. quiet hours: the service goes home to the thinkcentre, nothing lost"):
+        # The full disk in step 7 may have had kubelet delete the image here.
+        thinkcentre.succeed("k3s crictl images | grep -q busybox || "
+                            "for f in /var/lib/rancher/k3s/agent/images/*; do k3s ctr -n k8s.io images import \"$f\"; done")
+        assert holder(fuji) == "fuji", holder(fuji)
+        # The quiet hours now, on the home node only (it's the one that asks).
+        thinkcentre.succeed(
+            "set -- $(tr '\\0' ' ' < /proc/$(systemctl show -p MainPID --value site-failover)/cmdline); "
+            "jq '.home_window = \"00:00-23:59\"' \"$3\" > /tmp/sf.json && "
+            "systemctl stop site-failover && systemd-run --unit sf-home \"$1\" \"$2\" /tmp/sf.json")
+        t0 = time.time()
+        thinkcentre.wait_until_succeeds("kubectl get nodes -l ha.radunenu.com/minecraft-hc=active -o name | grep -x node/thinkcentre", timeout=600)
+        print(f"TIME home: the thinkcentre has the label after ~{time.time() - t0:.0f} s")
+        thinkcentre.wait_until_succeeds("test -e /srv/ha/minecraft-hc/n", timeout=120)
+        n0 = count(thinkcentre, "/srv/live/app")
+        thinkcentre.wait_until_succeeds(f"test \"$(cat /srv/live/app/n)\" -gt {n0 + 3}", timeout=300)
+        print(f"TIME home: the service runs on the thinkcentre after ~{time.time() - t0:.0f} s")
+        assert not running_on(fuji)
+        # Fenced: a file where the folder was, so a restarting container
+        # can't start afresh on an empty one, and nothing was written there.
+        fuji.wait_until_succeeds("test -f /srv/ha/minecraft-hc", timeout=60)
+        fuji.fail("ls /srv/ha/.stray 2>/dev/null | grep -q .")
+        # Nothing lost: the thinkcentre carried on from fuji's very last write.
+        lines = [l.split() for l in thinkcentre.succeed("cat /srv/live/app/log").splitlines()]
+        last_fuji = max(int(n) for node, n in lines if node == "fuji")
+        first_home = min(int(n) for node, n in lines if node == "thinkcentre" and int(n) > last_fuji - 100)
+        print(f"fuji's last write {last_fuji}, the thinkcentre's first after it {first_home}")
+        assert first_home == last_fuji + 1, (last_fuji, first_home)
+        # The handover's marks are gone, and the bystander bopl2d came home too.
+        a = thinkcentre.succeed("kubectl get node fuji thinkcentre -o jsonpath='{.items[*].metadata.annotations}'")
+        assert "handover" not in a, a
+        thinkcentre.wait_until_succeeds("kubectl get nodes -l ha.radunenu.com/bopl2d=active -o name | grep -x node/thinkcentre", timeout=300)
+        print(thinkcentre.succeed("journalctl -u sf-home | grep -iE 'home|hand' || true"))
+        print(fuji.succeed("journalctl -u site-failover | grep -iE 'hand|copy' | tail -8 || true"))
   '';
 }

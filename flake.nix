@@ -212,6 +212,20 @@
       k3sPackage = nixosConfigurations.fuji.config.services.k3s.package;
     };
 
+    # site-failover's decisions: what counts as a holder that can't run a
+    # service (infrastructure incident 2026-10-20), where each database
+    # belongs and when it's moved (decision 2026-10-21), which pods are
+    # strays. No VMs, a second (tests/site-failover-unit.py).
+    checks.x86_64-linux.site-failover-unit =
+      let pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      in pkgs.runCommand "site-failover-unit-test" {
+        nativeBuildInputs = [ pkgs.python3 ];
+        SITE_FAILOVER = ./modules/nixos/site-failover/site-failover.py;
+      } ''
+        python3 ${./tests/site-failover-unit.py}
+        touch $out
+      '';
+
     nixosConfigurations.mixi = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
       modules = [

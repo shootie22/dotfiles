@@ -12,7 +12,8 @@
 #   other, every 10 minutes, and lands straight in the other node's folder.
 # - site-failover.py moves the label when the active node is gone, or up but
 #   unable to run the service (its pods stuck Pending there), and fences:
-#   /srv/ha/<service> only exists while this node may run it, so a node cut
+#   /srv/ha/<service> is a folder only while this node may run it (otherwise
+#   a file, which containerd can't turn into an empty folder), so a node cut
 #   off from the cluster stops the service by itself. A node running a
 #   service refuses the peer's copies of it (standby-copy.nix).
 { config, lib, pkgs, ... }:
@@ -56,8 +57,13 @@ let
     api_grace = cfg.apiGrace;
     unfit_after = cfg.unfitAfter;
     hold_down = cfg.holdDown;
+    home_window = cfg.homeWindow;
+    home_fit_for = cfg.homeFitFor;
+    home_every = 3600;
+    handover_timeout = cfg.handoverTimeout;
     services = lib.mapAttrs (svc: s: {
       inherit (s) peer initial data stateless cnpg;
+      go_home = s.goHome;
       incoming = if !s.stateless && incoming svc != s.data then incoming svc else null;
       receive = incoming svc;
     }) cfg.services;
@@ -79,6 +85,21 @@ in
       type = lib.types.int;
       default = 120;
       description = "Seconds a service's pod has to be stuck Pending on a node that's up (unschedulable there, e.g. under disk pressure) before the other node takes over. Ten minutes more for a pod that's on the node but hasn't started, which may be pulling its image.";
+    };
+    homeWindow = lib.mkOption {
+      type = lib.types.str;
+      default = "03:00-06:00";
+      description = "Local time when a service away from its home node (`initial`) goes back, with a planned move (stop, last copy, move; 10-40 s down, nothing lost).";
+    };
+    homeFitFor = lib.mkOption {
+      type = lib.types.int;
+      default = 1800;
+      description = "Seconds the home node (and every other node) has to have been fit before a service goes back.";
+    };
+    handoverTimeout = lib.mkOption {
+      type = lib.types.int;
+      default = 600;
+      description = "Seconds a handover (stop, last copy) may take before it's given up and the service opens where it was.";
     };
     holdDown = lib.mkOption {
       type = lib.types.int;
@@ -108,7 +129,12 @@ in
           initial = lib.mkOption {
             type = lib.types.bool;
             default = false;
-            description = "Where the service runs the first time (where the live data is today).";
+            description = "The service's home: where it runs the first time, and where it goes back to after a failover (homeWindow).";
+          };
+          goHome = lib.mkOption {
+            type = lib.types.bool;
+            default = true;
+            description = "Go back home after a failover by itself; false stays where it lands.";
           };
           sqlite = lib.mkOption { type = lib.types.listOf lib.types.str; default = [ ]; };
           exclude = lib.mkOption { type = lib.types.listOf lib.types.str; default = [ ]; };
