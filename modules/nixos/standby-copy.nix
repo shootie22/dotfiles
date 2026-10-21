@@ -74,8 +74,21 @@ let
           # Only the node running the service sends (site-failover.nix). A node
           # that can't ask the cluster fails here, so the stale alert still
           # works; one that isn't active steps aside and drops its metric.
-          active=$(${config.services.k3s.package}/bin/k3s kubectl get node ${config.networking.hostName} \
-            -o jsonpath='{.metadata.labels.ha\.radunenu\.com/${job.onlyWhenActive}}')
+          # Asked for up to a minute: a switch that restarts k3s leaves it
+          # down for about 15 s, and a job failing then failed the whole
+          # deploy in comin's eyes (fuji, 2026-10-21), which held the edge's.
+          asked=no
+          for _ in $(seq 12); do
+            if active=$(${config.services.k3s.package}/bin/k3s kubectl get node ${config.networking.hostName} \
+                -o jsonpath='{.metadata.labels.ha\.radunenu\.com/${job.onlyWhenActive}}' 2>/dev/null); then
+              asked=yes; break
+            fi
+            sleep 5
+          done
+          if [ "$asked" != yes ]; then
+            echo "can't ask the cluster whether this node runs ${job.onlyWhenActive}" >&2
+            exit 1
+          fi
           if [ "$active" != active ]; then
             echo "not the active node for ${job.onlyWhenActive}, nothing to send"
             rm -f ${textfileDir}/standby_copy_${name}.prom

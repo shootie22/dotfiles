@@ -66,6 +66,9 @@
       data = "/srv/standby/thinkcentre/gitea";
       peer = "thinkcentre";
       exclude = [ "/postgres" "/gitea/indexers" "/gitea/queues" ];
+      # Its primary follows it, as Matrix's: after 2026-10-20's failover it
+      # stayed on fuji, and every Gitea query crossed the WAN.
+      cnpg = { namespace = "gitea"; clusters = [ "gitea-pg" ]; };
     };
     rybbit-clickhouse = {
       data = "/srv/standby/thinkcentre/rybbit-clickhouse";
