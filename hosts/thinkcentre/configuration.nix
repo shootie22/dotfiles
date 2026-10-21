@@ -67,6 +67,9 @@
       # The old Postgres 14 (Gitea is on CNPG now), and the search index and
       # queues, which Gitea rebuilds.
       exclude = [ "/postgres" "/gitea/indexers" "/gitea/queues" ];
+      # Its primary follows it, as Matrix's: after 2026-10-20's failover it
+      # stayed on fuji, and every Gitea query crossed the WAN.
+      cnpg = { namespace = "gitea"; clusters = [ "gitea-pg" ]; };
     };
     rybbit-clickhouse = {
       data = "/home/main/services/rybbit/clickhouse";
