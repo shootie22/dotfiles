@@ -10,6 +10,7 @@
     ../../modules/nixos/k3s-tailnet-guard.nix
     ../../modules/nixos/k3s-dns.nix
     ../../modules/nixos/k3s-eviction.nix
+    ../../modules/nixos/front-door.nix
     ../../modules/nixos/initrd-dhcp-handover.nix
     ../../modules/nixos/server-housekeeping.nix
     ../../modules/nixos/comin.nix
@@ -35,6 +36,10 @@
   # and stay there (site-failover, infrastructure decisions 6 Oct). The
   # copies go from whichever of the two runs them; fuji's (Baikal, Headscale,
   # legacy-web) arrive in /home/standby/fuji.
+  # The front door (modules/nixos/front-door.nix): 80, 443 and 2022 go to a
+  # Traefik that has its routes loaded, this node's or fuji's.
+  dotfiles.frontDoor = { enable = true; peer = "fuji"; };
+
   dotfiles.siteFailover.services = {
     # The Matrix bot's session and encryption keys (moved off minima, #150).
     steamhappy = { data = "/home/standby/fuji/steamhappy"; peer = "fuji"; };

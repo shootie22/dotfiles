@@ -205,6 +205,13 @@
         touch $out
       '';
 
+    # The front door in front of Traefik (modules/nixos/front-door.nix):
+    # Traefik restarts under traffic without a failed request.
+    checks.x86_64-linux.front-door = import ./tests/front-door.nix {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      k3sPackage = nixosConfigurations.fuji.config.services.k3s.package;
+    };
+
     nixosConfigurations.mixi = nixpkgs.lib.nixosSystem {
       system = "aarch64-linux";
       modules = [
