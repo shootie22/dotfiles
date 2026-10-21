@@ -425,9 +425,10 @@ pkgs.testers.runNixOSTest {
         thinkcentre.wait_until_succeeds(f"test \"$(cat /srv/live/app/n)\" -gt {n0 + 3}", timeout=300)
         print(f"TIME home: the service runs on the thinkcentre after ~{time.time() - t0:.0f} s")
         assert not running_on(fuji)
-        # Fenced: a file where the folder was, so a restarting container
-        # can't start afresh on an empty one, and nothing was written there.
-        fuji.wait_until_succeeds("test -f /srv/ha/minecraft-hc", timeout=60)
+        # Fenced: a link into /dev/null where the folder was, so a restarting
+        # container can't start afresh on an empty one, and nothing was
+        # written there.
+        fuji.wait_until_succeeds("[ \"$(readlink /srv/ha/minecraft-hc)\" = /dev/null/fenced ]", timeout=60)
         fuji.fail("ls /srv/ha/.stray 2>/dev/null | grep -q .")
         # Nothing lost: the thinkcentre carried on from fuji's very last write.
         lines = [l.split() for l in thinkcentre.succeed("cat /srv/live/app/log").splitlines()]

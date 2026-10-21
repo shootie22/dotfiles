@@ -109,6 +109,10 @@ def bind(src, dst):
     return run("mount", "--rbind", src, dst)
 
 
+# What the fence leaves at /srv/ha/<service>: nothing can be made below it.
+FENCED = "/dev/null/fenced"
+
+
 def ha_path(svc):
     return f"/srv/ha/{svc}"
 
@@ -413,11 +417,12 @@ def fence(svc):
         log(f"{svc}: fenced (cluster {'reachable' if time.time() - state['api_ok_at'] < cfg['api_grace'] else 'lost'}, "
             f"label {'here' if state['labels'].get(PREFIX + svc) == 'active' else 'elsewhere'})")
     if not os.path.lexists(path):
-        # A file where the folder was. containerd makes a missing bind source
-        # into an empty folder for a container that restarts, and the service
-        # then starts afresh on nothing (a handover's VM test, 2026-10-21);
-        # a file can't be made into one, so nothing starts here.
-        open(path, "w").close()
+        # A link into /dev/null where the folder was. containerd makes a
+        # missing bind source into an empty folder for a container that
+        # restarts, and the service then starts afresh on nothing (a
+        # handover's VM test, 2026-10-21). It can't make one through this,
+        # and kubelet doesn't take it as a folder, so nothing starts here.
+        os.symlink(FENCED, path)
 
 
 def open_(svc):
@@ -425,7 +430,7 @@ def open_(svc):
         return
     mark(svc, True)
     path = ha_path(svc)
-    if os.path.isfile(path) and not os.path.islink(path):
+    if os.path.islink(path) and os.readlink(path) == FENCED:
         os.remove(path)  # the fence's marker
     r = bind(data(svc), path)
     if r is not None:
@@ -833,7 +838,7 @@ def hand_over():
         if h["phase"] == "stop":
             # allowed() is false while handing over, so the round's fence has
             # killed its containers and taken the folder from /srv/ha.
-            if os.path.lexists(ha_path(svc)) or containers_using(ha_path(svc)):
+            if os.path.isdir(ha_path(svc)) or is_mounted(ha_path(svc)) or containers_using(ha_path(svc)):
                 continue
             h["phase"] = "copy-wait"
         if h["phase"] == "copy-wait":

@@ -13,7 +13,7 @@
 # - site-failover.py moves the label when the active node is gone, or up but
 #   unable to run the service (its pods stuck Pending there), and fences:
 #   /srv/ha/<service> is a folder only while this node may run it (otherwise
-#   a file, which containerd can't turn into an empty folder), so a node cut
+#   a link into /dev/null, which containerd can't make a folder of), so a node cut
 #   off from the cluster stops the service by itself. A node running a
 #   service refuses the peer's copies of it (standby-copy.nix).
 { config, lib, pkgs, ... }:

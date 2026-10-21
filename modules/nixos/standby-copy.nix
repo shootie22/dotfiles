@@ -106,7 +106,7 @@ let
           matches=( ${job.source} )
         fi
         if [ ''${#matches[@]} -ne 1 ] || [ ! -d "''${matches[0]}" ]; then
-          echo "${job.source} matches ''${#matches[@]} folders, not exactly one" >&2
+          echo "${job.source} isn't exactly one folder (''${#matches[@]} matches; fenced, or not there yet?)" >&2
           exit 1
         fi
         src=''${matches[0]}
