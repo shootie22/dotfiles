@@ -6,9 +6,13 @@
 # it has to say the node reaches the cluster. A node that's cut off, or only
 # half back, has a Traefik that answers but can't reach the pods on the
 # other site (hs.radunenu.com gave 502 that way in the drill on 2026-10-07).
-# Then Traefik itself, for a host that doesn't exist, so it gets Traefik's
-# 404 no matter which services are up. Over HTTPS that check uses the name as
-# SNI too, so anything other than Traefik answering on 443 fails it.
+# Then Traefik itself: traefik-ready.invalid/ping (infrastructure,
+# kubernetes/argocd/traefik-ready.yaml) answers 200 only once Traefik has its
+# routes and middlewares loaded. It used to be a 404 for a name that doesn't
+# exist, which a Traefik that had just started, with nothing loaded, gave
+# too (2026-10-21). Over HTTPS the name is the SNI as well, so anything
+# other than Traefik answering fails it. On fuji and the thinkcentre that's
+# now the front door (front-door.nix), which answers from either Traefik.
 { config, lib, pkgs, ... }:
 
 let
@@ -123,8 +127,8 @@ in
         http-check send meth GET uri /gitea
         http-check expect string cluster=ok
         http-check connect default
-        http-check send meth GET uri / ver HTTP/1.1 hdr Host edge-check.invalid
-        http-check expect status 404
+        http-check send meth GET uri /ping ver HTTP/1.1 hdr Host traefik-ready.invalid
+        http-check expect status 200
       ${backend 80 ""}
       backend traefik-https
         option httpchk
@@ -132,9 +136,9 @@ in
         http-check send meth GET uri /gitea
         http-check expect string cluster=ok
         http-check connect default
-        http-check send meth GET uri / ver HTTP/1.1 hdr Host edge-check.invalid
-        http-check expect status 404
-      ${backend 443 "check-ssl check-sni edge-check.invalid verify none"}
+        http-check send meth GET uri /ping ver HTTP/1.1 hdr Host traefik-ready.invalid
+        http-check expect status 200
+      ${backend 443 "check-ssl check-sni traefik-ready.invalid verify none"}
       # Git over SSH (ssh.git.radunenu.com), on to Traefik's gitssh
       # entrypoint. Each node follows its HTTPS check: checking 2022 itself
       # would open an SSH connection to Gitea every second.

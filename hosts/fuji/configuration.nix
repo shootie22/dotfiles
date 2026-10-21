@@ -9,6 +9,7 @@
     ../../modules/nixos/failover-checker
     ../../modules/nixos/k3s-dns.nix
     ../../modules/nixos/k3s-eviction.nix
+    ../../modules/nixos/front-door.nix
     ../../modules/nixos/initrd-dhcp-handover.nix
     ../../modules/nixos/server-housekeeping.nix
     ../../modules/nixos/comin.nix
@@ -35,6 +36,10 @@
   # Services with files that move between here and the thinkcentre when a
   # site is gone (site-failover, infrastructure decisions 6 Oct). DK's copies
   # sit on the standby SSD and become the live folder here when needed.
+  # The front door (modules/nixos/front-door.nix): 80, 443 and 2022 go to a
+  # Traefik that has its routes loaded, this node's or thinkcentre's.
+  dotfiles.frontDoor = { enable = true; peer = "thinkcentre"; };
+
   dotfiles.siteFailover.services = {
     # The Matrix bot's session and encryption keys (moved off minima, #150).
     steamhappy = { data = "/home/fuji/services/steamhappy"; peer = "thinkcentre"; initial = true; };
