@@ -110,6 +110,12 @@ check("never while another cluster is switching over", move(cluster("k", "k", pr
 check("never onto a node under pressure", move(cluster("k", "k", primary="x-2"), me_ok=False, st=dict(st), now=t + 999)[0], "wait")
 check("home: not again within an hour", move(cluster("k", "k", primary="x-2"), st={"since": t, "last": t + 100}, now=t + 1000)[0], "wait")
 check("home: again after an hour", move(cluster("k", "k", primary="x-2"), st={"since": t, "last": t}, now=t + 3601)[0], "promote")
+st_new = {"since": None, "last": 0.0}
+move(cluster("k", "k", primary="x-2", phase="Setting up primary"), st=st_new, now=t)
+check("a cluster being made doesn't start the wait", st_new["since"], None)
+check("  but counts as away for the alert", st_new["away"], t)
+check("  and once healthy it waits the full time", move(cluster("k", "k", primary="x-2"), st=st_new, now=t + 300)[0], "wait")
+check("  then moves", move(cluster("k", "k", primary="x-2"), st=st_new, now=t + 300 + 121)[0], "promote")
 check("no ready instance here: wait", sf.db_move(cluster("k", "k", primary="x-2"), [inst("x-1", "fuji", ready=False), inst("x-2", "thinkcentre")],
                                                  "fuji", "home", None, True, {"since": t, "last": 0.0}, t + 999)[0], "wait")
 

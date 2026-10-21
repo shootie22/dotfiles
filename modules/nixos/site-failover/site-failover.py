@@ -536,23 +536,28 @@ def db_move(cluster, instances, target, how, busy, me_ok, st, now):
     primary = status.get("currentPrimary")
     where = next((p["spec"].get("nodeName") for p in instances if p["metadata"]["name"] == primary), None)
     if where == target:
-        st["since"] = None
+        st["since"], st["away"] = None, None
         return "ok", f"primary {primary} is here"
-    if st["since"] is None:
-        st["since"] = now
+    # How long it has been away (for the alert), and how long it could have
+    # been moved: the wait counts from then, so a cluster that has just been
+    # made, or just failed over, settles first.
+    if st.get("away") is None:
+        st["away"] = now
     here = [p["metadata"]["name"] for p in instances
             if p["spec"].get("nodeName") == target and pod_ready(p) and p["metadata"]["name"] != primary]
-    if not here:
-        return "wait", "no ready instance here"
     # Nothing while CNPG is busy here or anywhere (one move at a time): a
     # failover or switchover underway, an instance not ready, replication
     # behind.
-    if status.get("phase") != HEALTHY or status.get("targetPrimary") != primary:
-        return "wait", f"cluster is {status.get('phase')!r}"
-    if busy:
-        return "wait", f"{busy} is switching over"
-    if not me_ok:
-        return "wait", "this node isn't fit (pressure)"
+    blocked = ("no ready instance here" if not here
+               else f"cluster is {status.get('phase')!r}" if status.get("phase") != HEALTHY or status.get("targetPrimary") != primary
+               else f"{busy} is switching over" if busy
+               else "this node isn't fit (pressure)" if not me_ok
+               else None)
+    if blocked:
+        st["since"] = None
+        return "wait", blocked
+    if st["since"] is None:
+        st["since"] = now
     if now - st["since"] < WAIT[how]:
         return "wait", f"out of place for {now - st['since']:.0f} s, moving after {WAIT[how]} s"
     if now - st.get("last", 0.0) < EVERY[how]:
@@ -908,7 +913,7 @@ def write_metrics():
         ]
         now = time.time()
         for (ns, name), st in sorted(placed.items()):
-            out = now - st["since"] if st.get("since") else 0
+            out = now - st["away"] if st.get("away") else 0
             lines.append(f'site_failover_out_of_place_seconds{{kind="database",name="{ns}/{name}",how="{st.get("how")}",'
                          f'at="{st.get("where") or ""}",action="{st.get("action")}"}} {out:.0f}')
     homes = {svc: st for svc, st in homing.items() if cfg["services"][svc].get("initial")}
