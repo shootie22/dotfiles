@@ -96,11 +96,17 @@ let
           fi
         ''}
         # source may be a glob (a local-path volume's folder has a generated
-        # name); it has to match exactly one folder.
+        # name); it has to match exactly one folder. During a handover
+        # (site-failover moving the service home) the service is stopped and
+        # source unmounted, and the last copy reads the folder named here.
         shopt -s nullglob
-        matches=( ${job.source} )
+        if [ -f /run/standby-copy/${name}.source ]; then
+          matches=( "$(cat /run/standby-copy/${name}.source)" )
+        else
+          matches=( ${job.source} )
+        fi
         if [ ''${#matches[@]} -ne 1 ] || [ ! -d "''${matches[0]}" ]; then
-          echo "${job.source} matches ''${#matches[@]} folders, not exactly one" >&2
+          echo "${job.source} isn't exactly one folder (''${#matches[@]} matches; fenced, or not there yet?)" >&2
           exit 1
         fi
         src=''${matches[0]}

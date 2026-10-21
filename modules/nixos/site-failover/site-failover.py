@@ -30,17 +30,23 @@ both nodes and does three things:
   an old holder that's still up can't write over the live folder. Copies
   under way when this node takes over are stopped.
 
-- follow: for a service with `cnpg` clusters (Matrix), while this node runs
-  it, a primary in the other site is switched over to the instance here, so
-  the service never queries its database across the WAN. Only once the
-  cluster is healthy and the primary has been elsewhere for FOLLOW_AFTER
-  seconds, and at most once every PROMOTE_EVERY seconds.
+- place: every CNPG cluster's primary goes back to where it belongs by
+  itself (infrastructure docs/ha/decisions.md, 2026-10-21): next to the
+  service it follows (placement.radunenu.com/follows on the Cluster, or the
+  `cnpg` option), or in its home site (/home). The node it belongs on
+  switches it over, once the cluster is healthy, nothing anywhere else is
+  switching over, and it has been out of place for WAIT seconds; at most
+  once every EVERY seconds per cluster. And a pod that requires a service's
+  label, left on a node the label has moved away from, is deleted so it
+  starts next to the service. A primary left in the other site after the
+  2026-10-20 failover made every Gitea query cross the WAN for ten hours.
 
 GET /<service> says what this node thinks: on localhost for checks by hand,
 and on the mesh address for the game relay (modules/nixos/game-relay.nix),
 which sends players to whichever node holds the label.
 """
 
+import errno
 import glob
 import json
 import os
@@ -103,6 +109,10 @@ def bind(src, dst):
     return run("mount", "--rbind", src, dst)
 
 
+# What the fence leaves at /srv/ha/<service>: nothing can be made below it.
+FENCED = "/dev/null/fenced"
+
+
 def ha_path(svc):
     return f"/srv/ha/{svc}"
 
@@ -132,7 +142,9 @@ def has_copy(svc):
 def allowed(svc):
     fresh = time.time() - state["api_ok_at"] < cfg["api_grace"]
     mine = state["labels"].get(PREFIX + svc) == "active"
-    return fresh and mine and data(svc) is not None
+    # While handing it over (going home), it stays stopped here though the
+    # label is still here.
+    return fresh and mine and data(svc) is not None and svc not in handing
 
 
 def ready(node):
@@ -299,6 +311,7 @@ def tick():
         return
     state["api_ok_at"] = time.time()
     state["labels"] = me["metadata"].get("labels", {})
+    state["nodes"] = nodes
     if not ready(me)[0]:
         return
     pods = Pods()
@@ -383,19 +396,33 @@ def fence(svc):
             log(f"{svc}: killed container {cid[:12]} (pid {pid})")
         except ProcessLookupError:
             pass
+    if is_mounted(path) or os.path.isdir(path):
+        if is_mounted(path):
+            r = run("umount", "-R", "-l", path)
+            if r.returncode != 0:
+                log(f"{svc}: couldn't unmount {path}: {r.stderr.strip()}")
+                return
+        try:
+            os.rmdir(path)
+        except OSError as e:
+            if e.errno != errno.ENOTEMPTY:
+                log(f"{svc}: couldn't remove {path}: {e}")
+                return
+            # Written by a container that restarted after the folder went, on
+            # an empty one: never data to keep. Kept aside to look at.
+            aside = f"/srv/ha/.stray/{svc}-{int(time.time())}"
+            os.makedirs(os.path.dirname(aside), exist_ok=True)
+            os.rename(path, aside)
+            log(f"{svc}: {path} had been written to after it was fenced; moved to {aside}")
+        log(f"{svc}: fenced (cluster {'reachable' if time.time() - state['api_ok_at'] < cfg['api_grace'] else 'lost'}, "
+            f"label {'here' if state['labels'].get(PREFIX + svc) == 'active' else 'elsewhere'})")
     if not os.path.lexists(path):
-        return
-    if is_mounted(path):
-        r = run("umount", "-R", "-l", path)
-        if r.returncode != 0:
-            log(f"{svc}: couldn't unmount {path}: {r.stderr.strip()}")
-            return
-    try:
-        os.rmdir(path)
-    except OSError as e:
-        log(f"{svc}: couldn't remove {path}: {e}")
-    log(f"{svc}: fenced (cluster {'reachable' if time.time() - state['api_ok_at'] < cfg['api_grace'] else 'lost'}, "
-        f"label {'here' if state['labels'].get(PREFIX + svc) == 'active' else 'elsewhere'})")
+        # A link into /dev/null where the folder was. containerd makes a
+        # missing bind source into an empty folder for a container that
+        # restarts, and the service then starts afresh on nothing (a
+        # handover's VM test, 2026-10-21). It can't make one through this,
+        # and kubelet doesn't take it as a folder, so nothing starts here.
+        os.symlink(FENCED, path)
 
 
 def open_(svc):
@@ -403,6 +430,8 @@ def open_(svc):
         return
     mark(svc, True)
     path = ha_path(svc)
+    if os.path.islink(path) and os.readlink(path) == FENCED:
+        os.remove(path)  # the fence's marker
     r = bind(data(svc), path)
     if r is not None:
         log(f"{svc}: active here, {path} ready" if r.returncode == 0 else f"{svc}: bind failed: {r.stderr.strip()}")
@@ -418,17 +447,44 @@ def ensure_incoming():
                 log(f"{svc}: copies arrive in {target}" if r.returncode == 0 else f"{svc}: bind at {target} failed: {r.stderr.strip()}")
 
 
+# Placement (infrastructure docs/ha/decisions.md, 2026-10-21): everything has
+# a declared place, and what isn't there is moved back by itself.
+#
+# - A CNPG cluster's primary: placement.radunenu.com/follows: <service> (where
+#   site-failover runs that service) or /home: <site> on the Cluster, or this
+#   module's `cnpg` option (follows). The node it belongs on does the
+#   switchover, once the cluster is healthy and nothing else anywhere is
+#   switching over, and it has been out of place for a while.
+# - A pod that requires a service's label but runs on a node the label has
+#   left (labels only steer scheduling): deleted by the holder, so it starts
+#   next to the service again (Rybbit's backend next to its ClickHouse).
+FOLLOWS = "placement.radunenu.com/follows"
+HOME = "placement.radunenu.com/home"
+ZONE = "topology.kubernetes.io/zone"
 # A primary that has just moved (CNPG's own failover, or a switchover in
-# progress) is left alone this long before following it.
-FOLLOW_AFTER = 60
-# A switchover pauses writes for a few seconds; never more than one per
-# cluster in this long, whatever flaps.
-PROMOTE_EVERY = 600
+# progress) is left alone this long before it's moved: following a service
+# right away, going home a little later.
+WAIT = {"follows": 60, "home": 120}
+# A switchover pauses writes for a few seconds; never more often than this per
+# cluster, whatever flaps.
+EVERY = {"follows": 600, "home": 3600}
 CHECK_EVERY = 15
-# (service, cluster) -> since when the primary has been elsewhere, the last
-# switchover, and whether it's elsewhere now (for the metric).
-follow = {}
-follow_checked = {"at": 0.0}
+HEALTHY = "Cluster in healthy state"
+# Strays only appear when a label moves; looked for this long after a move
+# (and once at start).
+STRAY_WINDOW = 1800
+STRAY_AFTER = 60
+# (namespace, cluster) -> since when out of place, the last switchover here,
+# what it wants, where the primary is.
+placed = {}
+place_checked = {"at": 0.0}
+strays_checked = {}
+
+
+def moving(c):
+    st = c.get("status", {})
+    phase = (st.get("phase") or "").lower()
+    return st.get("targetPrimary") != st.get("currentPrimary") or "switchover" in phase or "failing over" in phase
 
 
 def pod_ready(pod):
@@ -436,58 +492,397 @@ def pod_ready(pod):
                for c in pod.get("status", {}).get("conditions", []))
 
 
-def follow_db():
-    if time.time() - follow_checked["at"] < CHECK_EVERY:
-        return
-    follow_checked["at"] = time.time()
+def holders_of(nodes, svc):
+    return sorted(n for n, x in nodes.items() if x["metadata"].get("labels", {}).get(PREFIX + svc) == "active")
+
+
+def legacy_follows():
+    # The module's `cnpg` option, from before the annotations.
+    out = {}
     for svc, s in cfg["services"].items():
         c = s.get("cnpg")
-        if not c:
-            continue
-        for cluster in c["clusters"]:
-            st = follow.setdefault((svc, cluster), {"since": None, "last": 0.0, "elsewhere": False})
-            if not allowed(svc):
-                # The other node runs the service; it does the following.
-                st.update(since=None, elsewhere=False)
-                continue
-            if state["holders"].get(svc) != [NODE]:
+        for cluster in (c or {}).get("clusters", []):
+            out[(c["namespace"], cluster)] = svc
+    return out
+
+
+def db_target(cluster, instances, nodes, legacy):
+    """Where the cluster's primary belongs: (node, how, why); node None when
+    that can't be said (no holder, two holders, no instance in the site)."""
+    md = cluster["metadata"]
+    key = (md["namespace"], md["name"])
+    ann = md.get("annotations") or {}
+    # The Cluster's own annotation wins over the module's option.
+    follows = ann.get(FOLLOWS) or (None if ann.get(HOME) else legacy.get(key))
+    if follows:
+        h = holders_of(nodes, follows)
+        if len(h) != 1:
+            return None, "follows", f"{follows} is held by {h or 'no node'}"
+        return h[0], "follows", f"follows {follows}"
+    home = ann.get(HOME)
+    if home:
+        here = sorted({p["spec"].get("nodeName") for p in instances
+                       if nodes.get(p["spec"].get("nodeName"), {}).get("metadata", {}).get("labels", {}).get(ZONE) == home})
+        if len(here) != 1:
+            return None, "home", f"{len(here)} instances in {home}"
+        return here[0], "home", f"home {home}"
+    return None, None, "no placement declared"
+
+
+def db_move(cluster, instances, target, how, busy, me_ok, st, now):
+    """What to do about one cluster on its target node: (action, detail),
+    action one of "ok", "wait", "promote"."""
+    status = cluster.get("status", {})
+    primary = status.get("currentPrimary")
+    where = next((p["spec"].get("nodeName") for p in instances if p["metadata"]["name"] == primary), None)
+    if where == target:
+        st["since"], st["away"] = None, None
+        return "ok", f"primary {primary} is here"
+    # How long it has been away (for the alert), and how long it could have
+    # been moved: the wait counts from then, so a cluster that has just been
+    # made, or just failed over, settles first.
+    if st.get("away") is None:
+        st["away"] = now
+    here = [p["metadata"]["name"] for p in instances
+            if p["spec"].get("nodeName") == target and pod_ready(p) and p["metadata"]["name"] != primary]
+    # Nothing while CNPG is busy here or anywhere (one move at a time): a
+    # failover or switchover underway, an instance not ready, replication
+    # behind.
+    blocked = ("no ready instance here" if not here
+               else f"cluster is {status.get('phase')!r}" if status.get("phase") != HEALTHY or status.get("targetPrimary") != primary
+               else f"{busy} is switching over" if busy
+               else "this node isn't fit (pressure)" if not me_ok
+               else None)
+    if blocked:
+        st["since"] = None
+        return "wait", blocked
+    if st["since"] is None:
+        st["since"] = now
+    if now - st["since"] < WAIT[how]:
+        return "wait", f"out of place for {now - st['since']:.0f} s, moving after {WAIT[how]} s"
+    if now - st.get("last", 0.0) < EVERY[how]:
+        return "wait", f"switched over {now - st['last']:.0f} s ago, not again within {EVERY[how]} s"
+    return "promote", here[0]
+
+
+def requires_label(pod, svc):
+    key = PREFIX + svc
+    spec = pod.get("spec", {})
+    if (spec.get("nodeSelector") or {}).get(key) == "active":
+        return True
+    terms = (((spec.get("affinity") or {}).get("nodeAffinity") or {})
+             .get("requiredDuringSchedulingIgnoredDuringExecution") or {}).get("nodeSelectorTerms") or []
+    return bool(terms) and all(any(e.get("key") == key and e.get("operator") == "In" and "active" in e.get("values", [])
+                                   for e in t.get("matchExpressions") or []) for t in terms)
+
+
+def strays(pods, svc, holder):
+    """Pods that require svc's label, running on a node that doesn't hold it."""
+    return [p for p in pods
+            if requires_label(p, svc) and p["spec"].get("nodeName") not in (None, holder)
+            and not any(o.get("kind") == "Job" for o in p["metadata"].get("ownerReferences", []))
+            and p["status"].get("phase") == "Running"]
+
+
+def place():
+    if time.time() - place_checked["at"] < CHECK_EVERY:
+        return
+    place_checked["at"] = now = time.time()
+    nodes = state.get("nodes")
+    if not nodes:
+        return
+    me = nodes.get(NODE)
+    me_ok = me is not None and ready(me)[0] and not pressure(me)
+
+    # Databases.
+    r = kubectl("get", "clusters.postgresql.cnpg.io", "-A", "-o", "json")
+    p = kubectl("get", "pods", "-A", "-l", "cnpg.io/podRole=instance", "-o", "json")
+    if r.returncode == 0 and p.returncode == 0:
+        clusters = json.loads(r.stdout)["items"]
+        pods = json.loads(p.stdout)["items"]
+        legacy = legacy_follows()
+        by = {}
+        for x in pods:
+            by.setdefault((x["metadata"]["namespace"], x["metadata"]["labels"].get("cnpg.io/cluster")), []).append(x)
+        # One move at a time: none while any cluster is switching or failing
+        # over. Only that: a cluster that's merely unhealthy mustn't hold up
+        # every other one.
+        busy = next((f"{c['metadata']['namespace']}/{c['metadata']['name']}" for c in clusters if moving(c)), None)
+        seen_now = set()
+        for c in clusters:
+            key = (c["metadata"]["namespace"], c["metadata"]["name"])
+            inst = by.get(key, [])
+            target, how, why = db_target(c, inst, nodes, legacy)
+            if target is None and how:
                 # Two holders (a label set by hand without taking the other
-                # off): both would switch the primary to themselves, in turn.
+                # off) would have both nodes switch it to themselves, in turn.
                 # Never; a human sorts out the labels first.
-                if st["since"] is not None or not st.get("warned"):
-                    log(f"{svc}: held by {state['holders'].get(svc)}, not only by this node; not moving {cluster}")
-                st.update(since=None, warned=True)
+                warn(f"{key[0]}/{key[1]}", "unplaceable", f"{key[0]}/{key[1]}: {why}; not moving it")
+            if target != NODE:
+                # Another node's to move (or nobody's, for now).
+                placed.pop(key, None)
                 continue
-            st["warned"] = False
-            r = kubectl("-n", c["namespace"], "get", "cluster", cluster, "-o", "json")
-            p = kubectl("-n", c["namespace"], "get", "pods", "-l", f"cnpg.io/cluster={cluster},cnpg.io/podRole=instance", "-o", "json")
-            if r.returncode != 0 or p.returncode != 0:
+            seen_now.add(key)
+            st = placed.setdefault(key, {"since": None, "last": 0.0})
+            action, detail = db_move(c, inst, target, how, busy if busy != f"{key[0]}/{key[1]}" else None, me_ok, st, now)
+            primary = c.get("status", {}).get("currentPrimary")
+            where = next((x["spec"].get("nodeName") for x in inst if x["metadata"]["name"] == primary), None)
+            st.update(how=how, why=why, where=where, action=action, detail=detail)
+            name = f"{key[0]}/{key[1]}"
+            if action == "wait":
+                warn(name, detail.split(" ")[0], f"{name}'s primary is on {where}, belongs here ({why}); {detail}")
+            elif action == "promote":
+                st["last"], st["since"] = now, None
+                busy = name
+                r = run(*cfg["cnpg_cli"], "-n", key[0], "promote", key[1], detail, timeout=30)
+                log(f"{name}: switching the primary over to {detail} here ({why}): " +
+                    ("started" if r.returncode == 0 else f"failed: {(r.stderr or r.stdout).strip()}"))
+        for key in [k for k in placed if k not in seen_now]:
+            placed.pop(key)
+
+    # Pods left behind by a label that moved to this node.
+    running = None
+    for svc in cfg["services"]:
+        if not allowed(svc) or state["holders"].get(svc) != [NODE]:
+            continue
+        moved = time.time() - seen.get(svc, ([], 0.0))[1]
+        first = svc not in strays_checked
+        if not first and moved > STRAY_WINDOW:
+            continue
+        if moved < STRAY_AFTER:
+            continue
+        strays_checked[svc] = now
+        if running is None:
+            r = kubectl("get", "pods", "-A", "--field-selector=status.phase=Running", "-o", "json")
+            if r.returncode != 0:
+                return
+            running = json.loads(r.stdout)["items"]
+        for x in strays(running, svc, NODE):
+            ns, name = x["metadata"]["namespace"], x["metadata"]["name"]
+            d = kubectl("-n", ns, "delete", "pod", name, "--wait=false")
+            log(f"{svc}: {ns}/{name} was left on {x['spec'].get('nodeName')} after the label moved here; " +
+                ("deleted, it starts here" if d.returncode == 0 else f"couldn't delete it: {d.stderr.strip()}"))
+
+
+# Going home (infrastructure docs/ha/decisions.md, 2026-10-21): a service
+# that isn't on its home node (`initial`) goes back with a planned move once
+# the home node has been fit a while, in the quiet hours. Nothing is lost:
+#
+#   home node   asks: ha.radunenu.com/handover-<svc>: "<home> <time>" on the
+#               holder's node
+#   holder      stops the service (fences it, though it keeps the label: the
+#               folder goes from /srv/ha, so it can't start again), sends a
+#               last copy straight from the folder, and marks
+#               ha.radunenu.com/handover-done-<svc>: "<time>"
+#   home node   takes the label, clears both, deletes the stopped pod so it
+#               starts here at once
+#
+# Either side gives up after `handover_timeout` (a failed copy, the other node
+# gone): the request goes, and the service opens where it was. A node that dies
+# halfway is an ordinary failover. A stateless service only moves its label.
+HANDOVER = PREFIX + "handover-"
+HANDED = PREFIX + "handover-done-"
+SRC_DIR = "/run/standby-copy"
+handing = {}  # svc -> this node is handing it over: phase, asked, inv
+homing = {}   # svc -> this node is taking it home: since, last, failed, why
+
+
+def in_window(now, window):
+    a, b = window.split("-")
+    t = time.localtime(now)
+    m = t.tm_hour * 60 + t.tm_min
+    sa, sb = int(a[:2]) * 60 + int(a[3:]), int(b[:2]) * 60 + int(b[3:])
+    return sa <= m < sb if sa <= sb else (m >= sa or m < sb)
+
+
+def annotation(node, key):
+    return ((node or {}).get("metadata", {}).get("annotations") or {}).get(key)
+
+
+def handover_anywhere(nodes):
+    return next((f"{n}: {k[len(HANDOVER):]}" for n, x in nodes.items()
+                 for k in (x["metadata"].get("annotations") or {}) if k.startswith(HANDOVER) and not k.startswith(HANDED)), None)
+
+
+def home_blocker(svc, s, nodes, now, st, fresh, copy_ok):
+    """Why svc can't be taken home to this node now; None when it can."""
+    if not s.get("initial") or not s.get("go_home", True):
+        return "not its home"
+    if holders_of(nodes, svc) != [s["peer"]]:
+        return "not held by the peer alone"
+    if not fresh:
+        return "can't reach the cluster"
+    for name, x in sorted(nodes.items()):
+        if not ready(x)[0] or pressure(x):
+            return f"{name} isn't fit"
+    up, since = ready(nodes[NODE])
+    if now - since < cfg["home_fit_for"]:
+        return f"this node has been fit for {now - since:.0f} s of {cfg['home_fit_for']}"
+    if now - st.get("last", 0.0) < cfg["home_every"]:
+        return "moved within the last hour"
+    if st.get("failed") and now - st["failed"] < 12 * 3600:
+        return "the last handover failed; next quiet hours"
+    if not copy_ok:
+        return "no whole copy here"
+    busy = handover_anywhere(nodes)
+    if busy:
+        return f"a handover is under way ({busy})"
+    if not in_window(now, cfg["home_window"]):
+        return "quiet-hours"
+    return None
+
+
+def annotate(node, *kv):
+    r = kubectl("annotate", "node", node, "--overwrite", *kv)
+    if r.returncode != 0:
+        log(f"annotating {node}: {r.stderr.strip()}")
+    return r.returncode == 0
+
+
+def unit(svc):
+    r = run("systemctl", "show", f"standby-copy-{svc}.service", "-p", "ActiveState,Result,InvocationID")
+    return dict(line.split("=", 1) for line in r.stdout.splitlines() if "=" in line)
+
+
+def delete_strays(svc, peer):
+    r = kubectl("get", "pods", "-A", "--field-selector", f"spec.nodeName={peer}", "-o", "json")
+    if r.returncode != 0:
+        return
+    for x in json.loads(r.stdout)["items"]:
+        if requires_label(x, svc) and not any(o.get("kind") == "Job" for o in x["metadata"].get("ownerReferences", [])):
+            ns, name = x["metadata"]["namespace"], x["metadata"]["name"]
+            d = kubectl("-n", ns, "delete", "pod", name, "--wait=false")
+            log(f"{svc}: {ns}/{name} on {peer} " + ("deleted, it starts here" if d.returncode == 0 else f"couldn't be deleted: {d.stderr.strip()}"))
+
+
+def go_home():
+    """The home node's side: ask, wait for the last copy, take over."""
+    nodes = state.get("nodes")
+    if not nodes or NODE not in nodes:
+        return
+    now = time.time()
+    fresh = now - state["api_ok_at"] < cfg["api_grace"]
+    for svc, s in cfg["services"].items():
+        st = homing.setdefault(svc, {"since": None, "last": 0.0})
+        peer = s["peer"]
+        holders = holders_of(nodes, svc)
+        if not s.get("initial") or holders == [NODE] or not holders:
+            st["since"] = None
+            continue
+        if st["since"] is None:
+            st["since"] = now
+        req = annotation(nodes.get(peer), HANDOVER + svc)
+        if not (req and req.split()[0] == NODE) and st.get("asked"):
+            # Asked, and the request is gone while the peer still holds it:
+            # the peer gave up (its last copy failed, say). Not again tonight,
+            # or the service would stop and start every round.
+            st["asked"] = None
+            if holders == [peer]:
+                st["failed"] = now
+                st["why"] = "handover failed"
+                log(f"{svc}: {peer} gave the handover up; not trying again before the next quiet hours")
                 continue
-            status = json.loads(r.stdout).get("status", {})
-            pods = json.loads(p.stdout)["items"]
-            primary = status.get("currentPrimary")
-            where = next((x["spec"].get("nodeName") for x in pods if x["metadata"]["name"] == primary), None)
-            here = [x["metadata"]["name"] for x in pods
-                    if x["spec"].get("nodeName") == NODE and pod_ready(x) and x["metadata"]["name"] != primary]
-            st["elsewhere"] = where != NODE
-            if not st["elsewhere"] or not here:
-                st["since"] = None
-                continue
-            # Nothing while CNPG is busy: a failover or switchover underway,
-            # an instance not ready, replication not caught up.
-            if status.get("phase") != "Cluster in healthy state" or status.get("targetPrimary") != primary:
-                continue
-            now = time.time()
-            if st["since"] is None:
-                st["since"] = now
-                log(f"{svc}: {cluster}'s primary {primary} is on {where}, not here; switching over in {FOLLOW_AFTER} s if it stays")
-                continue
-            if now - st["since"] < FOLLOW_AFTER or now - st["last"] < PROMOTE_EVERY:
-                continue
+        if req and req.split()[0] == NODE:
+            asked = float(req.split()[1])
+            done = annotation(nodes.get(peer), HANDED + svc)
+            if done and float(done) >= asked and holders == [peer]:
+                st["why"] = "handover"
+                # If claim() fails it says why; the peer gives up on its own
+                # once the request is gone.
+                claim(svc, peer, "planned move home, the last copy is here")
+                annotate(peer, f"{HANDOVER}{svc}-", f"{HANDED}{svc}-")
+                st["last"], st["since"], st["asked"] = now, None, None
+                delete_strays(svc, peer)
+            elif now - asked > cfg["handover_timeout"]:
+                annotate(peer, f"{HANDOVER}{svc}-")
+                st["failed"], st["asked"] = now, None
+                st["why"] = "handover timed out"
+                log(f"{svc}: {peer} didn't hand it over within {cfg['handover_timeout']} s; withdrawn, next quiet hours")
+            else:
+                st["why"] = "handover"
+            continue
+        why = home_blocker(svc, s, nodes, now, st, fresh, stateless(svc) or has_copy(svc))
+        st["why"] = why
+        if why is not None:
+            if why != "quiet-hours":
+                warn(svc, "home:" + why.split(" ")[0], f"{svc} is on {holders}, its home is here; not moving it: {why}")
+            continue
+        if stateless(svc):
+            claim(svc, peer, "going home")
             st["last"], st["since"] = now, None
-            r = run(*cfg["cnpg_cli"], "-n", c["namespace"], "promote", cluster, here[0], timeout=30)
-            log(f"{svc}: {cluster}: switchover to {here[0]} " +
-                ("started" if r.returncode == 0 else f"failed: {(r.stderr or r.stdout).strip()}"))
+            delete_strays(svc, peer)
+            continue
+        if annotate(peer, f"{HANDOVER}{svc}={NODE} {now:.0f}"):
+            st["why"], st["asked"] = "handover", now
+            log(f"{svc}: asked {peer} to hand it over: going home")
+
+
+def hand_over():
+    """The holder's side: stop, last copy, mark done; or give up."""
+    nodes = state.get("nodes")
+    if not nodes or NODE not in nodes:
+        return
+    now = time.time()
+    mine = nodes[NODE]
+    for svc, s in cfg["services"].items():
+        req = annotation(mine, HANDOVER + svc)
+        holder = state["labels"].get(PREFIX + svc) == "active"
+        h = handing.get(svc)
+        if not req or not holder or stateless(svc):
+            if h:
+                # Taken over (or withdrawn): back to normal.
+                handing.pop(svc)
+                try:
+                    os.remove(os.path.join(SRC_DIR, svc + ".source"))
+                except FileNotFoundError:
+                    pass
+                if not holder:
+                    log(f"{svc}: handed over to {s['peer']}")
+                else:
+                    log(f"{svc}: handover withdrawn, open here again")
+            continue
+        home, asked = req.split()[0], float(req.split()[1])
+        if h is None or h["asked"] != asked:
+            h = handing[svc] = {"asked": asked, "phase": "stop"}
+            log(f"{svc}: {home} asked for it; stopping it here for a last copy")
+        peer = nodes.get(home)
+        if home != s["peer"] or peer is None or not ready(peer)[0] or now - asked > cfg["handover_timeout"] + 60:
+            annotate(NODE, f"{HANDOVER}{svc}-", f"{HANDED}{svc}-")
+            log(f"{svc}: giving up the handover to {home} (gone, or too long); opening it here again")
+            continue
+        if h["phase"] == "stop":
+            # allowed() is false while handing over, so the round's fence has
+            # killed its containers and taken the folder from /srv/ha.
+            if os.path.isdir(ha_path(svc)) or is_mounted(ha_path(svc)) or containers_using(ha_path(svc)):
+                continue
+            h["phase"] = "copy-wait"
+        if h["phase"] == "copy-wait":
+            u = unit(svc)
+            if u.get("ActiveState") in ("active", "activating", "deactivating"):
+                continue  # a copy from before the stop; the last one starts after it
+            os.makedirs(SRC_DIR, exist_ok=True)
+            with open(os.path.join(SRC_DIR, svc + ".source"), "w") as f:
+                f.write(data(svc))
+            h["inv"] = u.get("InvocationID", "")
+            r = run("systemctl", "start", "--no-block", f"standby-copy-{svc}.service")
+            if r.returncode != 0:
+                log(f"{svc}: couldn't start the last copy: {r.stderr.strip()}")
+                annotate(NODE, f"{HANDOVER}{svc}-")
+                continue
+            h["phase"] = "copying"
+            log(f"{svc}: last copy to {home} started")
+            continue
+        if h["phase"] == "copying":
+            u = unit(svc)
+            if u.get("InvocationID", "") == h["inv"] or u.get("ActiveState") not in ("inactive", "failed"):
+                continue
+            if u.get("Result") == "success":
+                annotate(NODE, f"{HANDED}{svc}={now:.0f}")
+                h["phase"] = "done"
+                log(f"{svc}: last copy is on {home}; it can take over")
+            else:
+                annotate(NODE, f"{HANDOVER}{svc}-")
+                log(f"{svc}: the last copy failed ({u.get('Result')}); handover off, opening it here again")
 
 
 METRICS = "/var/lib/node-exporter-textfile/site_failover.prom"
@@ -509,13 +904,32 @@ def write_metrics():
         "# TYPE site_failover_cluster_reachable gauge",
         f"site_failover_cluster_reachable {1 if fresh else 0}",
     ]
-    if follow:
+    if placed:
+        # From the node each database belongs on: how long its primary has
+        # been elsewhere (0 when it's here). PlacementDrift alerts on it.
         lines += [
-            "# HELP site_failover_db_elsewhere Whether a database that follows a service this node runs has its primary on another node.",
-            "# TYPE site_failover_db_elsewhere gauge",
+            "# HELP site_failover_out_of_place_seconds How long a database's primary has been away from where it belongs (this node).",
+            "# TYPE site_failover_out_of_place_seconds gauge",
         ]
-        for (svc, cluster), st in follow.items():
-            lines.append(f'site_failover_db_elsewhere{{service="{svc}",cluster="{cluster}"}} {1 if st["elsewhere"] else 0}')
+        now = time.time()
+        for (ns, name), st in sorted(placed.items()):
+            out = now - st["away"] if st.get("away") else 0
+            lines.append(f'site_failover_out_of_place_seconds{{kind="database",name="{ns}/{name}",how="{st.get("how")}",'
+                         f'at="{st.get("where") or ""}",action="{st.get("action")}"}} {out:.0f}')
+    homes = {svc: st for svc, st in homing.items() if cfg["services"][svc].get("initial")}
+    if homes:
+        if not placed:
+            lines += [
+                "# HELP site_failover_out_of_place_seconds How long a database's primary has been away from where it belongs (this node).",
+                "# TYPE site_failover_out_of_place_seconds gauge",
+            ]
+        now = time.time()
+        for svc, st in sorted(homes.items()):
+            out = now - st["since"] if st.get("since") else 0
+            why = (st.get("why") or "ok").split(" ")[0] if out else "ok"
+            at = ",".join(holders_of(state.get("nodes") or {}, svc)) if out else NODE
+            lines.append(f'site_failover_out_of_place_seconds{{kind="service",name="{svc}",how="home",'
+                         f'at="{at}",action="{why}"}} {out:.0f}')
     try:
         tmp = METRICS + ".tmp"
         with open(tmp, "w") as f:
@@ -528,6 +942,7 @@ def write_metrics():
 
 def loop():
     while True:
+        began = time.time()
         try:
             ensure_incoming()
             tick()
@@ -540,10 +955,20 @@ def loop():
             except Exception as e:
                 log(f"{svc}: {e}")
         try:
-            follow_db()
+            place()
         except Exception as e:
-            log(f"following databases: {e}")
+            log(f"placement: {e}")
+        for step in (hand_over, go_home):
+            try:
+                step()
+            except Exception as e:
+                log(f"going home: {e}")
         write_metrics()
+        took = time.time() - began
+        if took > 30:
+            # A round should take a few seconds; a slow cluster API makes
+            # everything here late (failover, fencing, handovers).
+            warn("round", "slow", f"a round took {took:.0f} s")
         time.sleep(cfg["interval"])
 
 
@@ -576,7 +1001,8 @@ def serve(address):
             time.sleep(10)
 
 
-threading.Thread(target=loop, daemon=True).start()
-for address in cfg["listen"][1:]:
-    threading.Thread(target=serve, args=(address,), daemon=True).start()
-serve(cfg["listen"][0])
+if __name__ == "__main__":
+    threading.Thread(target=loop, daemon=True).start()
+    for address in cfg["listen"][1:]:
+        threading.Thread(target=serve, args=(address,), daemon=True).start()
+    serve(cfg["listen"][0])

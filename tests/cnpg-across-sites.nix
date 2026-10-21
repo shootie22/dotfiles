@@ -19,6 +19,8 @@
 #   7. the primary follows a service (site-failover's `cnpg`, Matrix): the
 #      service's label goes to the replica's node, and the primary is
 #      switched over there by itself
+#   7b. a primary with a home site (placement.radunenu.com/home) goes back
+#      there by itself
 #   8. synchronous replication with dataDurability: preferred: the replica's
 #      machine crashes and writes carry on, but only once CNPG notices (about
 #      216 s on 2026-10-14). That pause is why Matrix stayed asynchronous
@@ -387,7 +389,7 @@ pkgs.testers.runNixOSTest {
         a.succeed("kubectl label node fuji thinkcentre ha.radunenu.com/app=active --overwrite")
         time.sleep(100)
         assert where(primary(a), a) != here, "the primary moved with two label holders"
-        node.succeed("journalctl -u site-failover | grep -q 'not only by this node'")
+        node.succeed("journalctl -u site-failover | grep -q 'is held by.*not moving it'")
         # Moved the way the runbook does: off every node, onto the new one.
         t0 = time.time()
         a.succeed("kubectl label node fuji thinkcentre ha.radunenu.com/app-")
@@ -401,12 +403,37 @@ pkgs.testers.runNixOSTest {
         print(f"TIME primary followed the service to {here} after ~{time.time() - t0:.0f} s")
         print(node.succeed("journalctl -u site-failover | grep -i 'switch' || true"))
         node.wait_until_succeeds(
-            "grep -qx 'site_failover_db_elsewhere{service=\"app\",cluster=\"pg\"} 0' "
+            "grep -q '^site_failover_out_of_place_seconds{kind=\"database\",name=\"default/pg\",how=\"follows\".*} 0$' "
             "/var/lib/node-exporter-textfile/site_failover.prom", timeout=120)
         assert int(sql("select count(*) from t", via=node)) >= int(rows), "rows lost in the switchover"
         # No second switchover: the primary stays put.
         time.sleep(90)
         assert where(primary(node), node) == here, "the primary moved again"
+
+    with subtest("7b. a primary with a home site goes back there by itself"):
+        # placement.radunenu.com/home on the Cluster (infrastructure decision
+        # 2026-10-21), the way the databases of apps in both sites are
+        # declared. Its home is the other site; it wins over `cnpg`.
+        a = api()
+        now_on = where(primary(a), a)
+        home_node = "thinkcentre" if now_on == "fuji" else "fuji"
+        home_zone = a.succeed(f"kubectl get node {home_node} -o jsonpath='{{.metadata.labels.topology\\.kubernetes\\.io/zone}}'").strip()
+        node = fuji if home_node == "fuji" else thinkcentre
+        rows = sql("select count(*) from t", via=a)
+        t0 = time.time()
+        a.succeed(f"kubectl annotate cluster pg placement.radunenu.com/home={home_zone} --overwrite")
+        node.wait_until_succeeds(
+            f"p=$(kubectl get cluster pg -o jsonpath={{.status.currentPrimary}}) && "
+            f"[ \"$(kubectl get pod $p -o jsonpath={{.spec.nodeName}})\" = {home_node} ]", timeout=600)
+        wait_writable(node)
+        print(f"TIME primary went home to {home_node} ({home_zone}) after ~{time.time() - t0:.0f} s")
+        node.wait_until_succeeds(
+            "grep -q '^site_failover_out_of_place_seconds{kind=\"database\",name=\"default/pg\",how=\"home\".*} 0$' "
+            "/var/lib/node-exporter-textfile/site_failover.prom", timeout=120)
+        assert int(sql("select count(*) from t", via=node)) >= int(rows), "rows lost going home"
+        time.sleep(90)
+        assert where(primary(node), node) == home_node, "the primary moved again"
+        a.succeed("kubectl annotate cluster pg placement.radunenu.com/home-")
 
     with subtest("8. synchronous, dataDurability preferred: the replica's machine crashes, writes carry on"):
         a = api()
