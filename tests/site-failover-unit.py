@@ -227,6 +227,42 @@ sick = hnodes()
 sick["thinkcentre"]["status"]["conditions"].append({"type": "DiskPressure", "status": "True", "lastTransitionTime": T})
 check("home: never while a node is under pressure", blocker(sick), "thinkcentre isn't fit")
 
+# The home node's side of a handover, with the cluster stubbed out.
+calls = []
+sf.annotate = lambda node, *kv: calls.append(("annotate", node) + kv) or True
+sf.claim = lambda svc, old, why=None: calls.append(("claim", svc, old))
+sf.delete_strays = lambda svc, peer: calls.append(("strays", svc, peer))
+sf.has_copy = lambda svc: True
+sf.state.update(api_ok_at=_t.time(), labels={})
+sf.cfg["services"] = {"matrix": dict(HOME)}
+sf.cfg["home_window"] = "00:00-23:59"
+
+
+def home_round(nodes):
+    calls.clear()
+    sf.state["nodes"] = nodes
+    sf.go_home()
+    return list(calls)
+
+
+sf.homing.clear()
+first = home_round(hnodes())
+check("go home: asks the holder", [c[:2] for c in first], [("annotate", "thinkcentre")])
+check("go home: remembers asking", sf.homing["matrix"].get("asked") is not None, True)
+asked = sf.homing["matrix"]["asked"]
+pending = hnodes(extra={"thinkcentre": {sf.HANDOVER + "matrix": f"fuji {asked:.0f}"}})
+check("go home: waits while the holder copies", home_round(pending), [])
+withdrawn = home_round(hnodes())
+check("go home: a withdrawn handover isn't asked again", withdrawn, [])
+check("go home: and it counts as failed", sf.homing["matrix"].get("failed") is not None, True)
+check("go home: still nothing the round after", home_round(hnodes()), [])
+sf.homing.clear()
+home_round(hnodes())
+asked = sf.homing["matrix"]["asked"]
+done = hnodes(extra={"thinkcentre": {sf.HANDOVER + "matrix": f"fuji {asked:.0f}", sf.HANDED + "matrix": f"{asked + 5:.0f}"}})
+got = home_round(done)
+check("go home: takes over once the last copy is there", [c[0] for c in got], ["claim", "annotate", "strays"])
+
 if failures:
     print(f"\n{len(failures)} failed")
     sys.exit(1)

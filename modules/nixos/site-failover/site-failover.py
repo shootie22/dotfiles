@@ -767,6 +767,16 @@ def go_home():
         if st["since"] is None:
             st["since"] = now
         req = annotation(nodes.get(peer), HANDOVER + svc)
+        if not (req and req.split()[0] == NODE) and st.get("asked"):
+            # Asked, and the request is gone while the peer still holds it:
+            # the peer gave up (its last copy failed, say). Not again tonight,
+            # or the service would stop and start every round.
+            st["asked"] = None
+            if holders == [peer]:
+                st["failed"] = now
+                st["why"] = "handover failed"
+                log(f"{svc}: {peer} gave the handover up; not trying again before the next quiet hours")
+                continue
         if req and req.split()[0] == NODE:
             asked = float(req.split()[1])
             done = annotation(nodes.get(peer), HANDED + svc)
@@ -776,11 +786,11 @@ def go_home():
                 # once the request is gone.
                 claim(svc, peer, "planned move home, the last copy is here")
                 annotate(peer, f"{HANDOVER}{svc}-", f"{HANDED}{svc}-")
-                st["last"], st["since"] = now, None
+                st["last"], st["since"], st["asked"] = now, None, None
                 delete_strays(svc, peer)
             elif now - asked > cfg["handover_timeout"]:
                 annotate(peer, f"{HANDOVER}{svc}-")
-                st["failed"] = now
+                st["failed"], st["asked"] = now, None
                 st["why"] = "handover timed out"
                 log(f"{svc}: {peer} didn't hand it over within {cfg['handover_timeout']} s; withdrawn, next quiet hours")
             else:
@@ -798,7 +808,7 @@ def go_home():
             delete_strays(svc, peer)
             continue
         if annotate(peer, f"{HANDOVER}{svc}={NODE} {now:.0f}"):
-            st["why"] = "handover"
+            st["why"], st["asked"] = "handover", now
             log(f"{svc}: asked {peer} to hand it over: going home")
 
 
@@ -818,7 +828,7 @@ def hand_over():
                 # Taken over (or withdrawn): back to normal.
                 handing.pop(svc)
                 try:
-                    os.remove(os.path.join(SRC_DIR, svc))
+                    os.remove(os.path.join(SRC_DIR, svc + ".source"))
                 except FileNotFoundError:
                     pass
                 if not holder:
@@ -846,7 +856,7 @@ def hand_over():
             if u.get("ActiveState") in ("active", "activating", "deactivating"):
                 continue  # a copy from before the stop; the last one starts after it
             os.makedirs(SRC_DIR, exist_ok=True)
-            with open(os.path.join(SRC_DIR, svc), "w") as f:
+            with open(os.path.join(SRC_DIR, svc + ".source"), "w") as f:
                 f.write(data(svc))
             h["inv"] = u.get("InvocationID", "")
             r = run("systemctl", "start", "--no-block", f"standby-copy-{svc}.service")
