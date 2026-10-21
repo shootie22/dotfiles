@@ -99,6 +99,9 @@ let
         additionalArguments:
           - --entryPoints.web.http.middlewares=kube-system-retry@kubernetescrd
           - --entryPoints.websecure.http.middlewares=kube-system-retry@kubernetescrd
+          # Who Traefik thinks the visitor is, for the test to read.
+          - --accesslog=true
+          - --accesslog.format=json
     ---
     apiVersion: traefik.io/v1alpha1
     kind: Middleware
@@ -215,6 +218,12 @@ pkgs.testers.runNixOSTest {
               - {path: /, pathType: Prefix, backend: {service: {name: app, port: {number: 80}}}}
     """
 
+    def client_of(tag):
+        # The visitor's address as Traefik logged it, for a request carrying tag.
+        return fuji.succeed(
+            "kubectl -n kube-system logs -l app.kubernetes.io/name=traefik --tail=-1 --prefix=false | "
+            f"grep -F '{tag}' | jq -r .ClientHost | tail -1").strip()
+
     def get(via, url, extra=""):
         return edge.succeed(f"curl -sk -m 10 {extra} --resolve app.test:443:{via} --resolve app.test:80:{via} {url}").strip()
 
@@ -233,11 +242,15 @@ pkgs.testers.runNixOSTest {
         fuji.succeed("kubectl apply -f /tmp/app.yaml && kubectl rollout status deploy/app --timeout=300s")
         edge_lan = "${addr nodes.edge}"
         fuji.wait_until_succeeds(f"curl -sk -m 5 --resolve app.test:443:{FUJI} https://app.test/cgi-bin/ip | grep -q 'ok from'", timeout=300)
-        print("https:", get(FUJI, "https://app.test/cgi-bin/ip"))
-        assert get(FUJI, "https://app.test/cgi-bin/ip") == f"ok from {edge_lan}", "the visitor's address didn't come through"
-        assert get(FUJI, "http://app.test/cgi-bin/ip") == f"ok from {edge_lan}"
+        assert get(FUJI, "https://app.test/cgi-bin/ip?t=https1").startswith("ok")
+        assert get(FUJI, "http://app.test/cgi-bin/ip?t=http1").startswith("ok")
+        assert get("${meshIP "fuji"}", "https://app.test/cgi-bin/ip?t=edge1", "--haproxy-protocol").startswith("ok")
+        time.sleep(3)
+        seen = {t: client_of(f"t={t}") for t in ("https1", "http1", "edge1")}
+        print("Traefik saw the visitors as:", seen)
+        assert seen["https1"] == edge_lan and seen["http1"] == edge_lan, f"the visitor's address didn't come through: {seen}"
         # The edge says who the visitor is with a PROXY header, over the mesh.
-        assert get("${meshIP "fuji"}", "https://app.test/cgi-bin/ip", "--haproxy-protocol") == "ok from ${meshIP "edge"}"
+        assert seen["edge1"] == "${meshIP "edge"}", seen
         # A PROXY header from anyone else is not believed: no answer at all.
         fuji.fail(f"curl -sk -m 5 --haproxy-protocol --resolve app.test:443:{FUJI} https://app.test/cgi-bin/ip")
         # The ready route answers through Traefik on both nodes.
