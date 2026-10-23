@@ -180,6 +180,12 @@
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
     };
 
+    # A Kata VM's memory fits in /dev/shm: mixi's CI VMs died without it
+    # (infrastructure #300; tests/kata-shm.nix).
+    checks.x86_64-linux.kata-shm = import ./tests/kata-shm.nix {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+    };
+
     # Staged deploys: the gate that lets a later host deploy a commit only
     # after its upstream hosts have run it (tests/deploy-gate.sh). No VMs.
     checks.x86_64-linux.deploy-gate =

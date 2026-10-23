@@ -94,6 +94,18 @@ in
   config = lib.mkIf cfg.enable {
     boot.kernelModules = [ "vhost_vsock" "vhost_net" ];
 
+    # Kata keeps each VM's whole memory in a file in /dev/shm (QEMU's
+    # memory-backend-file, shared with virtiofsd), and 3.32 has no setting
+    # to put it anywhere else. NixOS makes /dev/shm half the RAM: 3.7 GiB on
+    # mixi, less than its 4.5 GiB CI VM. Once the guest had touched that
+    # much, KVM couldn't back the next page and the VM died ("kvm run failed
+    # Bad address"), so every arm64 job failed from 2026-10-15 (infrastructure
+    # #300). The whole RAM instead, so /dev/shm is never the smaller limit:
+    # the pod's limits size the VM, and infrastructure's CIVMBiggerThanShm
+    # alert says when they don't fit. Pages beyond the RAM go to swap like
+    # any others. tests/kata-shm.nix.
+    boot.devShmSize = lib.mkDefault "100%";
+
     systemd.tmpfiles.settings."10-k3s-kata"."/var/lib/rancher/k3s/agent/etc/containerd/config-v3.toml.tmpl"."L+".argument =
       "${containerdTemplate}";
 
