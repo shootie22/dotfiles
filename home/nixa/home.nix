@@ -53,6 +53,12 @@
     # flake input rather than nixpkgs, so it cannot live in packages.txt.
     inputs.ai-usagebar.packages.${pkgs.stdenv.hostPlatform.system}.default
     inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.codex
+    # pi terminal coding agent; models.json below points it at the local model.
+    inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.pi
+    # Twintail Launcher — anime game launcher (Genshin, HSR, etc.)
+    inputs.twintail.packages.${pkgs.stdenv.hostPlatform.system}.default
+    # Cube Calendar — native GTK CalDAV calendar
+    inputs.cube-calendar.packages.${pkgs.stdenv.hostPlatform.system}.default
     # Claude Desktop (chat, Cowork, Claude Code), repackaged from Anthropic's APT repo.
     # Electron doesn't recognise XDG_CURRENT_DESKTOP=Hyprland and falls back to no
     # keyring, so the sign-in isn't kept; point it at gnome-keyring explicitly.
@@ -91,6 +97,31 @@
     config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/localstorage/Media/Pictures";
   home.file."Videos".source =
     config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/localstorage/Media/Videos";
+
+  # pi: the local Qwen from modules/nixos/local-llm.nix as a provider. Only
+  # models.json is managed here; settings.json stays writable for /model and
+  # Ctrl+S. The first request after 10 idle minutes waits while it reloads.
+  home.file.".pi/agent/models.json".text = builtins.toJSON {
+    providers.local = {
+      baseUrl = "http://127.0.0.1:8080/v1";
+      api = "openai-completions";
+      apiKey = "local";   # unchecked, but pi only lists models that have one
+      models = [{
+        id = "qwen3.6-35b-a3b";
+        name = "Qwen3.6 35B-A3B (local)";
+        reasoning = true;
+        input = [ "text" ];
+        contextWindow = 131072;
+        maxTokens = 32768;
+        cost = { input = 0; output = 0; cacheRead = 0; cacheWrite = 0; };
+        # enable_thinking + preserve_thinking via the chat template.
+        compat.thinkingFormat = "qwen-chat-template";
+        # Qwen's recommendations: precise coding when thinking, instruct otherwise.
+        samplingParams = { temperature = 0.6; top_p = 0.95; top_k = 20; min_p = 0; };
+        samplingParamsByThinkingLevel.off = { temperature = 0.7; top_p = 0.8; presence_penalty = 1.5; };
+      }];
+    };
+  };
 
   # grimblast reads XDG_SCREENSHOTS_DIR (via user-dirs.dirs). Point it at
   # ~/Pictures/Screenshots so shots land on the media drive. (recordings ->

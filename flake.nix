@@ -90,6 +90,18 @@
       url = "github:nix-community/disko";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # Twintail Launcher — multi-platform anime game launcher with NixOS support.
+    twintail = {
+      url = "github:Yuna404/TwintailFlake/8b744bc5dbcd594fa7e245f2922c6da5679f3e52";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # Cube Calendar — native GTK CalDAV calendar.
+    cube-calendar = {
+      url = "git+https://git.yeetus.net/radu/cube-calendar.git?rev=9a59f4e548224b0ee4030903741c50f288e82c76";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = {
@@ -107,6 +119,8 @@
     sops-nix,
     disko,
     comin,
+    twintail,
+    cube-calendar,
     ...
   }@inputs: rec {
     darwinConfigurations.minima = nix-darwin.lib.darwinSystem {

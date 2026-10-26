@@ -118,6 +118,27 @@
         "type": "github"
       }
     },
+    "cube-calendar": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1791193967,
+        "narHash": "sha256-QSdjK0A4hFyFp+yYoMARbmywJQESLf9GziSnKmppkvc=",
+        "ref": "refs/heads/main",
+        "rev": "9a59f4e548224b0ee4030903741c50f288e82c76",
+        "revCount": 37,
+        "type": "git",
+        "url": "https://git.yeetus.net/radu/cube-calendar.git"
+      },
+      "original": {
+        "rev": "9a59f4e548224b0ee4030903741c50f288e82c76",
+        "type": "git",
+        "url": "https://git.yeetus.net/radu/cube-calendar.git"
+      }
+    },
     "disko": {
       "inputs": {
         "nixpkgs": [
@@ -582,6 +603,7 @@
         "apple-silicon": "apple-silicon",
         "chaotic": "chaotic",
         "comin": "comin",
+        "cube-calendar": "cube-calendar",
         "disko": "disko",
         "home-manager": "home-manager_2",
         "home-manager-nixpad": "home-manager-nixpad",
@@ -595,7 +617,8 @@
         "noctalia": "noctalia",
         "noctalia-nixpad": "noctalia-nixpad",
         "noctalia-plugins": "noctalia-plugins",
-        "sops-nix": "sops-nix"
+        "sops-nix": "sops-nix",
+        "twintail": "twintail"
       }
     },
     "sops-nix": {
@@ -683,6 +706,27 @@
       "original": {
         "owner": "numtide",
         "repo": "treefmt-nix",
+        "type": "github"
+      }
+    },
+    "twintail": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1792291348,
+        "narHash": "sha256-7UE69XjUg/gzhRx1O2YYdHIq1LYutxCiesex0PObgQY=",
+        "owner": "Yuna404",
+        "repo": "TwintailFlake",
+        "rev": "8b744bc5dbcd594fa7e245f2922c6da5679f3e52",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Yuna404",
+        "repo": "TwintailFlake",
+        "rev": "8b744bc5dbcd594fa7e245f2922c6da5679f3e52",
         "type": "github"
       }
     }
