@@ -76,6 +76,14 @@
       # stayed on fuji, and every Gitea query crossed the WAN.
       cnpg = { namespace = "gitea"; clusters = [ "gitea-pg" ]; };
     };
+    # cook.yeetus.net (Mealie): recipe photos and its own backups; its
+    # Postgres primary follows it, as Gitea's.
+    mealie = {
+      data = "/home/main/services/mealie";
+      peer = "fuji";
+      initial = true;
+      cnpg = { namespace = "mealie"; clusters = [ "mealie-pg" ]; };
+    };
     rybbit-clickhouse = {
       data = "/home/main/services/rybbit/clickhouse";
       peer = "fuji";

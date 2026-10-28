@@ -33,6 +33,17 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: cachix/install-nix-action@v31
+      # Private inputs on git.yeetus.net (cube-calendar): nix fetches them
+      # with git, which reads the token from here. A read-only Gitea token.
+      - name: git.yeetus.net token
+        env:
+          TOKEN: ${{ secrets.GITEA_READ_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::GITEA_READ_TOKEN isn't set; private inputs on git.yeetus.net can't be fetched."
+            exit 0
+          fi
+          git config --global url."https://ci:${TOKEN}@git.yeetus.net/".insteadOf "https://git.yeetus.net/"
       - run: nix eval --raw .#nixosConfigurations.${{ matrix.host }}.config.system.build.toplevel.drvPath
 
   # One name for the ruleset to require, whatever the hosts are.
