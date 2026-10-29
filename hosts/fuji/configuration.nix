@@ -8,6 +8,7 @@
     ../../modules/nixos/k3s-tailnet-guard.nix
     ../../modules/nixos/failover-checker
     ../../modules/nixos/k3s-dns.nix
+    ../../modules/nixos/e1000e-guard
     ../../modules/nixos/k3s-eviction.nix
     ../../modules/nixos/front-door.nix
     ../../modules/nixos/initrd-dhcp-handover.nix
