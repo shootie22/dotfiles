@@ -15,6 +15,14 @@
   dotfiles.nebulaMesh.enable = true;
 
   networking.hostName = "minima";
+  # Reach Gitea through Traefik over Nebula, like mixi and the thinkcentre, not
+  # through Cloudflare: minima has no IPv6 route, and git.radunenu.com resolves
+  # to Cloudflare's IPv6 addresses first, so image pulls failed with "network is
+  # unreachable" (radunenu.com's pods stuck in ImagePullBackOff here).
+  networking.hosts = let mesh = (import ../../lib/nebula.nix).hosts; in {
+    ${mesh.thinkcentre.ip} = [ "git.radunenu.com" ];
+    ${mesh.fuji.ip} = [ "git.radunenu.com" ];
+  };
   # The flake output is minima-vm, not the hostname.
   services.comin.hostname = "minima-vm";
 
