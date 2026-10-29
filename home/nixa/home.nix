@@ -98,6 +98,35 @@
   home.file."Videos".source =
     config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/localstorage/Media/Videos";
 
+  # Skills from ~/git/agent-skills (git.yeetus.net/radu/agent-skills, private),
+  # linked one folder each into ~/.claude/skills so Claude Code finds them. A
+  # link per skill rather than the whole folder, since ~/.claude/skills also
+  # holds the skills Claude syncs itself (synced/). Links to skills that were
+  # removed go away; a folder that isn't our link is left alone; nothing
+  # happens if the checkout isn't there.
+  home.activation.agentSkills = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    src="${config.home.homeDirectory}/git/agent-skills/skills"
+    dest="${config.home.homeDirectory}/.claude/skills"
+    if [ -d "$src" ]; then
+      run mkdir -p "$dest"
+      for skill in "$src"/*/; do
+        skill="''${skill%/}"
+        name=$(basename "$skill")
+        [ -f "$skill/SKILL.md" ] || continue
+        if [ -e "$dest/$name" ] && [ ! -L "$dest/$name" ]; then
+          echo "agent-skills: $dest/$name is not a link, leaving it alone"
+          continue
+        fi
+        run ln -sfn "$skill" "$dest/$name"
+      done
+      for link in "$dest"/*; do
+        if [ -L "$link" ] && [ ! -e "$link" ] && [[ "$(readlink "$link")" == "$src"/* ]]; then
+          run rm "$link"
+        fi
+      done
+    fi
+  '';
+
   # pi: the local Qwen from modules/nixos/local-llm.nix as a provider. Only
   # models.json is managed here; settings.json stays writable for /model and
   # Ctrl+S. The first request after 10 idle minutes waits while it reloads.
