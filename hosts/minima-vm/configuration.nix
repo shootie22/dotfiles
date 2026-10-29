@@ -69,6 +69,46 @@
     metric 100
   '';
 
+  # 2026-10-29 the guest lost both default routes at 03:40 UTC and nothing got
+  # them back: k3s couldn't reach the cluster for hours, and Argo's controller,
+  # which was running here, stopped with it. dhcpcd runs --quiet, so it left
+  # no trace. Every minute: no IPv4 default route for 3 checks in a row means
+  # log what the network looks like and restart dhcpcd, at most 3 times an hour.
+  systemd.services.default-route-guard = {
+    description = "Restart dhcpcd when the default route is gone";
+    path = with pkgs; [ iproute2 coreutils gawk systemd ];
+    serviceConfig = { Type = "oneshot"; RuntimeDirectory = "default-route-guard"; RuntimeDirectoryPreserve = true; };
+    script = ''
+      state=/run/default-route-guard
+      if [ -n "$(ip -4 route show default)" ]; then
+        rm -f "$state/missing"
+        exit 0
+      fi
+      echo x >> "$state/missing"
+      missing=$(wc -l < "$state/missing")
+      echo "no IPv4 default route ($missing check(s) in a row)"
+      [ "$missing" -ge 3 ] || exit 0
+      now=$(date +%s)
+      touch "$state/restarts"
+      awk -v cutoff=$((now - 3600)) '$1 > cutoff' "$state/restarts" > "$state/restarts.new"
+      mv "$state/restarts.new" "$state/restarts"
+      if [ "$(wc -l < "$state/restarts")" -ge 3 ]; then
+        echo "still no default route, but dhcpcd was restarted 3 times in the last hour; leaving it"
+        exit 0
+      fi
+      echo "addresses:"; ip -br addr
+      echo "routes:"; ip route; ip -6 route show default
+      echo "restarting dhcpcd"
+      echo "$now" >> "$state/restarts"
+      rm -f "$state/missing"
+      systemctl restart dhcpcd.service
+    '';
+  };
+  systemd.timers.default-route-guard = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = { OnBootSec = "3min"; OnUnitActiveSec = "1min"; };
+  };
+
   # Match the nixos-lima disk image layout.
   boot.loader.grub = {
     device = "nodev";
