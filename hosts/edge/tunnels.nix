@@ -32,6 +32,12 @@ in
       AllowAgentForwarding no
       AllowStreamLocalForwarding no
       ForceCommand ${pkgs.coreutils}/bin/false
+      # Drop a site's session within 90 s once it stops answering. Otherwise a
+      # connection that died uncleanly keeps holding its port here, and the
+      # site's reconnects fail with "remote port forwarding failed" until TCP
+      # keepalive gives up two hours later (fuji, 2026-10-29).
+      ClientAliveInterval 30
+      ClientAliveCountMax 3
   '';
 
   # Alert through the relay when a tunnel has been gone for two checks in a
