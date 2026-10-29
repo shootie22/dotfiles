@@ -34,8 +34,8 @@ in
 {
   options.dotfiles.e1000eGuard.watchdogDryRun = lib.mkOption {
     type = lib.types.bool;
-    default = true;
-    description = "Only log what the watchdog would do. Turned off once it's been tested on the host with a fake hang message.";
+    default = false;
+    description = "Only log what the watchdog would do, for trying it on a new host with a fake hang message (watchdog.sh). Tested on fuji 2026-10-29.";
   };
 
   config = {
