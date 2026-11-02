@@ -95,18 +95,36 @@ def is_mounted(path):
     return path in mount_targets()
 
 
+def slave(dst):
+    # The bind at /srv/ha/<service> as a slave of the service's folder:
+    # mounts made in the folder still show up here, but unmounting here never
+    # reaches back. On systemd every mount is shared, so the bind and the
+    # folder were peers, and the fence's `umount -R` took Gitea's repositories
+    # (a bind from the 4 TB disk inside its folder) off the folder itself: on
+    # 2026-11-02 the thinkcentre lost the cluster for a minute, was fenced and
+    # opened again, and Gitea came back without a single repository.
+    return run("mount", "--make-rslave", dst)
+
+
 def bind(src, dst):
     # Recursive: a service's folder can have mounts inside it (Gitea's
     # repositories live on another disk), and a plain bind leaves those out.
     targets = mount_targets()
     if dst in targets:
+        # Before anything is unmounted here (a bind made before slave()).
+        slave(dst)
         nested = [t[len(src):] for t in targets if t.startswith(src + "/")]
         if all(dst + n in targets for n in nested):
             return None
         run("umount", "-R", "-l", dst)
         log(f"{dst}: nested mounts missing, binding again")
     os.makedirs(dst, exist_ok=True)
-    return run("mount", "--rbind", src, dst)
+    r = run("mount", "--rbind", src, dst)
+    if r.returncode == 0:
+        s = slave(dst)
+        if s.returncode != 0:
+            log(f"{dst}: couldn't make it a slave: {s.stderr.strip()}")
+    return r
 
 
 # What the fence leaves at /srv/ha/<service>: nothing can be made below it.
@@ -398,6 +416,7 @@ def fence(svc):
             pass
     if is_mounted(path) or os.path.isdir(path):
         if is_mounted(path):
+            slave(path)  # so the unmount stays here (slave())
             r = run("umount", "-R", "-l", path)
             if r.returncode != 0:
                 log(f"{svc}: couldn't unmount {path}: {r.stderr.strip()}")
