@@ -110,6 +110,13 @@ let
           exit 1
         fi
         src=''${matches[0]}
+        ${lib.concatMapStrings (m: ''
+          # rsync --delete from an empty mount point would empty the copy too.
+          if ! ${pkgs.util-linux}/bin/mountpoint -q "$src/"${lib.escapeShellArg m}; then
+            echo "$src/"${lib.escapeShellArg m}" isn't mounted; not copying" >&2
+            exit 1
+          fi
+        '') job.requireMounts}
         ssh="ssh -i ${config.sops.secrets.standby_copy_key.path} -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=20 -o ServerAliveInterval=30 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${stateDir}/known_hosts"
         start=$(date +%s)
 
@@ -195,6 +202,11 @@ in
             description = "SQLite databases (relative to source) to copy from a snapshot.";
           };
           exclude = lib.mkOption { type = lib.types.listOf lib.types.str; default = [ ]; };
+          requireMounts = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+            description = "Mount points (relative to source) that must be mounted for a copy to run.";
+          };
           bwlimit = lib.mkOption {
             type = lib.types.nullOr lib.types.str;
             default = null;

@@ -138,6 +138,11 @@ in
           };
           sqlite = lib.mkOption { type = lib.types.listOf lib.types.str; default = [ ]; };
           exclude = lib.mkOption { type = lib.types.listOf lib.types.str; default = [ ]; };
+          mounts = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+            description = "Mounts inside the folder (relative paths) the copy needs: it doesn't run without them, so it never empties the standby's copy of a disk that went away (Gitea's repositories, 2026-11-02).";
+          };
           copyEvery = lib.mkOption {
             type = lib.types.nullOr lib.types.str;
             default = null;
@@ -204,6 +209,7 @@ in
       source = "/srv/ha/${svc}";
       to = s.peer;
       inherit (s) sqlite;
+      requireMounts = s.mounts;
     } // lib.optionalAttrs (s.copyEvery != null) {
       interval = s.copyEvery;
       randomDelay = 0;
