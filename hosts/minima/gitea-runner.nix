@@ -113,6 +113,39 @@ let
       install -d -m 0700 -o ${user} -g ${user} ${home}
       find /private/tmp /private/var/tmp /private/var/folders -mindepth 1 -user ${user} -delete 2>/dev/null
     }
+    # Every process under a PID: its children, theirs, and so on.
+    descendants() {
+      local p
+      for p in $(pgrep -P "$1"); do echo "$p"; descendants "$p"; done
+    }
+    # The runner sometimes stops talking to Gitea partway through a job: Gitea
+    # fails the job after ten quiet minutes, but the runner never exits, takes
+    # no other job, and the loop waited on it for good (macOS releases stuck
+    # for hours, 2026-11-02). A job's steps run as processes under the runner;
+    # once a job has started, a runner with none left for ten minutes, or still
+    # around half an hour past its 3h timeout, is killed, and the loop
+    # registers a fresh one. While it waits for a job it's left alone.
+    watchdog() {
+      local sudo_pid=$1 runner started="" idle_since=""
+      while kill -0 "$sudo_pid" 2>/dev/null; do
+        sleep 60
+        runner=$(pgrep -P "$sudo_pid" | head -n 1)
+        [ -n "$runner" ] || continue
+        if [ -n "$(descendants "$runner")" ]; then
+          started=''${started:-$SECONDS}
+          idle_since=""
+        elif [ -n "$started" ]; then
+          idle_since=''${idle_since:-$SECONDS}
+        fi
+        [ -n "$started" ] || continue
+        if [ $((SECONDS - started)) -gt $((3 * 3600 + 1800)) ] \
+          || { [ -n "$idle_since" ] && [ $((SECONDS - idle_since)) -gt 600 ]; }; then
+          echo "$(date '+%F %T') the runner hung on its job; starting a fresh one"
+          pkill -9 -u ${user} 2>/dev/null
+          return
+        fi
+      done
+    }
     while true; do
       if [ ! -s ${ctl}/token ]; then sleep 60; continue; fi
       if ! fence; then
@@ -129,7 +162,9 @@ let
         sleep 60; continue
       fi
       sudo -u ${user} -H --preserve-env=PATH /usr/sbin/taskpolicy -b \
-        /usr/bin/sandbox-exec -f ${sandbox} ${runner} daemon --once --config ${config}
+        /usr/bin/sandbox-exec -f ${sandbox} ${runner} daemon --once --config ${config} &
+      watchdog $!
+      wait
       sleep 5
     done
   '';
