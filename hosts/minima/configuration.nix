@@ -15,6 +15,15 @@
   # purpose-limited keys for borgworker stay in that user's own file.
   users.users.radu.openssh.authorizedKeys.keys =
     builtins.attrValues (import ../../lib/admin-ssh-keys.nix);
+  # Keys only, like the NixOS hosts: sshd offered passwords (macOS's PAM)
+  # on the Mac that holds every machine's Borg backups. Unlocking FileVault
+  # over SSH after a reboot happens before the data volume (and this file) is
+  # there, so it shouldn't be affected; check it at the next reboot.
+  services.openssh.extraConfig = ''
+    PasswordAuthentication no
+    KbdInteractiveAuthentication no
+    PermitRootLogin no
+  '';
   networking.hostName = "minima";
 
   nix.enable = true;
