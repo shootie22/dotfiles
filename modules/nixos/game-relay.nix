@@ -16,7 +16,9 @@ let
   default = mesh.thinkcentre.ip;
   ports = [
     { port = 6767;  proto = "tcp"; name = "Minecraft HC"; service = "minecraft-hc"; }
-    { port = 51751; proto = "tcp"; name = "Minecraft HC SFTP"; service = "minecraft-hc"; }
+    # Not Minecraft HC's SFTP (51751): a password login onto the world, so it's
+    # tailnet only now, on the node that runs it (infrastructure security
+    # audit, 2026-11-03).
     { port = 25565; proto = "tcp"; name = "Minecraft Skyblock"; service = "minecraft-skyblock"; }
     { port = 19132; proto = "udp"; name = "Minecraft Bedrock"; service = "minecraft-skyblock"; }
     { port = 24545; proto = "udp"; name = "MegaBopl3D"; service = "megabopl3d"; }
