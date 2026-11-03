@@ -1,37 +1,57 @@
 # fuji pushes an update-YYYY-MM-DD branch with a new flake.lock once a week
-# (modules/nixos/weekly-update.nix). This turns it into a pull request whose
+# (modules/nixos/weekly-update). This turns it into a pull request whose
 # description is the report in the commit message, and closes last week's if
 # it was never merged. Uses only GitHub's built-in token.
+#
+# It runs on a schedule, so it's always main's copy of this file. On push it
+# ran the pushed branch's copy, and fuji's deploy key can push any branch, so
+# root on fuji could have rewritten what this does (security audit,
+# infrastructure repo, 2026-11-03). A branch that changes anything but
+# flake.lock gets no pull request, and the run fails so it shows.
 name: Weekly update PR
 
 on:
-  push:
-    branches: ["update-*"]
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
 
 permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: weekly-update-pr
+
 jobs:
   pr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       - name: Open the pull request, close older ones
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.ref_name }}
         run: |
-          title=$(git log -1 --format=%s)
-          git log -1 --format=%b > body.md
-          for old in $(gh pr list --state open --json headRefName,number \
-              --jq ".[] | select(.headRefName | startswith(\"update-\")) | select(.headRefName != \"$BRANCH\") | .number"); do
-            gh pr close "$old" --delete-branch --comment "Replaced by the update from $BRANCH."
-          done
-          if gh pr view "$BRANCH" >/dev/null 2>&1; then
-            gh pr edit "$BRANCH" --title "$title" --body-file body.md
-          else
-            gh pr create --head "$BRANCH" --base main --title "$title" --body-file body.md
+          branch=$(git branch -r --format='%(refname:lstrip=3)' --list 'origin/update-*' | sort | tail -1)
+          if [ -z "$branch" ]; then echo "no update branch"; exit 0; fi
+          if git merge-base --is-ancestor "origin/$branch" origin/main; then
+            echo "$branch is merged already"; exit 0
           fi
+          changed=$(git diff --name-only "origin/main...origin/$branch")
+          if [ "$changed" != "flake.lock" ]; then
+            echo "::error::$branch changes more than flake.lock: $(echo "$changed" | tr "\n" " ")"
+            exit 1
+          fi
+          title=$(git log -1 --format=%s "origin/$branch")
+          git log -1 --format=%b "origin/$branch" > body.md
+          for old in $(gh pr list --state open --json headRefName,number \
+              --jq ".[] | select(.headRefName | startswith(\"update-\")) | select(.headRefName != \"$branch\") | .number"); do
+            gh pr close "$old" --delete-branch --comment "Replaced by the update from $branch."
+          done
+          existing=$(gh pr list --head "$branch" --state all --json number,state --jq '.[0] // empty | "\(.number) \(.state)"')
+          case "$existing" in
+            *OPEN) gh pr edit "${existing% *}" --title "$title" --body-file body.md ;;
+            "") gh pr create --head "$branch" --base main --title "$title" --body-file body.md ;;
+            *) echo "$branch had a pull request that was closed; leaving it" ;;
+          esac
