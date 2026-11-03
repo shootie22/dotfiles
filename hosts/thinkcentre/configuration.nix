@@ -360,12 +360,9 @@
     extraArgs = [ "--remote-path=/opt/homebrew/bin/borg" ];
     extraCreateArgs = [ "--stats" ];
     readWritePaths = [ "/home/thinkcentre-borg-cache" ];
-    prune.keep = {
-      daily = 7;
-      weekly = 4;
-      monthly = 6;
-      yearly = 1;
-    };
+    # No prune here: this key may only append on the Mac, which thins the
+    # archives out itself (hosts/minima/borg-prune.nix), so a compromised
+    # server can't delete its backups.
     # Borg exits 1 for warnings, and a game world always changes while it's
     # read; that's still a good archive. With the default, the job stopped
     # right after creating it: the archive kept its ".failed" name and prune
