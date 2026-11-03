@@ -8,10 +8,15 @@
     ../../modules/nixos/dotfiles-sync.nix
     ../../modules/nixos/game-streaming.nix
     ../../modules/nixos/gc.nix
+    ../../modules/nixos/desktop-prebuild.nix
   ];
 
   # Keep ~/git/dotfiles in step with GitHub (fetch, fast-forward when clean).
   dotfiles.sync = { enable = true; user = "nixa"; path = "/home/nixa/git/dotfiles"; };
+
+  # Builds this machine's and nixpad's systems from main in the background,
+  # so rebuilding after an update is quick (fuji no longer builds desktops).
+  dotfiles.desktopPrebuild.enable = true;
 
   # Boot ----------------------------------------------------------------------
   boot.loader.systemd-boot.enable = true;

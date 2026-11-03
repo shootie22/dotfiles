@@ -31,18 +31,9 @@ in
     nix.settings.cores = 2;
     nix.settings.max-jobs = 1;
 
-    # The desktops use these caches; without them fuji would compile codex and
-    # the CachyOS kernel itself every week.
-    nix.settings.extra-substituters = [
-      "https://cache.numtide.com"
-      "https://noctalia.cachix.org"
-      "https://nyx-cache.chaotic.cx/"
-    ];
-    nix.settings.extra-trusted-public-keys = [
-      "niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g="
-      "noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
-      "nyx-cache.chaotic.cx:dJxTrgMC3V3cFfyIiBQDQorG6k1LsqurH/srpMSq7qk="
-    ];
+    # No third-party binary caches here: they were for the desktops, which
+    # fuji doesn't build any more, and every build on fuji (comin's too)
+    # would trust them.
 
     systemd.services.weekly-update = {
       description = "Propose a flake.lock update as a pull request";
