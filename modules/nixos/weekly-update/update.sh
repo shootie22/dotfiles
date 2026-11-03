@@ -25,13 +25,19 @@ notify() {
 # silence means the job didn't run or didn't finish. Failures alert through
 # the relay instead.
 done_ok() { curl -fsS -m 10 --retry 3 -o /dev/null "$(cat "$CREDENTIALS_DIRECTORY/ping_url")" || echo "healthchecks.io unreachable"; }
+# Anything else that stops the script (set -e) alerts too; healthchecks.io only
+# notices a week later, and its alerts go to Pushover, which is off.
+trap 'notify "Weekly update failed" "Line $LINENO of update.sh failed. journalctl -u weekly-update on fuji."' ERR
 build() { nix build --no-link --print-out-paths ".#nixosConfigurations.$1.config.system.build.toplevel"; }
 ver() { nix eval --raw ".#nixosConfigurations.$1.$2" 2>/dev/null || echo "?"; }
 
 [[ -d $work/.git ]] || git clone -q "$repo" "$work"
 cd "$work"
 git fetch -q origin
-git checkout -q -B main origin/main
+# -f: a run that stopped halfway leaves a changed flake.lock behind, and a
+# plain checkout refuses to overwrite it (the 2026-10-31 run failed on
+# that).
+git checkout -q -f -B main origin/main
 git reset -q --hard origin/main
 git clean -qfdx
 
@@ -66,7 +72,7 @@ new_kernel=$(ver fuji config.boot.kernelPackages.kernel.version)
 {
   echo "Built every x86_64 host with the new versions, and evaluated minima-vm. mixi isn't checked here (its config needs --impure)."
   echo
-  echo "Merging rolls it out: the edge, fuji, mixi and minima update themselves through comin; the desktops on their next rebuild. The thinkcentre is built here but still runs Debian."
+  echo "Merging rolls it out: the edge, fuji, mixi, the thinkcentre and minima update themselves through comin; the desktops on their next rebuild. A new kernel needs a reboot by hand on fuji, mixi and the thinkcentre (their disks are unlocked by hand); the edge and minima reboot into it at 04:00."
   echo
   minor() { cut -d. -f1,2 <<<"$1"; }
   if [[ $(minor "$old_k3s") != $(minor "$new_k3s") ]]; then
