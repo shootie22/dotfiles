@@ -44,7 +44,6 @@ inputs.nixpkgs-nixpad.lib.nixosSystem {
       # Boot speed: systemd initrd with an uncompressed, minimal module set,
       # the systemd-native user/etc activation, and nothing a throwaway
       # headless VM does not need.
-      boot.initrd.systemd.enable = true;
       boot.initrd.compressor = "cat";
       boot.initrd.includeDefaultModules = false;
       services.userborn.enable = true;

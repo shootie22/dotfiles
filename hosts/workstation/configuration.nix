@@ -30,7 +30,6 @@
   boot.initrd.kernelModules = [ "amdgpu" ];   # native-resolution splash on the AMD GPU
   boot.kernelParams = [ "quiet" "splash" ];
   boot.consoleLogLevel = 0;
-  boot.initrd.verbose = false;
 
   boot.initrd.luks.devices."luks-b7687213-f176-4061-9b7e-ffabdec4f615".device =
     "/dev/disk/by-uuid/b7687213-f176-4061-9b7e-ffabdec4f615";
@@ -96,7 +95,6 @@
   # Early boot has its own network stack; NetworkManager starts after unlock.
   boot.initrd.availableKernelModules = [ "e1000e" ];
   boot.initrd.systemd = {
-    enable = true;
     network = {
       enable = true;
       networks."10-eno1" = {
