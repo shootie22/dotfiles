@@ -40,7 +40,7 @@ antigravity-cli
 supertuxkart
 kdePackages.ark
 high-tide
-onlyoffice-desktopeditors
+libreoffice-fresh
 nh
 gnutar
 
