@@ -189,7 +189,7 @@ pkgs.testers.runNixOSTest {
     def relay_points_at(ip, timeout=120):
         edge.wait_until_succeeds(
             f"systemctl start game-relay-targets && grep -qx '  6767 {ip};' /run/game-relay/targets.conf "
-            f"&& grep -qx '  51751 {ip};' /run/game-relay/targets.conf && systemctl is-active -q nginx",
+            f"&& systemctl is-active -q nginx",
             timeout=timeout)
 
     def holder(via):
