@@ -18,8 +18,8 @@ jobs:
     outputs:
       names: ${{ steps.list.outputs.names }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: cachix/install-nix-action@v31
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
       - id: list
         run: echo "names=$(nix eval --json .#nixosConfigurations --apply builtins.attrNames)" >> "$GITHUB_OUTPUT"
 
@@ -31,8 +31,8 @@ jobs:
       matrix:
         host: ${{ fromJSON(needs.hosts.outputs.names) }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: cachix/install-nix-action@v31
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
       # Private inputs on git.yeetus.net (cube-calendar): nix fetches them
       # with git, which reads the token from here. A read-only Gitea token.
       - name: git.yeetus.net token
