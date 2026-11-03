@@ -158,7 +158,6 @@
   # jumping through mixi), or through the edge once the initrd tunnel is on.
   boot.initrd.availableKernelModules = [ "e1000e" ];
   boot.initrd.systemd = {
-    enable = true;
     network = {
       enable = true;
       networks."10-lan" = {

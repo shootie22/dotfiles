@@ -175,7 +175,6 @@
   # Early boot has its own network stack; NetworkManager starts after unlock.
   boot.initrd.availableKernelModules = [ "e1000e" ];
   boot.initrd.systemd = {
-    enable = true;
     network = {
       enable = true;
       networks."10-eno1" = {

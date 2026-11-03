@@ -64,7 +64,6 @@
 
   boot.initrd.luks.devices.encrypted = {
     device = "/dev/disk/by-uuid/f6134f5f-d5e9-42f6-b3b8-2d5d172389d5";
-    preLVM = true;
   };
 
   # Unlock over Ethernet: ssh -t -p 2222 root@<LAN-IP> systemctl default
@@ -72,7 +71,6 @@
   boot.initrd = {
     availableKernelModules = [ "tg3" ];
     systemd = {
-      enable = true;
       network = {
         enable = true;
         networks."10-ethernet" = {

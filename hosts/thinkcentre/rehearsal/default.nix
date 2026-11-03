@@ -74,7 +74,6 @@ in
     boot.loader.systemd-boot.extraFiles."EFI/debian/shimx64.efi" = pkgs.callPackage ./fake-debian.nix { };
 
     # Network like the thinkcentre: DHCP in the initrd, NetworkManager after.
-    boot.initrd.systemd.enable = true;
     boot.initrd.availableKernelModules = [ "virtio_pci" "virtio_blk" "virtio_net" ];
     boot.initrd.systemd.network = {
       enable = true;
