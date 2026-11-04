@@ -89,7 +89,9 @@
       data = "/srv/standby/thinkcentre/gamevault";
       peer = "thinkcentre";
       cnpg = { namespace = "gamevault"; clusters = [ "gamevault-pg" ]; };
-      exclude = [ "/tmp" ];
+      # The games inbox's uploads and its state (infrastructure
+      # kubernetes/services/games-inbox): a waiting room, not copied.
+      exclude = [ "/tmp" "/inbox" "/.inbox-state" ];
     };
     rybbit-clickhouse = {
       data = "/srv/standby/thinkcentre/rybbit-clickhouse";
