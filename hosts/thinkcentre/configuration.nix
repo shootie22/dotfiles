@@ -98,7 +98,9 @@
       peer = "fuji";
       initial = true;
       cnpg = { namespace = "gamevault"; clusters = [ "gamevault-pg" ]; };
-      exclude = [ "/tmp" ];
+      # The games inbox's uploads and its state (infrastructure
+      # kubernetes/services/games-inbox): a waiting room, not copied.
+      exclude = [ "/tmp" "/inbox" "/.inbox-state" ];
     };
     rybbit-clickhouse = {
       data = "/home/main/services/rybbit/clickhouse";
@@ -358,6 +360,9 @@
       # folder; its covers and save files are kept.
       "/home/main/storage/gamevault/files"
       "/home/main/storage/gamevault/tmp"
+      # The games inbox: uploads waiting to be looked at.
+      "/home/main/storage/gamevault/inbox"
+      "/home/main/storage/gamevault/.inbox-state"
     ];
     repo = "ssh://borgworker@100.64.0.3/Volumes/Expansion/borg_repos/server-backups";
     doInit = false;
