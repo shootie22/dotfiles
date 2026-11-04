@@ -363,6 +363,9 @@
       # The games inbox: uploads waiting to be looked at.
       "/home/main/storage/gamevault/inbox"
       "/home/main/storage/gamevault/.inbox-state"
+      # Send's uploads (infrastructure kubernetes/services/send/README.md):
+      # end-to-end encrypted, gone after 14 days, never backed up.
+      "/home/main/storage/send-uploads"
     ];
     repo = "ssh://borgworker@100.64.0.3/Volumes/Expansion/borg_repos/server-backups";
     doInit = false;
