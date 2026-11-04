@@ -88,6 +88,18 @@
       initial = true;
       cnpg = { namespace = "mealie"; clusters = [ "mealie-pg" ]; };
     };
+    # games.yeetus.net (GameVault): the games, covers and save files, on the
+    # 4 TB disk; its Postgres primary follows it. tmp/ is where it packs a
+    # game for a download, not worth copying. The folder is made by hand
+    # (infrastructure kubernetes/services/gamevault/README.md), so it isn't
+    # there while the disk isn't mounted.
+    gamevault = {
+      data = "/home/main/storage/gamevault";
+      peer = "fuji";
+      initial = true;
+      cnpg = { namespace = "gamevault"; clusters = [ "gamevault-pg" ]; };
+      exclude = [ "/tmp" ];
+    };
     rybbit-clickhouse = {
       data = "/home/main/services/rybbit/clickhouse";
       peer = "fuji";
@@ -342,6 +354,10 @@
       "/home/docker" # CI images and build layers
       "/home/thinkcentre-borg-cache"
       "/home/lost+found"
+      # GameVault's games (they can be downloaded again) and its packing
+      # folder; its covers and save files are kept.
+      "/home/main/storage/gamevault/files"
+      "/home/main/storage/gamevault/tmp"
     ];
     repo = "ssh://borgworker@100.64.0.3/Volumes/Expansion/borg_repos/server-backups";
     doInit = false;

@@ -83,6 +83,14 @@
       peer = "thinkcentre";
       cnpg = { namespace = "mealie"; clusters = [ "mealie-pg" ]; };
     };
+    # games.yeetus.net (GameVault); on the root disk for now, which holds
+    # about 150 GB of games (infrastructure docs/ha/decisions.md, 2026-11-04).
+    gamevault = {
+      data = "/srv/standby/thinkcentre/gamevault";
+      peer = "thinkcentre";
+      cnpg = { namespace = "gamevault"; clusters = [ "gamevault-pg" ]; };
+      exclude = [ "/tmp" ];
+    };
     rybbit-clickhouse = {
       data = "/srv/standby/thinkcentre/rybbit-clickhouse";
       peer = "thinkcentre";
