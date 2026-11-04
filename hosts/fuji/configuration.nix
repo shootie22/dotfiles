@@ -141,6 +141,10 @@
     requireMount = "/srv/standby";
   };
 
+  # New DNS records from the infrastructure repo get applied by themselves
+  # (modules/nixos/tofu-apply); its deploy key is secrets/tofu-apply.yaml.
+  dotfiles.tofuApply.enable = true;
+
   # Boot ----------------------------------------------------------------------
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
