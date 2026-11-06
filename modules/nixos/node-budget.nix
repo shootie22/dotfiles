@@ -79,10 +79,12 @@ in
     };
 
     # IOWeight above, and the idle IO class Borg and the standby copies ask
-    # for, only work under BFQ; the default schedulers ignore them. Setting
-    # it loads the module.
+    # for, only work under BFQ; the default schedulers ignore them. Spinning
+    # disks only (the thinkcentre's 4 TB): on NVMe BFQ costs CPU and adds
+    # latency etcd would feel, so those keep "none". Setting it loads the
+    # module.
     services.udev.extraRules = ''
-      ACTION=="add|change", KERNEL=="sd[a-z]|nvme[0-9]n[0-9]|vd[a-z]", ATTR{queue/scheduler}="bfq"
+      ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", ATTR{queue/scheduler}="bfq"
     '';
   };
 }
