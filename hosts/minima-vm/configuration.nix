@@ -7,6 +7,7 @@
     ../../modules/nixos/k3s-dns.nix
     ../../modules/nixos/k3s-eviction.nix
     ../../modules/nixos/comin.nix
+    ../../modules/nixos/server-housekeeping.nix
     ../../modules/nixos/nebula-mesh.nix
     ../../modules/nixos/infra-facts.nix
   ];

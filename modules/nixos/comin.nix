@@ -38,6 +38,11 @@ in
       # Prometheus on fuji scrapes this over the tailnet (infrastructure
       # #49): alerts when a deployment, build or evaluation fails.
       exporter.port = 4243;
+      # mixi (Asahi) and minima-vm (patched kernel) compile their own kernel
+      # after every nixpkgs update, which takes longer than comin's default
+      # of 30 minutes. Cancelled at 30 minutes, neither deployed the
+      # 2026-11-03 update; they retried on every new commit instead.
+      buildTimeout = 6 * 3600;
     };
 
     # tailscale0 for the other hosts; cni0 for fuji, where Prometheus runs in
