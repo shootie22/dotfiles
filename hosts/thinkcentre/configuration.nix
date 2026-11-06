@@ -102,6 +102,18 @@
       # kubernetes/services/games-inbox): a waiting room, not copied.
       exclude = [ "/tmp" "/inbox" "/.inbox-state" ];
     };
+    # The new GameVault's server (infrastructure kubernetes/services/games):
+    # every game, save and screenshot as encrypted blobs, on the 4 TB disk;
+    # its Postgres primary follows it. blobs/tmp holds uploads in progress,
+    # not worth copying. The folder is made by hand (that service's
+    # README.md), so it isn't there while the disk isn't mounted.
+    games = {
+      data = "/home/main/storage/games";
+      peer = "fuji";
+      initial = true;
+      cnpg = { namespace = "games"; clusters = [ "games-pg" ]; };
+      exclude = [ "/blobs/tmp" ];
+    };
     rybbit-clickhouse = {
       data = "/home/main/services/rybbit/clickhouse";
       peer = "fuji";

@@ -93,6 +93,13 @@
       # kubernetes/services/games-inbox): a waiting room, not copied.
       exclude = [ "/tmp" "/inbox" "/.inbox-state" ];
     };
+    # The new GameVault's server (infrastructure kubernetes/services/games).
+    games = {
+      data = "/srv/standby/thinkcentre/games";
+      peer = "thinkcentre";
+      cnpg = { namespace = "games"; clusters = [ "games-pg" ]; };
+      exclude = [ "/blobs/tmp" ];
+    };
     rybbit-clickhouse = {
       data = "/srv/standby/thinkcentre/rybbit-clickhouse";
       peer = "thinkcentre";
