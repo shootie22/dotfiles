@@ -190,5 +190,9 @@
   # Staged deploys (modules/nixos/deploy-stages): the front door and etcd's third vote: last, after fuji has run a commit for 30 minutes.
   dotfiles.deployStages.upstream = [ "fuji" ];
 
+  # Memory: 1 GiB for the OS, k3s and etcd, 1.25 GiB for comin's builds
+  # (modules/nixos/node-budget.nix). Pods here are small.
+  dotfiles.nodeBudget = { coreMiB = 1024; hostWorkMiB = 1280; evictionMiB = 200; };
+
   system.stateVersion = "26.05";
 }

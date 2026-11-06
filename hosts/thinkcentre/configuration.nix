@@ -409,6 +409,11 @@
     failOnWarnings = false;
   };
 
+  # Memory: 3 GiB for the OS, k3s and etcd; 1.5 GiB for Borg and builds,
+  # which use the zram swap past that; the rest for pods, which use up to
+  # 26 GiB here (modules/nixos/node-budget.nix).
+  dotfiles.nodeBudget = { coreMiB = 3072; hostWorkMiB = 1536; evictionMiB = 768; };
+
   # Keep the version from the machine's original installation. Changing it
   # can alter defaults for stateful services and data formats.
   system.stateVersion = "26.11";
