@@ -89,6 +89,11 @@ in
       default = 512;
       description = "MiB each Kata VM gets on top of its pod's memory limits.";
     };
+    ciIo = {
+      readMBps = lib.mkOption { type = lib.types.ints.positive; default = 150; description = "Disk reads a CI VM may do, MB/s."; };
+      writeMBps = lib.mkOption { type = lib.types.ints.positive; default = 100; description = "Disk writes a CI VM may do, MB/s."; };
+      iops = lib.mkOption { type = lib.types.ints.positive; default = 3000; description = "Read and write operations a CI VM may do per second, each."; };
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -118,6 +123,46 @@ in
       "/usr/sbin/useradd"."L+".argument = "${pkgs.shadow}/bin/useradd";
       "/usr/sbin/userdel"."L+".argument = "${pkgs.shadow}/bin/userdel";
       "/usr/sbin/nologin"."L+".argument = "${pkgs.shadow}/bin/nologin";
+    };
+
+    # Only CI jobs run in Kata VMs (infrastructure ci-runner; its admission
+    # policy refuses a CI pod without it). Memory and CPU are the pod's
+    # limits, but QEMU and virtiofsd could read and write the disk as fast as
+    # it goes, and a cargo or Docker build next to Gitea or Postgres made
+    # them slow (2026-10-30). Kata on QEMU has no disk rate limit, and
+    # kubelet sets none, but QEMU and virtiofsd run in the pod's own cgroup
+    # (sandbox_cgroup_only above), so this caps that cgroup's io.max on the
+    # disks the job's scratch and images live on, for every VM as it starts.
+    # A job gets slower; the node doesn't.
+    systemd.services.kata-ci-io = {
+      description = "Cap the disk I/O of CI VMs";
+      path = [ pkgs.procps pkgs.util-linux pkgs.gawk pkgs.coreutils ];
+      serviceConfig.Type = "oneshot";
+      script = ''
+        limit="rbps=${toString (cfg.ciIo.readMBps * 1000000)} wbps=${toString (cfg.ciIo.writeMBps * 1000000)} riops=${toString cfg.ciIo.iops} wiops=${toString cfg.ciIo.iops}"
+        devs=$(for d in /var/lib/kubelet /var/lib/rancher; do findmnt -no MAJ:MIN -T "$d"; done | sort -u)
+        for pid in $(pgrep '^(qemu-system|virtiofsd)'); do
+          cg=$(awk -F: '$1 == "0" { print $3 }' /proc/$pid/cgroup 2>/dev/null) || continue
+          [ -n "$cg" ] && [ "$cg" != / ] || continue
+          dir=/sys/fs/cgroup$cg
+          # io.max only exists once every parent passes the io controller down.
+          p=/sys/fs/cgroup
+          for part in $(dirname "$cg" | tr / ' '); do
+            grep -qw io "$p/cgroup.subtree_control" || echo +io > "$p/cgroup.subtree_control" 2>/dev/null || true
+            p=$p/$part
+          done
+          grep -qw io "$p/cgroup.subtree_control" || echo +io > "$p/cgroup.subtree_control" 2>/dev/null || true
+          [ -e "$dir/io.max" ] || { echo "no io.max for $dir (pid $pid)"; continue; }
+          for dev in $devs; do
+            grep -q "^$dev .*wbps=${toString (cfg.ciIo.writeMBps * 1000000)}" "$dir/io.max" && continue
+            echo "$dev $limit" > "$dir/io.max" && echo "capped $dir on $dev"
+          done
+        done
+      '';
+    };
+    systemd.timers.kata-ci-io = {
+      wantedBy = [ "timers.target" ];
+      timerConfig = { OnBootSec = "1min"; OnUnitActiveSec = "10s"; AccuracySec = "1s"; };
     };
 
     environment.systemPackages = [ kata ];
