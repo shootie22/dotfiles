@@ -14,7 +14,14 @@ let
   label = "org.nixos.minima-vm";
   plist = "/Library/LaunchDaemons/${label}.plist";
 
-  supervisor = pkgs.writeShellScript "minima-vm-supervisor" ''
+  # Run by the Mac's own /bin/bash, and written with builtins.toFile, so its store
+  # path (and the launchd plist naming it) changes only when this script does,
+  # not with every nixpkgs update. Every change to the plist makes
+  # darwin-rebuild reload the job, and on 2026-11-08 a reload after an update
+  # killed Lima's host agent and left krunkit running without it: the VM had
+  # no network and Lima refused to start it again ("krunkit driver is running
+  # but host agent is not") until krunkit was killed.
+  supervisor = builtins.toFile "minima-vm-supervisor" ''
     set -u
     status() { ${limactl} list ${instance} --format '{{.Status}}' 2>/dev/null; }
 
@@ -67,7 +74,7 @@ let
 in
 {
   # `command` (not ProgramArguments) waits for the /nix/store volume to mount.
-  launchd.daemons.minima-vm.command = "${supervisor}";
+  launchd.daemons.minima-vm.command = "/bin/bash ${supervisor}";
   launchd.daemons.minima-vm.serviceConfig = {
     Label = label;
     UserName = user;
@@ -83,6 +90,12 @@ in
     ThrottleInterval = 30;
     # Time for the guest to power off before launchd sends SIGKILL.
     ExitTimeOut = 120;
+    # On a reload, launchd signals only the supervisor, not its whole
+    # process group: the supervisor's trap powers the guest off through Lima
+    # while Lima's host agent is still there. With the group signalled, the
+    # host agent died first, the guest couldn't be reached to power off, and
+    # krunkit was left running on its own (2026-11-08).
+    AbandonProcessGroup = true;
     StandardOutPath = "${home}/.lima/${instance}/launchd.log";
     StandardErrorPath = "${home}/.lima/${instance}/launchd.log";
   };
