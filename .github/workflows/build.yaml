@@ -1,0 +1,99 @@
+# Builds every host comin deploys, pushes the results to the build cache
+# (Attic on the thinkcentre, modules/nixos/build-cache.nix), and only then
+# moves the `deploy` branch to the commit. comin follows `deploy`, so hosts
+# download systems that were built here and never compile anything
+# themselves, and a commit that doesn't build for every host reaches none.
+#
+# GitHub's runners join the tailnet as headscale user "ci" (secret
+# TS_AUTHKEY, a reusable ephemeral key); the ACL lets that user reach the
+# cache port and nothing else. ATTIC_TOKEN may push to and configure the
+# "dotfiles" cache only. Both were set up with a one-time script on the
+# workstation; the key that signs Attic tokens never leaves it.
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One build at a time, and a newer push waits rather than cancelling: an
+# aarch64 kernel takes a couple of hours, and cancelling it on every push
+# would mean it never finishes. Only the newest waiting push is kept.
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  hosts:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.hosts.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      # Every host with comin, and the runner its system needs.
+      - id: hosts
+        run: |
+          m=$(nix eval --json .#nixosConfigurations --apply 'cs: builtins.filter (x: x != null) (map (n: let c = cs.${n}; in if c.config.services.comin.enable or false then { host = n; system = c.pkgs.stdenv.hostPlatform.system; runner = if c.pkgs.stdenv.hostPlatform.system == "aarch64-linux" then "ubuntu-24.04-arm" else "ubuntu-latest"; } else null) (builtins.attrNames cs))')
+          echo "$m"
+          echo "matrix=$m" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: hosts
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.hosts.outputs.matrix) }}
+    name: build (${{ matrix.host }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 330
+    steps:
+      # A kernel build wants 15-20 GB; the runners come with toolchains we
+      # don't use.
+      - name: Room on the disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache /usr/local/share/boost /usr/local/.ghcup
+          df -h /
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+        with:
+          extra_nix_config: |
+            trusted-users = root runner
+      - uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4.4.0
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+          args: --login-server=https://hs.radunenu.com
+          hostname: ci-${{ matrix.host }}-${{ github.run_id }}
+      - name: The build cache
+        env:
+          ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+        run: |
+          nix profile install nixpkgs#attic-client
+          attic login cache http://100.64.0.4:8199 "$ATTIC_TOKEN"
+          # Made by the first run; public only means the hosts on the tailnet
+          # that the ACL lets in can read it without a token.
+          attic cache info cache:dotfiles >/dev/null 2>&1 || attic cache create cache:dotfiles
+          attic cache configure cache:dotfiles --public
+          attic use cache:dotfiles
+      - name: Build
+        run: |
+          # Everything that finishes goes up as it finishes, so a kernel that
+          # built before something else failed isn't built again next time.
+          attic watch-store cache:dotfiles &
+          nix build .#nixosConfigurations.${{ matrix.host }}.config.system.build.toplevel --out-link result
+          attic push cache:dotfiles ./result
+          kill %1 || true
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      # Fast-forward only: deploy never goes back or sideways.
+      - name: Move deploy to this commit
+        run: git push origin "${GITHUB_SHA}:refs/heads/deploy"
