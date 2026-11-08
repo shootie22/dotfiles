@@ -24,6 +24,7 @@
     ../../modules/nixos/data-delete.nix
     ../../modules/nixos/tailnet-https.nix
     ../../modules/nixos/kata.nix
+    ../../modules/nixos/build-cache.nix
   ];
 
   # CI jobs run in Kata VMs (modules/nixos/kata.nix, infrastructure
@@ -145,6 +146,10 @@
   # Tailnet HTTPS to the private tools proxy (modules/nixos/tailnet-https.nix),
   # a second copy of fuji's (infrastructure #149).
   dotfiles.tailnetHttps = { enable = true; address = "100.64.0.4"; };
+
+  # The dotfiles build cache (modules/nixos/build-cache.nix), its store on the
+  # 4 TB disk.
+  dotfiles.buildCache.server.enable = true;
 
   # The receiving side for fuji's copies (infrastructure #142).
   dotfiles.standbyCopy.receive = { enable = true; dir = "/home/standby"; from = [ "fuji" ]; };
