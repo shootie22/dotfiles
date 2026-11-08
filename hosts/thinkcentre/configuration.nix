@@ -24,7 +24,6 @@
     ../../modules/nixos/data-delete.nix
     ../../modules/nixos/tailnet-https.nix
     ../../modules/nixos/kata.nix
-    ../../modules/nixos/build-cache.nix
   ];
 
   # CI jobs run in Kata VMs (modules/nixos/kata.nix, infrastructure

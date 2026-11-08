@@ -28,6 +28,8 @@
   # Deployed by comin from this repo. No automatic kernel reboots: the disk
   # has to be unlocked by hand after a reboot (infrastructure #136).
   dotfiles.comin.rebootAt = null;
+  # Never compiles anything: its Asahi kernel comes from the build cache.
+  dotfiles.buildCache.neverBuild = true;
   users.motd = "mixi: deployed by comin from github.com/shootie22/dotfiles. Change it there, not here.\n";
 
   # Apple Silicon ------------------------------------------------------------
@@ -104,8 +106,6 @@
   # Nix ----------------------------------------------------------------------
   nix.settings = {
     experimental-features = [ "nix-command" "flakes" ];
-    max-jobs = 1;
-    cores = 4;
   };
   nixpkgs.config.allowUnfree = true;
 

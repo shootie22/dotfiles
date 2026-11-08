@@ -75,7 +75,8 @@ jobs:
           attic login cache http://100.64.0.4:8199 "$ATTIC_TOKEN"
           # Made by the first run; public only means the hosts on the tailnet
           # that the ACL lets in can read it without a token.
-          attic cache info cache:dotfiles >/dev/null 2>&1 || attic cache create cache:dotfiles
+          # Several runners get here at once, so one create may lose the race.
+          attic cache create cache:dotfiles 2>/dev/null || attic cache info cache:dotfiles >/dev/null
           attic cache configure cache:dotfiles --public
           attic use cache:dotfiles
       - name: Build
