@@ -13,6 +13,8 @@
 { ... }:
 
 {
+  imports = [ ./node-budget.nix ];
+
   services.k3s.extraFlags = [
     "--kubelet-arg=eviction-minimum-reclaim=imagefs.available=2Gi,nodefs.available=2Gi"
   ];

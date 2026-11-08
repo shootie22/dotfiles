@@ -224,6 +224,11 @@
     mode = "0400";
   };
 
+  # Memory: 1.25 GiB for the OS and k3s, 1.25 GiB for builds (the kernel
+  # build goes on into swap past that), the rest for pods
+  # (modules/nixos/node-budget.nix).
+  dotfiles.nodeBudget = { coreMiB = 1280; hostWorkMiB = 1280; evictionMiB = 300; };
+
   # Keep the version from the machine's original installation. Changing it
   # can alter defaults for stateful services and data formats.
   system.stateVersion = "26.11";

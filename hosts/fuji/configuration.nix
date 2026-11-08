@@ -550,5 +550,10 @@
   # Staged deploys (modules/nixos/deploy-stages): RO's entrance: after both DK hosts have run a commit for 30 minutes.
   dotfiles.deployStages.upstream = [ "thinkcentre" "mixi" ];
 
+  # Memory: 4 GiB for the OS, k3s and etcd; 6 GiB for builds and Borg
+  # (the 2026-11-03 update build peaked at 12 GiB outside pods); the rest for
+  # pods (modules/nixos/node-budget.nix).
+  dotfiles.nodeBudget = { coreMiB = 4096; hostWorkMiB = 6144; evictionMiB = 1024; };
+
   system.stateVersion = "26.05";
 }

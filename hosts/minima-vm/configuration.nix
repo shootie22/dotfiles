@@ -217,5 +217,11 @@
   # Staged deploys (modules/nixos/deploy-stages): RO: after both DK hosts have run a commit for 30 minutes.
   dotfiles.deployStages.upstream = [ "thinkcentre" "mixi" ];
 
+  # Memory: 1.25 GiB for the OS and k3s, 1.5 GiB for builds, the rest for
+  # pods (modules/nixos/node-budget.nix). The kernel build goes on into
+  # compressed swap past its 1.5 GiB instead of failing.
+  dotfiles.nodeBudget = { coreMiB = 1280; hostWorkMiB = 1536; evictionMiB = 300; };
+  zramSwap.enable = true;
+
   system.stateVersion = "26.05";
 }
