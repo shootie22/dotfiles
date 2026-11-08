@@ -105,9 +105,13 @@
       peer = "thinkcentre";
       clickhouse = { namespace = "rybbit"; app = "rybbit-clickhouse"; };
     };
+    # Home here since 2026-11-08: with honest requests the thinkcentre has no
+    # room for all three Minecraft servers next to its services (2.5 GiB of
+    # 26 GiB too many, infrastructure #451), and fuji has.
     minecraft-hc = {
       data = "/srv/standby/thinkcentre/minecraft-hc";
       peer = "thinkcentre";
+      initial = true;
       minecraft = { namespace = "minecraft-hc"; app = "minecraft-hc"; };
     };
     minecraft-skyblock = {

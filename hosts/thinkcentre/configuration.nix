@@ -122,10 +122,11 @@
       clickhouse = { namespace = "rybbit"; app = "rybbit-clickhouse"; };
     };
     # Game worlds; the Minecraft ones save over RCON before each copy.
+    # Home on fuji since 2026-11-08 (see fuji's configuration); this is the
+    # standby copy now.
     minecraft-hc = {
       data = "/home/main/services/minecraft-hc-aug2026-nl/server";
       peer = "fuji";
-      initial = true;
       minecraft = { namespace = "minecraft-hc"; app = "minecraft-hc"; };
     };
     minecraft-skyblock = {
