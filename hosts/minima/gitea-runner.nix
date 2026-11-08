@@ -206,6 +206,13 @@ in
     RunAtLoad = true;
     KeepAlive = true;
     ThrottleInterval = 30;
+    # The runner and every job it starts (they inherit it) run as background
+    # work: macOS keeps them on the efficiency cores with low disk priority,
+    # so a macOS build can't take the performance cores from minima-vm, the
+    # k3s node running on this same Mac. Builds get slower, nothing else does.
+    ProcessType = "Background";
+    LowPriorityIO = true;
+    Nice = 10;
     EnvironmentVariables = {
       # node for actions/checkout and other JS actions; nix for jobs that
       # build through a flake; Apple's clang and friends from /usr/bin.

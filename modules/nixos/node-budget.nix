@@ -32,6 +32,16 @@ let
       "nodefs.available" = "5%";
       "imagefs.available" = "5%";
     };
+    # Unused images go when the disk holding them passes 70% and until it's
+    # back under 55%, not at kubelet's 85%: on mixi and minima, / also holds
+    # the Nix store and the CI job's scratch, so by 85% something else had
+    # already run out (NodeFilesystemFillingUp, CISlotHeldBack, 2026-11-06).
+    imageGCHighThresholdPercent = 70;
+    imageGCLowThresholdPercent = 55;
+    # Processes and threads per pod. The most any pod used in a week was
+    # about 1400 (ClickHouse); this stops a fork bomb in one pod long before
+    # the node runs out.
+    podPidsLimit = 8192;
   });
 
   hostWorkUnits =
@@ -58,6 +68,12 @@ in
 
   config = {
     services.k3s.extraFlags = [ "--kubelet-arg=config=${kubeletConfig}" ];
+
+    # The host's own services (k3s and etcd, containerd, sshd, tailscale,
+    # comin) get four times the pods' CPU share when the CPU is contended,
+    # so a pod using every core can't make the node itself slow to answer.
+    # Builds and backups are in host-work.slice below, not here.
+    systemd.slices.system.sliceConfig.CPUWeight = 400;
 
     systemd.slices.host-work = {
       description = "Builds and backups: whatever the host does for itself";
