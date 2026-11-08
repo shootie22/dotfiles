@@ -15,6 +15,12 @@
     options = "--delete-older-than 14d";
   };
   nix.settings.auto-optimise-store = true;
+  # A build that's killed (comin's timeout, a reboot) leaves its whole build
+  # folder behind, and nothing removes it: by 2026-11-08 killed kernel builds
+  # had left 138 GB on minima-vm and over 60 GB on mixi, which filled both.
+  # Anything there older than a day goes, at boot and daily (no build here
+  # runs that long: comin gives up after 6 hours).
+  systemd.tmpfiles.rules = [ "e /nix/var/nix/builds - - - 1d" ];
   # Between the weekly runs: when a build or download leaves less than 2 GiB
   # free, Nix deletes unused store paths until 6 GiB are free. Only garbage,
   # never a generation that's still kept.
