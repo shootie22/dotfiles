@@ -138,6 +138,14 @@ let
           test -f "$src/"${lib.escapeShellArg db}
           # Waits up to a minute for the app to let go of a write lock.
           sqlite3 -cmd '.timeout 60000' "$src/"${lib.escapeShellArg db} ".backup '$snap/${db}'"
+          # A damaged database is never copied over the standby's: headscale's
+          # was damaged before 2026-11-08, and the copies spread it to both
+          # sites. The copy fails instead, and the stale-copy alert says so.
+          check=$(sqlite3 "$snap/"${lib.escapeShellArg db} "PRAGMA integrity_check;" | head -3)
+          if [ "$check" != ok ]; then
+            echo ${lib.escapeShellArg db}" fails its integrity check; not copying: $check" >&2
+            exit 1
+          fi
           chown --reference="$src/"${lib.escapeShellArg db} "$snap/"${lib.escapeShellArg db}
           chmod --reference="$src/"${lib.escapeShellArg db} "$snap/"${lib.escapeShellArg db}
         '') job.sqlite}
@@ -152,6 +160,20 @@ let
         # standby only takes over a folder that has one (site-failover.nix).
         # Only the files: the temporary folders' owners and modes must not land
         # on the copy's folders.
+        # The standby's own -wal/-shm/-journal next to each database go
+        # before the snapshot lands: the snapshot is a whole database, and
+        # an old WAL left there (the service killed there mid-write, on a
+        # fence) would be replayed on top of it when the service starts
+        # there. The excludes above kept them from rsync's --delete, so
+        # headscale came up on fuji with a new database and an old WAL:
+        # "database disk image is malformed" (2026-11-08). An empty folder
+        # with only those names included deletes them and nothing else.
+        empty=$(mktemp -d ${stateDir}/empty.XXXXXX)
+        ${lib.concatMapStrings (db: let dir = builtins.dirOf db; base = builtins.baseNameOf db; in ''
+          rsync -r --delete ${lib.concatMapStringsSep " " (x: "--include=${lib.escapeShellArg "/${base}${x}"}") [ "-wal" "-shm" "-journal" ]} --exclude='*' \
+            -e "$ssh" "$empty/" ${target}:${name}/${lib.optionalString (dir != ".") "${dir}/"}
+        '') job.sqlite}
+        rmdir "$empty"
         date +%s > "$snap/.standby-copy-ok"
         (cd "$snap" && find . -type f -printf '%P\n') |
           rsync -aH --numeric-ids --no-implied-dirs --files-from=- -e "$ssh" "$snap/" ${target}:${name}/
