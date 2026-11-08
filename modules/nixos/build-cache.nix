@@ -22,9 +22,33 @@ let
   storage = "/home/main/storage/attic";
 in
 {
-  options.dotfiles.buildCache.server.enable = lib.mkEnableOption "the Attic build cache on this host";
+  options.dotfiles.buildCache = {
+    server.enable = lib.mkEnableOption "the Attic build cache on this host";
+    # On every host comin deploys (comin.nix turns it on).
+    client.enable = lib.mkEnableOption "downloading from the build cache";
+    # mixi and minima-vm: a missing path fails the deploy (and comin's
+    # alert says so) instead of compiling a kernel for hours on a small
+    # machine. CI built everything "deploy" points at, so nothing is missing
+    # unless the cache is down.
+    neverBuild = lib.mkEnableOption "never building locally, only downloading";
+  };
 
-  config = lib.mkIf cfg.server.enable {
+  config = lib.mkMerge [
+  (lib.mkIf cfg.client.enable {
+    nix.settings = {
+      extra-substituters = [ "http://100.64.0.4:8199/dotfiles" ];
+      extra-trusted-public-keys = [ "dotfiles:n6zzgYcPpY2ekVg0yg5uNp9MAqrnrGe5wUaj9fiNZtE=" ];
+      # Some derivations ask not to be downloaded (small files NixOS writes);
+      # CI pushed those too, so take them from the cache like the rest.
+      always-allow-substitutes = true;
+      # A cache that doesn't answer is skipped quickly, not waited on.
+      connect-timeout = 5;
+    };
+  })
+  (lib.mkIf cfg.neverBuild {
+    nix.settings.max-jobs = lib.mkForce 0;
+  })
+  (lib.mkIf cfg.server.enable {
     services.atticd = {
       enable = true;
       # Not secret: the public half only. A token made with the private half
@@ -61,5 +85,6 @@ in
     };
 
     networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 8199 ];
-  };
+  })
+  ];
 }

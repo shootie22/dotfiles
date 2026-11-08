@@ -145,6 +145,9 @@
 
   # Apple Silicon hosts use 16 KiB pages. Venus/krunkit needs the
   # guest to use 16 KiB pages too for GPU blob mappings.
+  # Never compiles anything: its 16K-page kernel comes from the build cache.
+  dotfiles.buildCache.neverBuild = true;
+
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelPatches = [
     {

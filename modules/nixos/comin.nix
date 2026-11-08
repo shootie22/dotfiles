@@ -1,5 +1,9 @@
-# Deploys this machine from the dotfiles repo: comin checks main every 60
-# seconds and switches to the new config. Kernel changes need a reboot, which
+# Deploys this machine from the dotfiles repo: comin checks the branch
+# "deploy" every 60 seconds and switches to the new config. GitHub Actions
+# moves "deploy" to a commit of main only once every host built and its
+# system is in the build cache (.github/workflows/build.yaml,
+# build-cache.nix), so this host downloads its system rather than building
+# it, and a commit that doesn't build for every host reaches none. Kernel changes need a reboot, which
 # comin doesn't do, so a nightly timer reboots when the running kernel is
 # older than the deployed one. See docs/ha/decisions.md in the
 # infrastructure repo.
@@ -13,7 +17,7 @@ in
   # by itself (switch-guard.nix), and hosts with upstream hosts deploy a
   # commit only after those have run it healthy (deploy-stages)
   # (infrastructure incident 2026-10-14).
-  imports = [ ./switch-guard.nix ./deploy-stages ];
+  imports = [ ./switch-guard.nix ./deploy-stages ./build-cache.nix ];
 
   options.dotfiles.comin.rebootAt = lib.mkOption {
     type = lib.types.nullOr lib.types.str;
@@ -27,13 +31,14 @@ in
 
   config = {
     dotfiles.switchGuard.enable = lib.mkDefault true;
+    dotfiles.buildCache.client.enable = lib.mkDefault true;
 
     services.comin = {
       enable = true;
       remotes = [{
         name = "origin";
         url = "https://github.com/shootie22/dotfiles.git";
-        branches.main.name = "main";
+        branches.main.name = "deploy";
       }];
       # Prometheus on fuji scrapes this over the tailnet (infrastructure
       # #49): alerts when a deployment, build or evaluation fails.
