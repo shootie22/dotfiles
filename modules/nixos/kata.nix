@@ -136,11 +136,17 @@ in
     # A job gets slower; the node doesn't.
     systemd.services.kata-ci-io = {
       description = "Cap the disk I/O of CI VMs";
-      path = [ pkgs.procps pkgs.util-linux pkgs.gawk pkgs.coreutils ];
+      path = [ pkgs.procps pkgs.util-linux pkgs.gawk pkgs.coreutils pkgs.gnused ];
       serviceConfig.Type = "oneshot";
       script = ''
         limit="rbps=${toString (cfg.ciIo.readMBps * 1000000)} wbps=${toString (cfg.ciIo.writeMBps * 1000000)} riops=${toString cfg.ciIo.iops} wiops=${toString cfg.ciIo.iops}"
-        devs=$(for d in /var/lib/kubelet /var/lib/rancher; do findmnt -no MAJ:MIN -T "$d"; done | sort -u)
+        # The block device under each filesystem, not the filesystem's own
+        # number: on btrfs (fuji) that's an anonymous 0:N, which io.max
+        # refuses ("No such device").
+        devs=$(for d in /var/lib/kubelet /var/lib/rancher; do
+          src=$(findmnt -no SOURCE -T "$d" | sed 's/\[.*\]$//')
+          lsblk -dno MAJ:MIN "$src" 2>/dev/null | tr -d ' '
+        done | sort -u)
         for pid in $(pgrep '^(qemu-system|virtiofsd)'); do
           cg=$(awk -F: '$1 == "0" { print $3 }' /proc/$pid/cgroup 2>/dev/null) || continue
           [ -n "$cg" ] && [ "$cg" != / ] || continue
@@ -155,7 +161,9 @@ in
           [ -e "$dir/io.max" ] || { echo "no io.max for $dir (pid $pid)"; continue; }
           for dev in $devs; do
             grep -q "^$dev .*wbps=${toString (cfg.ciIo.writeMBps * 1000000)}" "$dir/io.max" && continue
-            echo "$dev $limit" > "$dir/io.max" && echo "capped $dir on $dev"
+            # A cap that can't be set is logged, never a failed unit: a failed
+            # unit fails the whole deploy in comin's eyes (fuji, 2026-11-08).
+            if echo "$dev $limit" > "$dir/io.max" 2>/dev/null; then echo "capped $dir on $dev"; else echo "couldn't cap $dir on $dev"; fi
           done
         done
       '';
