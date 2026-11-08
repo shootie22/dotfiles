@@ -115,8 +115,11 @@
     device = "nodev";
     efiSupport = true;
     efiInstallAsRemovable = true;
-    # The 250 MB ESP holds a kernel+initrd pair (~90 MB) per distinct kernel.
-    configurationLimit = 5;
+    # The 250 MB ESP holds a kernel+initrd pair (~90 MB) per distinct kernel,
+    # so two at most: the running one and the next. With 5, a kernel update
+    # found it full (2026-11-08), and GRUB copies the new kernel before it
+    # removes old ones, so it couldn't recover by itself.
+    configurationLimit = 2;
   };
 
   fileSystems."/boot" = {
