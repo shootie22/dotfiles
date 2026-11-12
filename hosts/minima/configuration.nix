@@ -4,6 +4,7 @@
   imports = [
     ./lima-vm.nix
     ./vm-backup.nix
+    ./borg-prune.nix
     ./gitea-runner.nix
   ];
 

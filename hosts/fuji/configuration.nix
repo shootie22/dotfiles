@@ -456,11 +456,9 @@
     startAt = "03:30";
     persistentTimer = true;
 
-    prune.keep = {
-      daily = 7;
-      weekly = 4;
-      monthly = 6;
-    };
+    # No prune here: this key may only append on the Mac, which thins the
+    # archives out itself (hosts/minima/borg-prune.nix), so a compromised
+    # server can't delete its backups.
 
     archiveBaseName = "FUJI---K3s";
     compression = "zlib";
