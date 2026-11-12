@@ -12,7 +12,11 @@ build_hosts=(edge fuji thinkcentre)
 # Evaluated only: mixi and minima-vm are aarch64, and the desktops build
 # themselves (the workstation pre-builds both, modules/nixos/desktop-prebuild.nix);
 # their rustc, Electron apps and CachyOS kernel took fuji hours.
-eval_hosts=(mixi minima-vm nixpad workstation)
+eval_hosts=(mixi minima-vm)
+# The desktops don't hold the servers back: if one doesn't evaluate with the
+# new versions, the pull request says why, and it gets fixed before its next
+# rebuild.
+desktop_hosts=(nixpad workstation)
 today=$(date +%F)
 branch=update-$today
 
@@ -65,6 +69,13 @@ done
 for h in "${eval_hosts[@]}"; do
   nix eval --raw ".#nixosConfigurations.$h.config.system.build.toplevel.drvPath" >/dev/null || failed+=("$h (evaluation)")
 done
+declare -A desktop_errors
+for h in "${desktop_hosts[@]}"; do
+  if ! err=$(nix eval --raw ".#nixosConfigurations.$h.config.system.build.toplevel.drvPath" 2>&1 >/dev/null); then
+    # The assertions, or else the last lines, are what says what to change.
+    desktop_errors[$h]=$(grep -E '^\s*- ' <<<"$err" || tail -n 5 <<<"$err")
+  fi
+done
 if ((${#failed[@]})); then
   notify "Weekly update failed" "Doesn't build with the new versions: ${failed[*]}. Nothing was proposed."
   exit 1
@@ -86,6 +97,14 @@ new_kernel=$(ver fuji config.boot.kernelPackages.kernel.version)
     echo "**⚠ New kernel series: $old_kernel → $new_kernel.**"
     echo
   fi
+  for h in "${!desktop_errors[@]}"; do
+    echo "**⚠ $h doesn't evaluate with these versions.** Fix its configuration before rebuilding it:"
+    echo
+    echo '```'
+    echo "${desktop_errors[$h]}"
+    echo '```'
+    echo
+  done
   for h in "${build_hosts[@]}"; do
     echo "### $h"
     echo
