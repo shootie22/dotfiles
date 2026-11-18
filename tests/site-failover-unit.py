@@ -287,6 +287,41 @@ check("go home: a leftover done mark alone is cleared too", home_round(hnodes(ho
 check("go home: another node's request is left alone", home_round(hnodes(holder="fuji", extra={"thinkcentre": {sf.HANDOVER + "matrix": "dell 1"}})), [])
 check("go home: nothing to clear, nothing done", home_round(hnodes(holder="fuji")), [])
 
+# Nobody holds it (2026-11-18): a move in the middle, or one that stopped.
+class R:
+    def __init__(self, out=""):
+        self.returncode, self.stdout, self.stderr = 0, out, ""
+
+def unheld_nodes():
+    fj = {"metadata": {"name": "fuji", "labels": {}, "annotations": {}},
+          "status": {"conditions": [{"type": "Ready", "status": "True", "lastTransitionTime": long_ago}]}}
+    tc = {"metadata": {"name": "thinkcentre", "labels": {}, "annotations": {}},
+          "status": {"conditions": [{"type": "Ready", "status": "True", "lastTransitionTime": long_ago}]}}
+    return {"items": [fj, tc]}
+
+def unheld_tick(when):
+    calls.clear()
+    sf.kubectl = lambda *a: R(json.dumps(unheld_nodes())) if a[:2] == ("get", "nodes") else R()
+    sf.cfg["services"] = {"matrix": dict(cfg["services"]["matrix"], initial=True)}
+    sf.data = lambda svc: "/y"
+    real = _t.time
+    sf.time.time = lambda: when
+    try:
+        sf.tick()
+    finally:
+        sf.time.time = real
+    return [c for c in calls if c[0] == "claim"]
+
+sf.unheld_since.clear()
+t1 = _t.time()
+check("unheld: not claimed the moment nobody holds it (a move in the middle)", unheld_tick(t1), [])
+check("unheld: nor 20 s later", unheld_tick(t1 + 20), [])
+check("unheld: claimed once nobody has held it for UNHELD_WAIT", unheld_tick(t1 + sf.UNHELD_WAIT + 1), [("claim", "matrix", None)])
+sf.unheld_since.clear()
+unheld_tick(t1)
+sf.unheld_since.pop("matrix", None)  # someone held it in between
+check("unheld: the wait starts over after someone held it", unheld_tick(t1 + sf.UNHELD_WAIT + 1), [])
+
 if failures:
     print(f"\n{len(failures)} failed")
     sys.exit(1)

@@ -68,6 +68,10 @@ state = {"api_ok_at": 0.0, "labels": {}, "holders": {}}
 seen = {}
 # (svc, reason) -> when it was last logged.
 warned = {}
+# svc -> since when nobody has held it, as seen from here. A move (claim())
+# has the service unheld for well under a second; this is far longer.
+unheld_since = {}
+UNHELD_WAIT = 30
 
 
 def log(msg):
@@ -342,16 +346,25 @@ def tick():
             seen[svc] = (holders, 0.0)  # not a move: a restart of this daemon
         elif seen[svc][0] != holders:
             seen[svc] = (holders, time.time())
+        if holders:
+            unheld_since.pop(svc, None)
         if NODE in holders or data(svc) is None:
             continue
         peer = nodes.get(s["peer"])
         peer_ok, since = ready(peer) if peer else (False, 0.0)
         if not holders:
             # Nobody has it: the first time (where the live data is), or a
-            # move that stopped halfway.
+            # move that stopped halfway. Only once nobody has had it for
+            # UNHELD_WAIT: a move takes the old holder's label off before it
+            # puts its own on, and a round that looks in between would claim
+            # it too, so both nodes held it (the VM test, 2026-11-18).
+            first = unheld_since.setdefault(svc, time.time())
+            if time.time() - first < UNHELD_WAIT:
+                continue
             if s["initial"] or (not peer_ok and has_copy(svc)):
                 claim(svc, None)
-        elif holders != [s["peer"]]:
+            continue
+        if holders != [s["peer"]]:
             log(f"{svc}: held by {holders}, not by this node's peer; leaving it alone")
         elif not peer_ok and time.time() - since >= cfg["fail_after"]:
             if has_copy(svc):

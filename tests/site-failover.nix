@@ -150,6 +150,8 @@ let
     dotfiles.siteFailover = { unfitAfter = 20; holdDown = 30; homeFitFor = 30; handoverTimeout = 300;
       # Never, so steps 1-8 stay where they land; step 9 opens it.
       homeWindow = "00:00-00:00"; };
+    # k3s-eviction.nix needs a budget since node-budget.nix; small, for 3 GB VMs.
+    dotfiles.nodeBudget = { coreMiB = 512; hostWorkMiB = 256; evictionMiB = 100; };
     # A stateless one: only the label (and the relay) should move.
     dotfiles.siteFailover.services.bopl2d = { stateless = true; inherit peer; initial = name == "thinkcentre"; };
     systemd.tmpfiles.rules = lib.optional (name == "thinkcentre") "d /srv/live/app 0755 root root -";
