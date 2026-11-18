@@ -161,8 +161,59 @@ def has_copy(svc):
     return d is not None and os.path.exists(os.path.join(d, ".standby-copy-ok"))
 
 
+# A planned k3s restart (a deploy that changes k3s, or `systemctl restart
+# k3s`): k3s's stop writes PLANNED on its own node, and /run/site-failover/
+# planned-restart here, just before it stops, while the API still answers.
+# k3s is down about 70 s and the containers keep running, so there's nothing
+# to fail over: on 2026-11-18 a deploy on fuji had the thinkcentre take over
+# everything fuji runs.
+#
+#   this node   keeps its services running without the cluster for up to
+#               PLANNED_LOCAL after the notice, instead of api_grace
+#   other node  doesn't take this node's services over until PLANNED_PEER
+#               after the notice, by its own clock
+#
+# PLANNED_LOCAL is well below PLANNED_PEER, so a node still always stops a
+# service before the other one may start it, even if the restart turns into
+# a real failure (or the clocks are off by up to a minute). Without a fresh
+# notice nothing changes. A k3s stop while the machine shuts down writes no
+# notice: a reboot fails over as before.
+PLANNED = PREFIX + "k3s-restarting"
+PLANNED_FILE = "/run/site-failover/planned-restart"
+PLANNED_LOCAL = 150
+PLANNED_PEER = 240
+
+
+def planned_here(now=None):
+    """When this node's k3s announced a planned restart, if within
+    PLANNED_LOCAL; else None."""
+    now = time.time() if now is None else now
+    try:
+        with open(PLANNED_FILE) as f:
+            at = float(f.read().split()[0])
+    except (OSError, ValueError, IndexError):
+        return None
+    return at if 0 <= now - at < PLANNED_LOCAL else None
+
+
+def planned_peer(node, now=None):
+    """When `node` announced a planned k3s restart, if within PLANNED_PEER
+    (and not from the future: a broken clock gets no say); else None."""
+    now = time.time() if now is None else now
+    try:
+        at = float(annotation(node, PLANNED) or "")
+    except ValueError:
+        return None
+    return at if -60 <= now - at < PLANNED_PEER else None
+
+
+def api_fresh(now=None):
+    now = time.time() if now is None else now
+    return now - state["api_ok_at"] < cfg["api_grace"] or planned_here(now) is not None
+
+
 def allowed(svc):
-    fresh = time.time() - state["api_ok_at"] < cfg["api_grace"]
+    fresh = api_fresh()
     mine = state["labels"].get(PREFIX + svc) == "active"
     # While handing it over (going home), it stays stopped here though the
     # label is still here.
@@ -334,6 +385,10 @@ def tick():
     state["api_ok_at"] = time.time()
     state["labels"] = me["metadata"].get("labels", {})
     state["nodes"] = nodes
+    # This node's notice of a planned k3s restart, once nobody heeds it any
+    # more (it only counts for PLANNED_PEER anyway).
+    if annotation(me, PLANNED) is not None and planned_peer(me) is None:
+        kubectl("annotate", "node", NODE, f"{PLANNED}-")
     if not ready(me)[0]:
         return
     pods = Pods()
@@ -367,7 +422,11 @@ def tick():
         if holders != [s["peer"]]:
             log(f"{svc}: held by {holders}, not by this node's peer; leaving it alone")
         elif not peer_ok and time.time() - since >= cfg["fail_after"]:
-            if has_copy(svc):
+            notice = planned_peer(peer)
+            if notice is not None:
+                warn(svc, "planned", f"{s['peer']} is restarting k3s (announced {time.time() - notice:.0f} s ago); "
+                     f"not taking over for up to {PLANNED_PEER} s after that")
+            elif has_copy(svc):
                 claim(svc, s["peer"])
             else:
                 log(f"{svc}: {s['peer']} is gone but no whole copy ever arrived here; not taking over")
@@ -1016,6 +1075,15 @@ def loop():
             tick()
         except Exception as e:
             log(f"round failed: {e}")
+        # Restarted by the same deploy that restarts k3s, this daemon knows
+        # nothing yet (no labels) and would fence everything it runs. During
+        # a planned restart it leaves things as they are until it has reached
+        # the cluster once, at most PLANNED_LOCAL after the notice.
+        if state["api_ok_at"] == 0.0 and planned_here() is not None:
+            warn("start", "planned", "k3s is restarting (planned); leaving the services as they are until the cluster answers")
+            write_metrics()
+            time.sleep(cfg["interval"])
+            continue
         # The fence runs every round, whatever happened above.
         for svc in cfg["services"]:
             try:

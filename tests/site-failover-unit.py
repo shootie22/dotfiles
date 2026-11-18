@@ -322,6 +322,69 @@ unheld_tick(t1)
 sf.unheld_since.pop("matrix", None)  # someone held it in between
 check("unheld: the wait starts over after someone held it", unheld_tick(t1 + sf.UNHELD_WAIT + 1), [])
 
+# A planned k3s restart (2026-11-18) ------------------------------------------
+check("planned: this node stops well before the other may start (a minute of clock skew to spare)",
+      sf.PLANNED_LOCAL + 60 < sf.PLANNED_PEER, True)
+sf.PLANNED_FILE = os.path.join(tempfile.mkdtemp(), "planned-restart")
+now = _t.time()
+check("planned here: no notice, nothing", sf.planned_here(now), None)
+with open(sf.PLANNED_FILE, "w") as f:
+    f.write(f"{now - 30:.0f}\n")
+check("planned here: a notice 30 s old counts", sf.planned_here(now) is not None, True)
+check("planned here: not after PLANNED_LOCAL", sf.planned_here(now + sf.PLANNED_LOCAL), None)
+sf.state["api_ok_at"] = now - 100
+check("api: lost after api_grace without a notice", sf.api_fresh(now + sf.PLANNED_LOCAL), False)
+check("api: still fresh during a planned restart", sf.api_fresh(now), True)
+with open(sf.PLANNED_FILE, "w") as f:
+    f.write("rubbish")
+check("planned here: an unreadable notice doesn't count", sf.planned_here(now), None)
+os.remove(sf.PLANNED_FILE)
+check("api: and without it, lost again", sf.api_fresh(now), False)
+
+def ann(at):
+    return {"metadata": {"annotations": {sf.PLANNED: f"{at:.0f}"}}}
+check("planned peer: a fresh notice counts", sf.planned_peer(ann(now - 30), now) is not None, True)
+check("planned peer: not after PLANNED_PEER", sf.planned_peer(ann(now - sf.PLANNED_PEER - 1), now), None)
+check("planned peer: not from the future", sf.planned_peer(ann(now + 120), now), None)
+check("planned peer: a little clock skew is fine", sf.planned_peer(ann(now + 30), now) is not None, True)
+check("planned peer: no notice", sf.planned_peer({"metadata": {}}, now), None)
+check("planned peer: rubbish", sf.planned_peer({"metadata": {"annotations": {sf.PLANNED: "x"}}}, now), None)
+
+# The other node's side: tick() with the cluster stubbed out. fuji is this
+# node, the thinkcentre holds gitea and has been NotReady for a while.
+def tnodes(notice=None, ready="False"):
+    tc = {"metadata": {"name": "thinkcentre", "labels": {"ha.radunenu.com/gitea": "active"}, "annotations": {}},
+          "status": {"conditions": [{"type": "Ready", "status": ready,
+                                     "lastTransitionTime": _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime(_t.time() - 60))}]}}
+    if notice is not None:
+        tc["metadata"]["annotations"][sf.PLANNED] = f"{notice:.0f}"
+    fj = {"metadata": {"name": "fuji", "labels": {}, "annotations": {}},
+          "status": {"conditions": [{"type": "Ready", "status": "True", "lastTransitionTime": long_ago}]}}
+    return {"items": [fj, tc]}
+
+def tick_with(nodes_json):
+    calls.clear()
+    sf.kubectl = lambda *a: (calls.append(("kubectl",) + a) or R(json.dumps(nodes_json))) if a[:2] == ("get", "nodes") else (calls.append(("kubectl",) + a) or R())
+    sf.cfg["services"] = {"gitea": dict(cfg["services"]["gitea"])}
+    sf.data = lambda svc: "/x"
+    sf.seen.clear()
+    sf.tick()
+    return [c for c in calls if c[0] == "claim"]
+
+check("takeover: a NotReady holder without a notice is taken over", tick_with(tnodes()), [("claim", "gitea", "thinkcentre")])
+check("takeover: not while it announced a planned k3s restart", tick_with(tnodes(notice=_t.time() - 60)), [])
+check("takeover: a notice older than PLANNED_PEER is ignored",
+      tick_with(tnodes(notice=_t.time() - sf.PLANNED_PEER - 5)), [("claim", "gitea", "thinkcentre")])
+check("takeover: a notice from the future is ignored", tick_with(tnodes(notice=_t.time() + 600)), [("claim", "gitea", "thinkcentre")])
+stale_me = tnodes()
+stale_me["items"][0]["metadata"]["annotations"][sf.PLANNED] = f"{_t.time() - 999:.0f}"
+tick_with(stale_me)
+check("tidy: this node's stale notice is removed", ("kubectl", "annotate", "node", "fuji", f"{sf.PLANNED}-") in calls, True)
+fresh_me = tnodes()
+fresh_me["items"][0]["metadata"]["annotations"][sf.PLANNED] = f"{_t.time() - 5:.0f}"
+tick_with(fresh_me)
+check("tidy: a fresh one stays", any(c[:2] == ("kubectl", "annotate") for c in calls), False)
+
 if failures:
     print(f"\n{len(failures)} failed")
     sys.exit(1)
