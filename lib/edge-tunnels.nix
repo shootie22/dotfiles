@@ -15,4 +15,7 @@
   fuji-initrd = { port = 2212; key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHX+m0QePnB9VWgcUCwN4tfFz+HbX30aodv98ZfYVK8P"; };
   thinkcentre = { port = 2221; key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH7V94GrjvW9A77JP+laYpx2xUHNZhYfw+SDXEWTB3se"; };
   thinkcentre-initrd = { port = 2222; key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGJ0PEdBpILbxvExwi85nv2ZgyPgogD+aWbJJVVVsxN+"; };
+  # Made by hosts/dell/bootstrap before the install, not on first activation.
+  dell = { port = 2231; key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINt0HfcKTzY+Iao1OERP0YEhbE30wPwzxKvwuG5Lom3F"; };
+  dell-initrd = { port = 2232; key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIlOLjHg8bywRFHNV57kCJrXMxEU5I8928CCbKQQlfL7"; };
 }

@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# Makes dell's identity once, before the install, so that everything works
+# from its first boot: SSH, sops-nix, Nebula, both edge tunnels, the 4 TB
+# disk's key.
+#
+#   hosts/dell/bootstrap
+#
+# Private keys go into secrets/dell-bootstrap.yaml (personal age key only;
+# hosts/dell/install takes them from there). Public halves go next to this
+# script. Secrets the machine reads at runtime go into secrets/dell.yaml and
+# secrets/dell-storage-key.bin, encrypted to dell's age key (derived from its
+# SSH host key) and the personal key.
+#
+# Afterwards, by hand (the script prints them again):
+#   - the two tunnel keys into lib/edge-tunnels.nix
+#   - sign hosts/dell/nebula.pub with the Nebula CA into lib/nebula/dell.crt
+#   - the Headscale pre-auth key and the k3s agent token into secrets/dell.yaml
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+here=hosts/dell
+personal=age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659
+
+if [[ -e secrets/dell-bootstrap.yaml ]]; then
+  printf 'secrets/dell-bootstrap.yaml exists already; dell has its identity.\n' >&2
+  printf 'Delete it (and secrets/dell.yaml, secrets/dell-storage-key.bin) only to start over.\n' >&2
+  exit 1
+fi
+
+run() { nix run --inputs-from . "nixpkgs#$1" -- "${@:2}"; }
+tool() { nix shell --inputs-from . "nixpkgs#$1" -c "${@:2}"; }
+
+work=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/dell-bootstrap.XXXX")
+trap 'find "$work" -type f -exec shred -u {} +; rm -rf "$work"' EXIT
+
+key() { ssh-keygen -q -t ed25519 -N "" -C "$2" -f "$work/$1"; }
+key host "root@dell"
+key initrd "root@dell-initrd"
+key tunnel "dell"
+key tunnel-initrd "dell-initrd"
+tool nebula nebula-cert keygen -out-key "$work/nebula.key" -out-pub "$work/nebula.pub"
+head -c 4096 /dev/urandom > "$work/storage.key"
+# What k3s would make up on its first start (/etc/rancher/node/password).
+# Kept, so a reinstalled dell is let back in as the same node instead of
+# being refused for its name being taken.
+head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$work/node-password"
+
+dell_age=$(run ssh-to-age < "$work/host.pub")
+
+# YAML block scalars, indented two spaces.
+block() { printf '%s: |\n' "$1"; sed 's/^/  /' "$2"; }
+{
+  block ssh_host_ed25519_key "$work/host"
+  block initrd_ssh_host_ed25519_key "$work/initrd"
+  block edge_tunnel_ed25519 "$work/tunnel"
+  block edge_tunnel_initrd_ed25519 "$work/tunnel-initrd"
+  block nebula_host_key "$work/nebula.key"
+  printf 'k3s_node_password: %s\n' "$(cat "$work/node-password")"
+} > "$work/bootstrap.yaml"
+cat > "$work/dell.yaml" <<'EOF'
+# Set both with: sops secrets/dell.yaml
+# headscale preauthkeys create --user <user> --expiration 24h
+tailscale_authkey: REPLACE_WITH_HEADSCALE_PREAUTH_KEY
+# On fuji: sudo cat /var/lib/rancher/k3s/server/agent-token
+k3s_agent_token: REPLACE_WITH_K3S_AGENT_TOKEN
+EOF
+
+# Encrypted in the scratch folder, where sops finds no .sops.yaml (whose rules
+# match paths under secrets/, not these files); moved in once all three exist.
+sops=$(nix build --no-link --print-out-paths --inputs-from . nixpkgs#sops)/bin/sops
+enc() { (cd "$work" && "$sops" --encrypt --age "$1" --input-type "$2" --output-type "$2" "$3" > "$4"); }
+enc "$personal" yaml bootstrap.yaml bootstrap.enc
+enc "$dell_age,$personal" yaml dell.yaml dell.enc
+enc "$dell_age,$personal" binary storage.key storage.enc
+install -m 0644 "$work/bootstrap.enc" secrets/dell-bootstrap.yaml
+install -m 0644 "$work/dell.enc" secrets/dell.yaml
+install -m 0644 "$work/storage.enc" secrets/dell-storage-key.bin
+
+install -m 0644 "$work/host.pub" "$here/ssh_host_ed25519_key.pub"
+install -m 0644 "$work/initrd.pub" "$here/initrd_ssh_host_ed25519_key.pub"
+install -m 0644 "$work/nebula.pub" "$here/nebula.pub"
+
+cat <<EOF
+
+dell's age key: $dell_age
+  (.sops.yaml: dell.yaml and dell-storage-key.bin go to it and the personal key)
+
+lib/edge-tunnels.nix:
+  dell = { port = 2231; key = "$(cut -d' ' -f1,2 "$work/tunnel.pub")"; };
+  dell-initrd = { port = 2232; key = "$(cut -d' ' -f1,2 "$work/tunnel-initrd.pub")"; };
+
+Nebula certificate, with the CA key:
+  nebula-cert sign -version 2 -ca-crt lib/nebula/ca.crt -ca-key <ca.key> \\
+    -name dell -networks 10.99.0.6/24 -groups servers \\
+    -in-pub hosts/dell/nebula.pub -out-crt lib/nebula/dell.crt
+
+Then: sops secrets/dell.yaml (pre-auth key and agent token).
+EOF

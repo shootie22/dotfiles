@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# Installs NixOS on dell's system disk, wiping it. The same command for the
+# first install and for every later one (a new system disk, a broken one):
+# dell comes back as itself, since everything that makes it dell is in
+# secrets/dell-bootstrap.yaml (hosts/dell/bootstrap made it).
+#
+#   hosts/dell/install [--format-storage | --no-storage] root@<LAN-IP> [nixos-anywhere options]
+#
+#   --format-storage   also wipe and format the 4 TB disk: the first install,
+#                      or a new HDD. Without it the 4 TB disk is never touched.
+#   --no-storage       go on although no formatted 4 TB disk is there
+#
+# The target runs the NixOS installer (USB) with an admin key in root's
+# authorized_keys (`sudo passwd root` there, then `ssh-copy-id root@<LAN-IP>`
+# from here). Run from a clean checkout on the same LAN. Which device is
+# which is hosts/dell/disks.nix.
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+usage='usage: hosts/dell/install [--format-storage | --no-storage] root@<LAN-IP> [nixos-anywhere options]'
+storage=keep
+case ${1:-} in
+  --format-storage) storage=format; shift ;;
+  --no-storage) storage=none; shift ;;
+esac
+target=${1:?$usage}
+die() { printf '%s\n' "$@" >&2; exit 1; }
+
+run() { nix run --inputs-from . "nixpkgs#$1" -- "${@:2}"; }
+dec() { run sops --decrypt --extract "[\"$1\"]" "$2"; }
+saved() { dec "$1" secrets/dell-bootstrap.yaml >/dev/null 2>&1; }
+
+# Nothing gets wiped until everything the first boot needs is in place.
+missing=()
+[[ -f secrets/dell-bootstrap.yaml ]] || missing+=("secrets/dell-bootstrap.yaml (run hosts/dell/bootstrap)")
+[[ -f lib/nebula/dell.crt ]] || missing+=("lib/nebula/dell.crt (sign hosts/dell/nebula.pub)")
+grep -q 'dell-initrd = { port = 2232; key = "ssh-' lib/edge-tunnels.nix \
+  || missing+=("dell's tunnel keys in lib/edge-tunnels.nix")
+if [[ $(dec k3s_agent_token secrets/dell.yaml) == REPLACE_* ]]; then
+  missing+=("k3s_agent_token in secrets/dell.yaml (sops secrets/dell.yaml)")
+fi
+# The tailnet: its saved identity (hosts/dell/save-state), or a pre-auth key
+# to join with the first time.
+if saved tailscaled_state; then
+  tailnet="its saved tailnet identity"
+elif [[ $(dec tailscale_authkey secrets/dell.yaml) == REPLACE_* ]]; then
+  missing+=("tailscale_authkey in secrets/dell.yaml (sops secrets/dell.yaml)")
+else
+  tailnet="the pre-auth key in secrets/dell.yaml (single-use: a new one if this isn't the first install)"
+fi
+if ((${#missing[@]})); then
+  printf 'Not ready to install, missing:\n' >&2
+  printf '  - %s\n' "${missing[@]}" >&2
+  exit 1
+fi
+if [[ -n $(git status --porcelain -- hosts/dell lib secrets flake.nix flake.lock modules) ]]; then
+  die 'Commit the dell changes first: comin deploys from main, and the' \
+    'first switch after the install should change nothing.'
+fi
+
+# Which disk is which (hosts/dell/disks.nix), checked on the machine before
+# anything is wiped.
+sys_dev=$(nix eval --raw --file hosts/dell/disks.nix system)
+sto_dev=$(nix eval --raw --file hosts/dell/disks.nix storage)
+label=/dev/disk/by-partlabel/disk-storage-luks
+printf 'Disks on %s:\n' "$target"
+ssh "$target" lsblk -do NAME,SIZE,ROTA,TRAN,MODEL
+declare -A t=()
+while read -r k v; do t[$k]=$v; done < <(ssh "$target" bash -s -- "$sys_dev" "$sto_dev" "$label" <<'EOF'
+col() { lsblk -dnbo "$1" "$2" 2>/dev/null | head -1 | tr -d ' '; }
+echo "sys_real $(readlink -f "$1")"; echo "sys_rota $(col ROTA "$1")"
+echo "sto_real $(readlink -f "$2")"; echo "sto_rota $(col ROTA "$2")"; echo "sto_size $(col SIZE "$2")"
+[ -e "$3" ] && echo "formatted /dev/$(lsblk -no PKNAME "$3" | head -1)"
+grep -qix e4:54:e8:67:26:e6 /sys/class/net/*/address && echo "lan_nic yes"
+EOF
+)
+fix="Set it in hosts/dell/disks.nix and commit."
+[[ -n ${t[sys_rota]:-} ]] || die "The system disk, $sys_dev, isn't there. $fix"
+[[ ${t[sys_rota]} == 0 ]] || die "The system disk, $sys_dev, is a spinning disk. $fix"
+[[ ${t[formatted]:-} != "${t[sys_real]}" ]] || die "The system disk, $sys_dev, is the formatted 4 TB disk. $fix"
+wipes=("$sys_dev (the system disk)")
+case $storage in
+  format)
+    [[ ${t[sto_rota]:-} == 1 ]] && ((${t[sto_size]:-0} >= 3000 * 1000 * 1000 * 1000)) \
+      && [[ ${t[sto_real]} != "${t[sys_real]}" ]] \
+      || die "The storage disk, $sto_dev, isn't there or isn't the 4 TB HDD. $fix"
+    wipes+=("$sto_dev (the 4 TB disk${t[formatted]:+, which already holds a formatted storage partition})")
+    ;;
+  keep)
+    [[ -n ${t[formatted]:-} ]] || die "No formatted 4 TB disk on the target (no $label)." \
+      'The first install, or a new HDD: --format-storage. To go on without it: --no-storage.'
+    ;;
+esac
+[[ ${t[lan_nic]:-} == yes ]] || {
+  ssh "$target" ip -br link >&2
+  die 'No NIC with the MAC in configuration.nix (systemd.network.links."10-lan") on the target:' \
+    'it names the NIC lan0, which the initrd unlock needs. A new mainboard: put its MAC there.'
+}
+
+extra=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/dell-install.XXXX")
+keys=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/dell-keys.XXXX")
+trap 'find "$extra" "$keys" -type f -exec shred -u {} +; rm -rf "$extra" "$keys"' EXIT
+
+put() { # put <bootstrap key> <path on the machine>
+  install -d -m 0755 "$extra$(dirname "$2")"
+  dec "$1" secrets/dell-bootstrap.yaml > "$extra$2"
+  chmod 0600 "$extra$2"
+}
+put ssh_host_ed25519_key /etc/ssh/ssh_host_ed25519_key
+install -m 0644 hosts/dell/ssh_host_ed25519_key.pub "$extra/etc/ssh/ssh_host_ed25519_key.pub"
+put initrd_ssh_host_ed25519_key /etc/secrets/initrd/ssh_host_ed25519_key
+put edge_tunnel_initrd_ed25519 /etc/secrets/initrd/edge_tunnel_ed25519
+chmod 0700 "$extra/etc/secrets/initrd"
+put edge_tunnel_ed25519 /etc/ssh/edge-tunnel/id_ed25519
+put nebula_host_key /var/lib/nebula-mesh/host.key
+install -m 0644 hosts/dell/nebula.pub "$extra/var/lib/nebula-mesh/host.pub"
+# The cluster knows dell by this password; with another one it's refused.
+put k3s_node_password /etc/rancher/node/password
+if saved tailscaled_state; then
+  put tailscaled_state /var/lib/tailscale/tailscaled.state
+  chmod 0700 "$extra/var/lib/tailscale"
+fi
+
+# The disks' keys, for disko only: they stay in the installer's /tmp.
+disko_keys=(--disk-encryption-keys /tmp/dell-root.pass "$keys/root.pass")
+if [[ $storage == format ]]; then
+  run sops --decrypt secrets/dell-storage-key.bin > "$keys/storage.key"
+  disko_keys+=(--disk-encryption-keys /tmp/dell-storage.key "$keys/storage.key")
+fi
+while :; do
+  read -r -s -p 'Passphrase for the system disk (asked at every boot): ' pass1; echo
+  read -r -s -p 'Again: ' pass2; echo
+  [[ -n $pass1 && $pass1 == "$pass2" ]] && break
+  echo 'They differ or are empty, again.'
+done
+printf '%s' "$pass1" > "$keys/root.pass"
+unset pass1 pass2
+
+printf '\nOn %s this wipes:\n' "$target"
+printf '  - %s\n' "${wipes[@]}"
+[[ $storage == format ]] || printf 'The 4 TB disk is left alone.\n'
+printf 'It joins the tailnet with %s.\n' "$tailnet"
+printf 'Type the address again to continue: '
+read -r confirm
+[[ $confirm == "$target" ]] || die 'Aborted.'
+
+# The system is the same either way; only the disko script differs
+# (storage-disk.nix).
+system=$(nix build --no-link --print-out-paths .#nixosConfigurations.dell.config.system.build.toplevel)
+if [[ $storage == format ]]; then
+  disko=$(nix build --no-link --print-out-paths .#packages.x86_64-linux.dell-disko-with-storage)
+else
+  disko=$(nix build --no-link --print-out-paths .#nixosConfigurations.dell.config.system.build.diskoScript)
+fi
+run nixos-anywhere --store-paths "$disko" "$system" --target-host "$target" \
+  --extra-files "$extra" "${disko_keys[@]}" "${@:2}"
+
+cat <<EOF
+
+Done. It reboots into the initrd and waits for the passphrase:
+  ssh -t -p 2222 -o HostKeyAlias=dell-initrd root@${target#*@}
+known_hosts lines, if this device doesn't have them yet:
+  dell-initrd $(cut -d' ' -f1,2 hosts/dell/initrd_ssh_host_ed25519_key.pub)
+  dell $(cut -d' ' -f1,2 hosts/dell/ssh_host_ed25519_key.pub)
+EOF
+saved tailscaled_state || printf '\nOnce it is on the tailnet: hosts/dell/save-state, so the next install keeps its tailnet identity.\n'

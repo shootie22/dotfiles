@@ -8,7 +8,7 @@ set -euo pipefail
 repo=git@github.com:shootie22/dotfiles.git
 work=$STATE_DIRECTORY/dotfiles
 relay=http://10.99.0.1:9190/alert  # the edge's alert relay, over Nebula
-build_hosts=(edge fuji thinkcentre)
+build_hosts=(edge fuji thinkcentre dell)
 # Evaluated only: mixi and minima-vm are aarch64, and the desktops build
 # themselves (the workstation pre-builds both, modules/nixos/desktop-prebuild.nix);
 # their rustc, Electron apps and CachyOS kernel took fuji hours.
@@ -75,7 +75,7 @@ new_kernel=$(ver fuji config.boot.kernelPackages.kernel.version)
 {
   echo "Built the x86_64 servers with the new versions, and evaluated minima-vm and the desktops. mixi isn't checked here (its config needs --impure)."
   echo
-  echo "Merging rolls it out: the edge, fuji, mixi, the thinkcentre and minima update themselves through comin; the desktops on their next rebuild (the workstation builds both in the background within an hour of the merge, while it's on). A new kernel needs a reboot by hand on fuji, mixi and the thinkcentre (their disks are unlocked by hand); the edge and minima reboot into it at 04:00."
+  echo "Merging rolls it out: the edge, fuji, mixi, the thinkcentre, dell and minima update themselves through comin; the desktops on their next rebuild (the workstation builds both in the background within an hour of the merge, while it's on). A new kernel needs a reboot by hand on fuji, mixi, the thinkcentre and dell (their disks are unlocked by hand); the edge and minima reboot into it at 04:00."
   echo
   minor() { cut -d. -f1,2 <<<"$1"; }
   if [[ $(minor "$old_k3s") != $(minor "$new_k3s") ]]; then
