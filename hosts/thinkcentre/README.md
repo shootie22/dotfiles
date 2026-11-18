@@ -3,7 +3,8 @@
 NixOS since 5 Oct 2026, on trial: it runs from the `nixos` volume next to
 Debian, and Debian is still there as the fallback until the trial ends
 (infrastructure docs/ha/runbooks/thinkcentre-reinstall.md). The NixOS config
-is configuration.nix, hardware-configuration.nix and boot-safety.nix, deployed
+is configuration.nix, hardware-configuration.nix and
+modules/nixos/boot-safety.nix (shared with dell), deployed
 by comin like the other servers.
 
 The rest of this file is the record of the Debian install's hand-managed

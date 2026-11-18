@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Saves the one piece of dell's identity that can't be made before the
+# install: its tailnet identity (tailscaled's state, which only exists once
+# it has joined Headscale). Run it once after the first install, and again
+# if dell ever logs in to the tailnet anew.
+#
+#   hosts/dell/save-state [<user>@<host>]     default: dell@dell
+#
+# It goes into secrets/dell-bootstrap.yaml (personal age key only), and
+# hosts/dell/install puts it back. A reinstalled dell is then the same
+# tailnet node, with the same address: no new pre-auth key, no stale node in
+# Headscale, nothing to change in its ACL. Without it a reinstall needs a new
+# pre-auth key and gets a new address.
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+host=${1:-dell@dell}
+run() { nix run --inputs-from . "nixpkgs#$1" -- "${@:2}"; }
+
+work=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/dell-state.XXXX")
+trap 'find "$work" -type f -exec shred -u {} +; rm -rf "$work"' EXIT
+
+ssh "$host" sudo cat /var/lib/tailscale/tailscaled.state > "$work/state"
+# Only a state that's logged in is worth keeping.
+run jq -e '."_current-profile" // "" | length > 0' "$work/state" >/dev/null \
+  || { printf '%s is not logged in to the tailnet; nothing saved.\n' "$host" >&2; exit 1; }
+# sops wants the value as a JSON string.
+run jq -Rs . "$work/state" > "$work/value"
+run sops set --value-file secrets/dell-bootstrap.yaml '["tailscaled_state"]' "$work/value"
+printf 'Saved in secrets/dell-bootstrap.yaml. Commit it.\n'

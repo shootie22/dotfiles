@@ -1,12 +1,13 @@
 # Boot safety for a machine nobody can reach physically (infrastructure #18,
-# docs/ha/runbooks/thinkcentre-reinstall.md). Every way a boot can go wrong
-# has to end in a reboot into something that works, never in a machine that
-# sits there unreachable. The layers:
+# docs/ha/runbooks/thinkcentre-reinstall.md). Written for the thinkcentre,
+# used by every DK server that has nobody next to it (the thinkcentre, dell).
+# Every way a boot can go wrong has to end in a reboot into something that
+# works, never in a machine that sits there unreachable. The layers:
 #
-#   1. Firmware: Debian stays first in the boot order during the trial;
-#      NixOS is only started with a one-time BootNext.
+#   1. Firmware: on the thinkcentre, Debian stayed first in the boot order
+#      during the trial; NixOS was only started with a one-time BootNext.
 #   2. systemd-boot: boot counting. A generation that fails to boot three times
-#      is marked bad and skipped; during the trial the next entry is Debian.
+#      is marked bad and skipped; during the trial the next entry was Debian.
 #   3. Things that turn "stuck" into "reboot": kernel panic, the hardware
 #      watchdog, nobody unlocking the disk in time, and a boot health check.
 #   4. No emergency mode: a missing data disk leaves the machine reachable
@@ -17,8 +18,9 @@ let
   cfg = config.dotfiles.bootSafety;
 in
 {
-  # Defaults are the real thinkcentre; the rehearsal VM (rehearsal/) shortens
-  # the timeouts and points the health check at QEMU's gateway.
+  # Defaults are the real thinkcentre; the rehearsal VM (hosts/thinkcentre/
+  # rehearsal) shortens the timeouts and points the health check at QEMU's
+  # gateway.
   options.dotfiles.bootSafety = {
     gateway = lib.mkOption {
       type = lib.types.str;
@@ -40,13 +42,19 @@ in
       default = true;
       description = "Offer Debian as the entry after all bad NixOS generations (trial only).";
     };
+    dataMounts = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ "/home" ];
+      description = "Mounts that must never stop the boot (layer 4).";
+    };
   };
 
   config = {
     boot.loader.systemd-boot.enable = true;
     # Debian stays the firmware's default until NixOS has proven itself, so
     # installing the bootloader must not touch the firmware's boot entries.
-    boot.loader.efi.canTouchEfiVariables = false;
+    # A machine with nothing else on its disk can let it (dell).
+    boot.loader.efi.canTouchEfiVariables = lib.mkDefault false;
 
     # Layer 2 ------------------------------------------------------------------
     boot.loader.systemd-boot.bootCounting = {
@@ -152,6 +160,6 @@ in
     # Data mounts never stop the boot; k3s waits for them instead (see
     # configuration.nix), so a missing disk means stopped services, not an
     # unreachable machine or data written to the wrong place.
-    fileSystems."/home".options = [ "nofail" ];
+    fileSystems = lib.genAttrs cfg.dataMounts (_: { options = [ "nofail" ]; });
   };
 }

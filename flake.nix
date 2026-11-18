@@ -1,5 +1,5 @@
 {
-  description = "Reproducible NixOS configurations for mixi, nixpad, workstation, fuji and edge";
+  description = "Reproducible NixOS configurations for mixi, nixpad, workstation, fuji, dell and edge";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
@@ -343,6 +343,26 @@
         disko.nixosModules.disko
       ];
     };
+
+    # Dell PowerEdge T30 in DK: k3s agent for x86 CI and compute
+    # (hosts/dell/README.md). Installed with hosts/dell/install.
+    nixosConfigurations.dell = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        disko.nixosModules.disko
+        sops-nix.nixosModules.sops
+        comin.nixosModules.comin
+        ./hosts/dell/configuration.nix
+      ];
+    };
+
+    # dell's disko script with the 4 TB disk in the layout too, for
+    # `hosts/dell/install --format-storage` (the first install). The system
+    # it installs is nixosConfigurations.dell either way.
+    packages.x86_64-linux.dell-disko-with-storage =
+      (nixosConfigurations.dell.extendModules {
+        modules = [ ./hosts/dell/storage-disk.nix ];
+      }).config.system.build.diskoScript;
 
     nixosConfigurations.edge = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";

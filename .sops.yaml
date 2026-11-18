@@ -60,3 +60,16 @@ creation_rules:
     age: age1qwuleu9k2gzgex43tyhhy80vgg9kym5dcdne32x4f0lw4xzsxy3spau58l,age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659
   - path_regex: secrets/thinkcentre-standby-copy\.yaml$
     age: age1yvhkx6094utagx3xdfzyq08pwkatyj8lyrpt7jpufq70v8yer9csv66dfc,age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659
+
+  # dell (DK, k3s agent): its age identity is derived from its SSH host key
+  # (ssh-to-age), as on the edge. The Headscale pre-auth key, the k3s agent
+  # token and the 4 TB disk's keyfile. Personal key so they can be edited and
+  # recovered here.
+  - path_regex: secrets/dell(\.yaml|-storage-key\.bin)$
+    age: age1j5kwl5jlefrjcvvt3jw3prmw62w4wyparan9xhckhfce2suf3e8qn6kzht,age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659
+
+  # dell's private keys (SSH host, initrd host, edge tunnels, Nebula), made
+  # once by hosts/dell/bootstrap and placed by hosts/dell/install. Personal
+  # key only: dell never reads this file.
+  - path_regex: secrets/dell-bootstrap\.yaml$
+    age: age1a4pmutcnee2nflw6t70lt4cq3u08sp5d60andp5hm7wmu9hwsp6qlcp659
