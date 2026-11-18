@@ -20,6 +20,11 @@
 #   8. the disk is freed: the thinkcentre is the standby and gets fuji's copies
 #   9. quiet hours: the service goes home to the thinkcentre by itself, with
 #      a last copy, so the counter carries on without losing a write
+#  10. a planned k3s restart on the holder (what a deploy does, 2026-11-18):
+#      the service isn't fenced and fuji doesn't take over
+#  11. a "planned" stop that never comes back: the thinkcentre still stops
+#      the service first (within PLANNED_LOCAL), and fuji takes over after
+#      PLANNED_PEER; never both
 # Times are printed.
 { pkgs, k3sPackage }:
 
@@ -444,5 +449,57 @@ pkgs.testers.runNixOSTest {
         thinkcentre.wait_until_succeeds("kubectl get nodes -l ha.radunenu.com/bopl2d=active -o name | grep -x node/thinkcentre", timeout=300)
         print(thinkcentre.succeed("journalctl -u sf-home | grep -iE 'home|hand' || true"))
         print(fuji.succeed("journalctl -u site-failover | grep -iE 'hand|copy' | tail -8 || true"))
+
+    def watch(seconds, until=None):
+        """Poll both sides once a second: never both at once. Returns when the
+        service first stopped on the thinkcentre and first ran on fuji (s)."""
+        t0 = time.time()
+        stopped = started = None
+        while time.time() - t0 < seconds:
+            on_fuji, on_tc = running_on(fuji), running_on(thinkcentre)
+            assert not (on_fuji and on_tc), "running in both sites at once"
+            if stopped is None and not on_tc:
+                stopped = time.time() - t0
+            if started is None and on_fuji:
+                started = time.time() - t0
+            if until and until(stopped, started):
+                break
+            time.sleep(1)
+        return stopped, started
+
+    with subtest("10. a planned k3s restart on the holder (a deploy, 2026-11-18): nothing moves"):
+        assert holder(api()) == "thinkcentre"
+        thinkcentre.succeed("systemctl start standby-copy-minecraft-hc.service")
+        n0 = count(thinkcentre, "/srv/live/app")
+        thinkcentre.succeed("systemctl restart --no-block k3s")
+        thinkcentre.wait_until_succeeds("test -s /run/site-failover/planned-restart", timeout=30)
+        stopped, started = watch(300)
+        print(f"TIME planned restart: stopped on the thinkcentre at {stopped}, ran on fuji at {started}")
+        assert started is None, "fuji took over during a planned k3s restart"
+        thinkcentre.wait_until_succeeds("kubectl get node thinkcentre | grep -w Ready", timeout=300)
+        assert holder(api()) == "thinkcentre", holder(api())
+        thinkcentre.fail("journalctl -u sf-home --since '-6 min' | grep -q 'fenced'")
+        thinkcentre.wait_until_succeeds(f"test \"$(cat /srv/live/app/n)\" -gt {n0 + 60}", timeout=300)
+        print(fuji.succeed("journalctl -u site-failover --since '-6 min' | grep -i 'restarting k3s' || true"))
+        # The pod may have been evicted and restarted in place if k3s took long
+        # (30 s toleration, like the real services): say so, it's not a move.
+        print("writers since:", sorted({l.split()[0] for l in thinkcentre.succeed("tail -400 /srv/live/app/log").splitlines()}))
+
+    with subtest("11. a planned restart that doesn't come back is still failed over, in order"):
+        thinkcentre.succeed("systemctl start standby-copy-minecraft-hc.service")
+        t0 = time.time()
+        thinkcentre.succeed("systemctl stop --no-block k3s")
+        thinkcentre.wait_until_succeeds("test -s /run/site-failover/planned-restart", timeout=30)
+        stopped, started = watch(600, until=lambda s, st: s is not None and st is not None)
+        print(f"TIME planned but gone: the thinkcentre stopped it after ~{stopped} s, fuji runs it after ~{started} s")
+        assert stopped is not None and started is not None, (stopped, started)
+        assert stopped < started
+        assert stopped <= 150 + 30, stopped    # PLANNED_LOCAL, and a round or two
+        assert started >= 240 - 60, started    # PLANNED_PEER, by fuji's clock
+        thinkcentre.succeed("systemctl start k3s")
+        fuji.wait_until_succeeds("kubectl get node thinkcentre | grep -w Ready", timeout=600)
+        time.sleep(30)
+        assert holder(fuji) == "fuji", holder(fuji)
+        assert not running_on(thinkcentre)
   '';
 }

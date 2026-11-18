@@ -235,6 +235,30 @@ in
     systemd.tmpfiles.rules = lib.mapAttrsToList (_: s: "d ${s.data} - - - -")
       (lib.filterAttrs (_: s: s.initial && !s.stateless && s.data != "" && !(lib.hasInfix "*" s.data)) cfg.services);
 
+    # A deploy that changes k3s restarts it in place, after the new system is
+    # activated, instead of stopping it first and starting it at the end:
+    # on 2026-11-18 fuji's k3s was down for 86 s in between, on top of its
+    # own restart. And the stop announces itself (site-failover.py, PLANNED),
+    # so neither node acts on a k3s that is only restarting. Not while the
+    # machine shuts down: a reboot fails over as before.
+    systemd.services.k3s = {
+      stopIfChanged = false;
+      preStop = ''
+        if [ "$(${pkgs.systemd}/bin/systemctl is-system-running 2>/dev/null)" != stopping ]; then
+          now=$(${pkgs.coreutils}/bin/date +%s)
+          if ${pkgs.coreutils}/bin/timeout 10 ${config.services.k3s.package}/bin/k3s kubectl annotate node \
+               ${config.networking.hostName} --overwrite "ha.radunenu.com/k3s-restarting=$now" >/dev/null; then
+            ${pkgs.coreutils}/bin/mkdir -p /run/site-failover
+            echo "$now" > /run/site-failover/planned-restart
+            echo "planned k3s restart announced"
+          else
+            echo "couldn't announce the k3s restart; site-failover treats it as an outage"
+          fi
+        fi
+        true
+      '';
+    };
+
     systemd.services.site-failover = {
       description = "Site failover for services with files";
       wantedBy = [ "multi-user.target" ];
