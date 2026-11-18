@@ -278,6 +278,15 @@ done = hnodes(extra={"thinkcentre": {sf.HANDOVER + "matrix": f"fuji {asked:.0f}"
 got = home_round(done)
 check("go home: takes over once the last copy is there", [c[0] for c in got], ["claim", "annotate", "strays"])
 
+# Home already, with our request still on the peer (2026-11-18).
+stale = hnodes(holder="fuji", extra={"thinkcentre": {sf.HANDOVER + "matrix": "fuji 1", sf.HANDED + "matrix": "2"}})
+check("go home: a leftover request is cleared once it's here", home_round(stale),
+      [("annotate", "thinkcentre", sf.HANDOVER + "matrix-", sf.HANDED + "matrix-")])
+check("go home: a leftover done mark alone is cleared too", home_round(hnodes(holder="fuji", extra={"thinkcentre": {sf.HANDED + "matrix": "2"}})),
+      [("annotate", "thinkcentre", sf.HANDED + "matrix-")])
+check("go home: another node's request is left alone", home_round(hnodes(holder="fuji", extra={"thinkcentre": {sf.HANDOVER + "matrix": "dell 1"}})), [])
+check("go home: nothing to clear, nothing done", home_round(hnodes(holder="fuji")), [])
+
 if failures:
     print(f"\n{len(failures)} failed")
     sys.exit(1)

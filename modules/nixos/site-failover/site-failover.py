@@ -810,6 +810,17 @@ def go_home():
         st = homing.setdefault(svc, {"since": None, "last": 0.0})
         peer = s["peer"]
         holders = holders_of(nodes, svc)
+        if holders == [NODE]:
+            # Home already. A request of ours still on the peer is left over
+            # (the clearing below failed, or the service came here some other
+            # way, or this process restarted in between), and any request
+            # anywhere stops every other service going home: on 2026-11-18
+            # six of them sat on fuji for a day after the services were back.
+            left = [k for k in (HANDOVER + svc, HANDED + svc) if annotation(nodes.get(peer), k)]
+            req = annotation(nodes.get(peer), HANDOVER + svc)
+            if left and (not req or req.split()[0] == NODE):
+                if annotate(peer, *(f"{k}-" for k in left)):
+                    log(f"{svc}: it's here; cleared the handover request left on {peer}")
         if not s.get("initial") or holders == [NODE] or not holders:
             st["since"] = None
             continue
