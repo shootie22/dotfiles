@@ -506,6 +506,31 @@ def moving(c):
     return st.get("targetPrimary") != st.get("currentPrimary") or "switchover" in phase or "failing over" in phase
 
 
+# A switchover takes seconds and a failover a minute or two. One that still
+# counts as underway after this long is stuck, and the other clusters stop
+# waiting for it. On 2026-11-18 games-pg counted as switching over for six
+# hours after a failover (its old primary didn't become ready again), and
+# three healthy databases waited behind it in the other site.
+STUCK = 900
+moving_since = {}  # "namespace/cluster" -> since when it has been moving
+
+
+def busy_with(clusters, now):
+    """The cluster whose move the others wait for (one move at a time), or
+    None: the first that is moving and hasn't been for longer than STUCK."""
+    busy, names = None, set()
+    for c in clusters:
+        if not moving(c):
+            continue
+        name = f"{c['metadata']['namespace']}/{c['metadata']['name']}"
+        names.add(name)
+        if now - moving_since.setdefault(name, now) < STUCK and busy is None:
+            busy = name
+    for name in [n for n in moving_since if n not in names]:
+        moving_since.pop(name)
+    return busy
+
+
 def pod_ready(pod):
     return any(c["type"] == "Ready" and c["status"] == "True"
                for c in pod.get("status", {}).get("conditions", []))
@@ -624,9 +649,9 @@ def place():
         for x in pods:
             by.setdefault((x["metadata"]["namespace"], x["metadata"]["labels"].get("cnpg.io/cluster")), []).append(x)
         # One move at a time: none while any cluster is switching or failing
-        # over. Only that: a cluster that's merely unhealthy mustn't hold up
-        # every other one.
-        busy = next((f"{c['metadata']['namespace']}/{c['metadata']['name']}" for c in clusters if moving(c)), None)
+        # over. Only that: a cluster that's merely unhealthy, or stuck halfway,
+        # mustn't hold up every other one.
+        busy = busy_with(clusters, now)
         seen_now = set()
         for c in clusters:
             key = (c["metadata"]["namespace"], c["metadata"]["name"])
