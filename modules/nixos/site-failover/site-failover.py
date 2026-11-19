@@ -681,6 +681,62 @@ def db_move(cluster, instances, target, how, busy, me_ok, st, now):
     return "promote", here[0]
 
 
+
+def replica_streaming(ns, primary, replica):
+    """Whether replica is streaming from primary right now (pg_stat_replication
+    on the primary). A switchover to a replica that isn't loses what it hasn't
+    received: on 2026-11-13 synapse-db was switched over seconds after its
+    replica had dropped out ("replication timeout"), and Synapse couldn't send
+    a message for five days (infrastructure
+    docs/incidents/2026-11-19-mesh-restart-failovers.md)."""
+    r = kubectl("-n", ns, "exec", primary, "-c", "postgres", "--", "psql", "-At", "-c",
+                f"SELECT state FROM pg_stat_replication WHERE application_name = '{replica}'")
+    return r.returncode == 0 and r.stdout.strip() == "streaming"
+
+
+# Workloads to restart after their database's primary changes, on the Cluster:
+#   placement.radunenu.com/restart-on-switch: deployment/synapse,deployment/mas
+# Synapse keeps what it wrote in memory; after a promotion that lost the last
+# writes, new events point at events the database no longer has and every
+# message send fails until it restarts (same incident). Which promotion a
+# workload was last restarted for is kept on the workload itself, so this
+# survives site-failover restarts, and the first look only records it.
+RESTART_ON_SWITCH = "placement.radunenu.com/restart-on-switch"
+RESTARTED_FOR = "placement.radunenu.com/restarted-for-primary"
+
+
+def restart_after_switch(cluster):
+    """Restart the cluster's restart-on-switch workloads once per promotion.
+    Returns what was restarted."""
+    meta = cluster["metadata"]
+    workloads = [w.strip() for w in (meta.get("annotations") or {}).get(RESTART_ON_SWITCH, "").split(",") if w.strip()]
+    status = cluster.get("status", {})
+    primary = status.get("currentPrimary")
+    if not workloads or not primary or moving(cluster):
+        return []
+    ns = meta["namespace"]
+    want = f"{primary} {status.get('currentPrimaryTimestamp', '')}".strip()
+    restarted = []
+    for w in workloads:
+        r = kubectl("-n", ns, "get", w, "-o",
+                    "jsonpath={.metadata.annotations." + RESTARTED_FOR.replace(".", "\\.") + "}")
+        if r.returncode != 0:
+            log(f"{ns}/{meta['name']}: can't read {w}: {(r.stderr or '').strip()}")
+            continue
+        have = r.stdout.strip()
+        if have == want:
+            continue
+        if have:
+            rr = kubectl("-n", ns, "rollout", "restart", w)
+            log(f"{ns}/{meta['name']}: primary is {primary} now (was: {have}); restarting {w}: " +
+                ("done" if rr.returncode == 0 else f"failed: {(rr.stderr or '').strip()}"))
+            if rr.returncode != 0:
+                continue
+            restarted.append(w)
+        kubectl("-n", ns, "annotate", w, "--overwrite", f"{RESTARTED_FOR}={want}")
+    return restarted
+
+
 def requires_label(pod, svc):
     key = PREFIX + svc
     spec = pod.get("spec", {})
@@ -739,6 +795,7 @@ def place():
                 placed.pop(key, None)
                 continue
             seen_now.add(key)
+            restart_after_switch(c)
             st = placed.setdefault(key, {"since": None, "last": 0.0})
             action, detail = db_move(c, inst, target, how, busy if busy != f"{key[0]}/{key[1]}" else None, me_ok, st, now)
             primary = c.get("status", {}).get("currentPrimary")
@@ -748,6 +805,11 @@ def place():
             if action == "wait":
                 warn(name, detail.split(" ")[0], f"{name}'s primary is on {where}, belongs here ({why}); {detail}")
             elif action == "promote":
+                if not replica_streaming(key[0], primary, detail):
+                    st["since"] = None
+                    warn(name, "lagging", f"{name}'s primary is on {where}, belongs here ({why}); "
+                         f"{detail} isn't streaming from {primary}, not switching over to it")
+                    continue
                 st["last"], st["since"] = now, None
                 busy = name
                 r = run(*cfg["cnpg_cli"], "-n", key[0], "promote", key[1], detail, timeout=30)
