@@ -28,7 +28,13 @@
   # CI jobs run in Kata VMs (modules/nixos/kata.nix, infrastructure
   # kubernetes/services/ci-runner). The main reason this machine exists:
   # CI off the thinkcentre, which holds DK's control plane and services.
-  dotfiles.kata = { enable = true; rootlessVmm = true; };
+  # CI VMs write at most 50 MB/s here, not kata.nix's 100. The README's
+  # stall test on 2026-11-19: flat out the SSD took about 92 MB/s, and a
+  # small job's synced writes next to it waited 139 ms at the 95th percentile;
+  # with the writer capped at 50 MB/s, 2.6 ms. A pause of seconds still comes
+  # about once in a hundred either way: that's this SSD (no DRAM, 26% life
+  # left), and a better one is the fix.
+  dotfiles.kata = { enable = true; rootlessVmm = true; ciIo.writeMBps = 50; };
 
   # Boot -----------------------------------------------------------------------
   # boot-safety.nix: systemd-boot with boot counting, the hardware watchdog,
