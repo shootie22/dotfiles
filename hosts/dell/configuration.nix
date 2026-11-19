@@ -206,6 +206,14 @@
     "vm.dirty_bytes" = 256 * 1024 * 1024;
   };
 
+  # No SATA link power saving. With the kernel's default here
+  # (min_power_with_partial) the Kingston SSD stopped answering a write three
+  # times in 15 minutes of a full-disk write test (2026-11-19, "SError:
+  # { CommWake }", link reset after 30 s); with max_performance it ran another
+  # 50 minutes without one. Despite the name, the option applies to desktop
+  # chipsets too. 1 = max_performance.
+  boot.kernelParams = [ "ahci.mobile_lpm_policy=1" ];
+
   # Kubernetes -----------------------------------------------------------------
   services.k3s = {
     enable = true;
