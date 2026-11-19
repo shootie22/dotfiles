@@ -27,8 +27,7 @@ let
       mixi) port=${toString tunnels."mixi${suffix}".port} user=mixa alias=100.64.0.2 ;;
       fuji) port=${toString tunnels."fuji${suffix}".port} user=fuji alias=100.64.0.1 ;;
       thinkcentre) port=${toString tunnels."thinkcentre${suffix}".port} user=main alias=100.64.0.4 ;;
-      # Checked under its own name until its tailnet address is known.
-      dell) port=${toString tunnels."dell${suffix}".port} user=dell alias=dell ;;
+      dell) port=${toString tunnels."dell${suffix}".port} user=dell alias=100.64.0.23 ;;
       *) echo "usage: $(basename "$0") <mixi|fuji|thinkcentre|dell> [ssh args]" >&2; exit 2 ;;
     esac
     host=$1; shift
