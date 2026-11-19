@@ -6,7 +6,7 @@
 {
   imports = [
     ./hardware-configuration.nix
-    ./boot-safety.nix
+    ../../modules/nixos/boot-safety.nix
     ../../modules/nixos/k3s-tailnet-guard.nix
     ../../modules/nixos/k3s-dns.nix
     ../../modules/nixos/e1000e-guard

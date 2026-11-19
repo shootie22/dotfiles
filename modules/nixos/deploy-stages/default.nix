@@ -12,7 +12,7 @@
 # reaches the next.
 #
 # The stages (set in each host's configuration):
-#   thinkcentre, mixi   first (no upstream)
+#   thinkcentre, mixi, dell   first (no upstream)
 #   fuji, minima        after thinkcentre and mixi
 #   edge                after fuji
 #

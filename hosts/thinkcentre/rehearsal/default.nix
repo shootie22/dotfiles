@@ -36,7 +36,7 @@ let
 in
 {
   imports = [
-    ../boot-safety.nix
+    ../../../modules/nixos/boot-safety.nix
     ../../../modules/nixos/initrd-dhcp-handover.nix
     (modulesPath + "/profiles/qemu-guest.nix")
   ];
