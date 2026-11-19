@@ -385,6 +385,80 @@ fresh_me["items"][0]["metadata"]["annotations"][sf.PLANNED] = f"{_t.time() - 5:.
 tick_with(fresh_me)
 check("tidy: a fresh one stays", any(c[:2] == ("kubectl", "annotate") for c in calls), False)
 
+# A switchover only to a replica that's streaming (2026-11-13: synapse-db was
+# switched over seconds after its replica had dropped out).
+class R:
+    def __init__(self, rc=0, out="", err=""):
+        self.returncode, self.stdout, self.stderr = rc, out, err
+
+
+kc = []
+answers = {}
+
+
+def fake_kubectl(*args):
+    kc.append(args)
+    for k, v in answers.items():
+        if k in " ".join(args):
+            return v
+    return R()
+
+
+real_kubectl = sf.kubectl
+sf.kubectl = fake_kubectl
+answers = {"pg_stat_replication": R(out="streaming\n")}
+check("switchover: a streaming replica is fine", sf.replica_streaming("matrix", "synapse-db-2", "synapse-db-1"), True)
+check("switchover: asks the primary about that replica",
+      kc[-1][:6] + (kc[-1][-1],), ("-n", "matrix", "exec", "synapse-db-2", "-c", "postgres",
+                                   "SELECT state FROM pg_stat_replication WHERE application_name = 'synapse-db-1'"))
+answers = {"pg_stat_replication": R(out="catchup\n")}
+check("switchover: a replica catching up isn't", sf.replica_streaming("matrix", "a", "b"), False)
+answers = {"pg_stat_replication": R(out="")}
+check("switchover: a replica that isn't connected isn't", sf.replica_streaming("matrix", "a", "b"), False)
+answers = {"pg_stat_replication": R(rc=1, err="exec failed")}
+check("switchover: no answer from the primary isn't", sf.replica_streaming("matrix", "a", "b"), False)
+
+
+# Restart after a primary change (placement.radunenu.com/restart-on-switch).
+def sw_cluster(primary="synapse-db-2", when="2026-11-19T16:38:40Z", target=None, ann="deployment/synapse, deployment/mas"):
+    return {"metadata": {"name": "synapse-db", "namespace": "matrix",
+                         "annotations": {sf.RESTART_ON_SWITCH: ann} if ann else {}},
+            "status": {"currentPrimary": primary, "targetPrimary": target or primary,
+                       "currentPrimaryTimestamp": when, "phase": "Cluster in healthy state"}}
+
+
+kc.clear()
+answers = {"get deployment/synapse": R(out=""), "get deployment/mas": R(out="")}
+check("restart: first look restarts nothing", sf.restart_after_switch(sw_cluster()), [])
+check("restart: first look records the promotion",
+      [a for a in kc if a[2] == "annotate"],
+      [("-n", "matrix", "annotate", "deployment/synapse", "--overwrite", f"{sf.RESTARTED_FOR}=synapse-db-2 2026-11-19T16:38:40Z"),
+       ("-n", "matrix", "annotate", "deployment/mas", "--overwrite", f"{sf.RESTARTED_FOR}=synapse-db-2 2026-11-19T16:38:40Z")])
+kc.clear()
+answers = {"get deployment": R(out="synapse-db-2 2026-11-19T16:38:40Z")}
+check("restart: same promotion, nothing", sf.restart_after_switch(sw_cluster()), [])
+check("restart: same promotion, no writes", [a for a in kc if a[2] in ("annotate", "rollout")], [])
+kc.clear()
+answers = {"get deployment": R(out="synapse-db-1 2026-11-13T01:15:20Z")}
+check("restart: a new promotion restarts both", sf.restart_after_switch(sw_cluster()), ["deployment/synapse", "deployment/mas"])
+check("restart: ...with rollout restart",
+      [a for a in kc if a[2] == "rollout"],
+      [("-n", "matrix", "rollout", "restart", "deployment/synapse"), ("-n", "matrix", "rollout", "restart", "deployment/mas")])
+kc.clear()
+check("restart: not while it's still switching over",
+      sf.restart_after_switch(sw_cluster(target="synapse-db-1")), [])
+check("restart: ...and nothing asked", kc, [])
+check("restart: no annotation, nothing", sf.restart_after_switch(sw_cluster(ann=None)), [])
+kc.clear()
+answers = {"get deployment/synapse": R(out="synapse-db-1 x"), "rollout restart deployment/synapse": R(rc=1, err="forbidden"),
+           "get deployment/mas": R(out="synapse-db-1 x")}
+check("restart: a failed restart isn't recorded as done",
+      ("-n", "matrix", "annotate", "deployment/synapse", "--overwrite", f"{sf.RESTARTED_FOR}=synapse-db-2 2026-11-19T16:38:40Z") in kc, False)
+sf.restart_after_switch(sw_cluster())
+check("restart: ...so the next look tries again",
+      ("-n", "matrix", "annotate", "deployment/synapse", "--overwrite", f"{sf.RESTARTED_FOR}=synapse-db-2 2026-11-19T16:38:40Z") in kc, False)
+sf.kubectl = real_kubectl
+
 if failures:
     print(f"\n{len(failures)} failed")
     sys.exit(1)
