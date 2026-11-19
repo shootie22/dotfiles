@@ -38,6 +38,15 @@ in
     }
 
     (lib.mkIf (builtins.pathExists certFile) {
+      # A deploy that changes Nebula restarts it in place, next to k3s, instead
+      # of stopping it at the start of the switch and starting it at the end:
+      # k3s restarts in between (after nebula@mesh), waits up to 2 minutes for
+      # the mesh address, and fails without it, so on 2026-11-19 the
+      # thinkcentre was off the mesh for 2.5 minutes, fuji took over its
+      # services and Synapse's database switched under it. In place, Nebula is
+      # back within seconds and k3s, ordered after it, starts once it is.
+      systemd.services."nebula@mesh".stopIfChanged = false;
+
       services.nebula.networks.mesh = {
         enable = true;
         ca = ../../lib/nebula/ca.crt;
