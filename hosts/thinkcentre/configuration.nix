@@ -56,6 +56,7 @@
     bopl2d = { stateless = true; peer = "fuji"; initial = true; };
     crosty = { stateless = true; peer = "fuji"; initial = true; };
     megabopl3d = { stateless = true; peer = "fuji"; initial = true; };
+    maec = { stateless = true; peer = "fuji"; initial = true; };
     privatebin = { data = "/home/main/services/privatebin/data"; peer = "fuji"; initial = true; };
     send-uploads = { data = "/home/main/storage/send-uploads"; peer = "fuji"; initial = true; };
     audiobookshelf = {

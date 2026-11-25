@@ -60,6 +60,7 @@
     bopl2d = { stateless = true; peer = "thinkcentre"; };
     crosty = { stateless = true; peer = "thinkcentre"; };
     megabopl3d = { stateless = true; peer = "thinkcentre"; };
+    maec = { stateless = true; peer = "thinkcentre"; };
     privatebin = { data = "/srv/standby/thinkcentre/privatebin"; peer = "thinkcentre"; };
     send-uploads = { data = "/srv/standby/thinkcentre/send-uploads"; peer = "thinkcentre"; };
     audiobookshelf = {

@@ -27,7 +27,10 @@ let
     { port = 24567; proto = "udp"; name = "Bopl 2D"; service = "bopl2d"; }
     { port = 25567; proto = "tcp"; name = "crosty-hc java"; service = "crosty-hc"; } # hub: crosty-hc
     { port = 25566; proto = "tcp"; name = "hub-test java"; service = "hub-test"; } # hub: hub-test
-  ];
+  ]
+  # Mental Asylum (infrastructure kubernetes/services/maec): a range, handed
+  # out to its game servers at run time, so a new game needs no line here.
+  ++ map (p: { port = p; proto = "udp"; name = "Mental Asylum"; service = "maec"; }) (lib.range 24600 24615);
   portsOf = proto: map (p: p.port) (lib.filter (p: p.proto == proto) ports);
   services = lib.unique (lib.filter (s: s != null) (map (p: p.service) ports));
   targetsFile = "/run/game-relay/targets.conf";
