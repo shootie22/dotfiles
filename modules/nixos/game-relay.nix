@@ -25,12 +25,28 @@ let
     { port = 5520;  proto = "udp"; name = "Hytale"; service = "hytale"; }
     { port = 7777;  proto = "udp"; name = "Crosty"; service = "crosty"; }
     { port = 24567; proto = "udp"; name = "Bopl 2D"; service = "bopl2d"; }
+    # Mental Asylum (infrastructure kubernetes/services/maec): a range handed
+    # out to its game servers at run time, so a new game needs no line here.
+    # Written out one by one: Hub reads this list as text.
+    { port = 24600; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
+    { port = 24601; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
+    { port = 24602; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
+    { port = 24603; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
+    { port = 24604; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
+    { port = 24605; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
+    { port = 24606; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
+    { port = 24607; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
+    { port = 24608; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
+    { port = 24609; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
+    { port = 24610; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
+    { port = 24611; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
+    { port = 24612; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
+    { port = 24613; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
+    { port = 24614; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
+    { port = 24615; proto = "udp"; name = "Mental Asylum"; service = "maec"; }
     { port = 25567; proto = "tcp"; name = "crosty-hc java"; service = "crosty-hc"; } # hub: crosty-hc
     { port = 25566; proto = "tcp"; name = "hub-test java"; service = "hub-test"; } # hub: hub-test
-  ]
-  # Mental Asylum (infrastructure kubernetes/services/maec): a range, handed
-  # out to its game servers at run time, so a new game needs no line here.
-  ++ map (p: { port = p; proto = "udp"; name = "Mental Asylum"; service = "maec"; }) (lib.range 24600 24615);
+  ];
   portsOf = proto: map (p: p.port) (lib.filter (p: p.proto == proto) ports);
   services = lib.unique (lib.filter (s: s != null) (map (p: p.service) ports));
   targetsFile = "/run/game-relay/targets.conf";
