@@ -56,3 +56,4 @@ prismlauncher
 joplin-desktop
 gh
 thunderbird
+git-lfs  # big files in git (MAEC's 3D models)
